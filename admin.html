@@ -121,6 +121,24 @@
                                 <textarea id="pDesc" required rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm"></textarea>
                             </div>
                             <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
+                                <input type="number" id="pQuantity" required min="0" value="1" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">رقم الموديل (SKU)</label>
+                                    <input type="text" id="pSku" placeholder="اختياري" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
+                                    <input type="text" id="pBrand" placeholder="اختياري" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
+                                <input type="text" id="pWarranty" placeholder="اختياري (مثل: سنة واحدة)" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            </div>
+                            <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">صورة المنتج</label>
                                 <input type="file" id="pImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
                                 <img id="imagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
@@ -145,7 +163,7 @@
                                         <th class="py-3 pr-2">المنتج</th>
                                         <th class="py-3">القسم</th>
                                         <th class="py-3">السعر</th>
-                                        <th class="py-3">الحالة</th>
+                                        <th class="py-3">الكمية المتاحة</th>
                                         <th class="py-3 text-center">إجراءات</th>
                                     </tr>
                                 </thead>
@@ -198,6 +216,9 @@
                             <input type="file" id="storeBgInput" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
                             <img id="currentBgPreview" src="" alt="Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
+                        <button onclick="saveBrandingSettings()" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ مظهر الموقع
+                        </button>
                     </div>
                 </div>
             </div>
