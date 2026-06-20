@@ -40,7 +40,10 @@ const productSchema = new mongoose.Schema({
   description: [String],
   image: { type: String, required: true },
   imagePublicId: String,
-  inStock: { type: Boolean, default: true },
+  stockQuantity: { type: Number, default: 1 },
+  sku: { type: String, default: '' },
+  warranty: { type: String, default: '' },
+  brand: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -61,7 +64,7 @@ app.get('/api/products', async (req, res) => {
 // 2. إضافة منتج جديد مع رفع الصورة
 app.post('/api/products', async (req, res) => {
   try {
-    const { title, category, price, description } = req.body;
+    const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
 
     if (!req.files || !req.files.image) {
       return res.status(400).json({ message: 'برجاء رفع صورة للمنتج' });
@@ -82,7 +85,11 @@ app.post('/api/products', async (req, res) => {
       price,
       description: descArray,
       image: result.secure_url,
-      imagePublicId: result.public_id
+      imagePublicId: result.public_id,
+      stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
+      sku: sku || '',
+      warranty: warranty || '',
+      brand: brand || ''
     });
 
     await newProduct.save();
@@ -92,19 +99,19 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
-// 3. تعديل حالة المخزون (متوفر / غير متوفر)
-app.put('/api/products/:id/stock', async (req, res) => {
+// 3. تعديل كمية المخزون
+app.put('/api/products/:id/quantity', async (req, res) => {
   try {
-    const { inStock } = req.body;
+    const { stockQuantity } = req.body;
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
-      { inStock },
+      { stockQuantity: parseInt(stockQuantity, 10) || 0 },
       { new: true }
     );
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
     res.json(updatedProduct);
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث المخزون', error: err.message });
+    res.status(500).json({ message: 'خطأ أثناء تحديث الكمية', error: err.message });
   }
 });
 

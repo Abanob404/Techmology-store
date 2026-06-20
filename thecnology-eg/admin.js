@@ -123,10 +123,12 @@ async function loadAdminProducts() {
                 <td class="py-4 text-on-surface-variant">${p.category}</td>
                 <td class="py-4 font-mono-data text-primary">${p.price}</td>
                 <td class="py-4">
-                    <select id="avail-${p._id}" class="bg-surface border ${p.inStock ? 'border-green-500 text-green-400' : 'border-red-500 text-red-400'} rounded px-2 py-1 focus:outline-none text-xs font-bold" onchange="updateStock('${p._id}', this.value)">
-                        <option value="true" ${p.inStock ? 'selected' : ''}>متوفر</option>
-                        <option value="false" ${!p.inStock ? 'selected' : ''}>نفذت الكمية</option>
-                    </select>
+                    <div class="flex items-center justify-center gap-2">
+                        <input type="number" id="qty-${p._id}" value="${p.stockQuantity !== undefined ? p.stockQuantity : 1}" min="0" class="w-16 bg-surface border ${p.stockQuantity > 0 || p.stockQuantity === undefined ? 'border-green-500 text-green-400' : 'border-red-500 text-red-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
+                        <button onclick="updateQuantity('${p._id}')" class="bg-primary/20 text-primary hover:bg-primary hover:text-white px-2 py-1 rounded transition-colors text-xs" title="حفظ الكمية">
+                            <span class="material-symbols-outlined text-[14px]">save</span>
+                        </button>
+                    </div>
                 </td>
                 <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
                     <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
@@ -141,19 +143,20 @@ async function loadAdminProducts() {
 }
 
 // ==========================================
-// Update Stock Status
+// Update Stock Quantity
 // ==========================================
-window.updateStock = async function(id, inStockValue) {
-    const inStock = inStockValue === 'true';
+window.updateQuantity = async function(id) {
+    const qtyInput = document.getElementById(`qty-${id}`);
+    const newQty = parseInt(qtyInput.value, 10) || 0;
     try {
-        const response = await fetch(`${API_URL}/${id}/stock`, {
+        const response = await fetch(`${API_URL}/${id}/quantity`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ inStock })
+            body: JSON.stringify({ stockQuantity: newQty })
         });
         
         if (response.ok) {
-            showToast('✅ تم تحديث حالة التوفر بنجاح!');
+            showToast('✅ تم تحديث الكمية بنجاح!');
             loadAdminProducts(); // Reload to update colors
         } else {
             const data = await response.json();
@@ -232,12 +235,20 @@ if (addForm) {
         const category = document.getElementById('pCategory').value;
         const price = document.getElementById('pPrice').value;
         const desc = document.getElementById('pDesc').value;
+        const quantity = document.getElementById('pQuantity').value;
+        const sku = document.getElementById('pSku').value;
+        const warranty = document.getElementById('pWarranty').value;
+        const brand = document.getElementById('pBrand').value;
 
         const formData = new FormData();
         formData.append('title', title);
         formData.append('category', category);
         formData.append('price', price);
         formData.append('description', desc);
+        formData.append('stockQuantity', quantity);
+        formData.append('sku', sku);
+        formData.append('warranty', warranty);
+        formData.append('brand', brand);
         formData.append('image', fileInput.files[0]);
 
         const submitBtn = addForm.querySelector('button[type="submit"]');
@@ -373,6 +384,9 @@ window.deleteUser = function(id) {
     showToast('تم حذف المستخدم.');
 };
 
+let tempLogo = null;
+let tempBg = null;
+
 // ==========================================
 // Store Logo Upload
 // ==========================================
@@ -393,13 +407,11 @@ if (storeLogoInput) {
         if (file) {
             const reader = new FileReader();
             reader.onload = function(event) {
-                const base64Logo = event.target.result;
-                localStorage.setItem('tech_store_logo', base64Logo);
+                tempLogo = event.target.result;
                 if (currentLogoPreview) {
-                    currentLogoPreview.src = base64Logo;
+                    currentLogoPreview.src = tempLogo;
                     currentLogoPreview.classList.remove('hidden');
                 }
-                showToast('✅ تم تغيير اللوجو بنجاح!');
             };
             reader.readAsDataURL(file);
         }
@@ -426,18 +438,35 @@ if (storeBgInput) {
         if (file) {
             const reader = new FileReader();
             reader.onload = function(event) {
-                const base64Bg = event.target.result;
-                localStorage.setItem('tech_store_bg', base64Bg);
+                tempBg = event.target.result;
                 if (currentBgPreview) {
-                    currentBgPreview.src = base64Bg;
+                    currentBgPreview.src = tempBg;
                     currentBgPreview.classList.remove('hidden');
                 }
-                showToast('✅ تم تغيير الخلفية بنجاح!');
             };
             reader.readAsDataURL(file);
         }
     });
 }
+
+window.saveBrandingSettings = function() {
+    let saved = false;
+    if (tempLogo) {
+        localStorage.setItem('tech_store_logo', tempLogo);
+        saved = true;
+    }
+    if (tempBg) {
+        localStorage.setItem('tech_store_bg', tempBg);
+        saved = true;
+    }
+    if (saved) {
+        showToast('✅ تم حفظ مظهر الموقع بنجاح!');
+        tempLogo = null;
+        tempBg = null;
+    } else {
+        showToast('⚠️ لم تقم باختيار صور جديدة لحفظها.');
+    }
+};
 
 // ==========================================
 // Initialize
