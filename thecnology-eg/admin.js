@@ -473,8 +473,7 @@ window.saveBrandingSettings = function() {
 // ==========================================
 // Initialize
 // ==========================================
-// Initialize branding
-document.addEventListener('DOMContentLoaded', loadStoreBranding);
+// Initialize branding removed to prevent crash since it's in app.js
 
 // ==========================================
 // Edit Product Modal
