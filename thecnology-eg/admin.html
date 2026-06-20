@@ -5,6 +5,8 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TECHNOLOGY | لوحة التحكم</title>
     
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
@@ -104,12 +106,14 @@
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
                                 <select id="pCategory" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
-                                    <option value="Desktops">تجميعات كمبيوتر</option>
-                                    <option value="Laptops">لابتوبات</option>
-                                    <option value="Monitors">شاشات العرض</option>
-                                    <option value="Accessories">إكسسوارات</option>
-                                    <option value="Networking">أجهزة شبكات</option>
-                                    <option value="Surveillance">أنظمة مراقبة</option>
+                                    <option value="أنظمة مراقبة">أنظمة مراقبة</option>
+                                    <option value="شبكات">شبكات</option>
+                                    <option value="تجميعات كمبيوتر">تجميعات كمبيوتر</option>
+                                    <option value="لاب توبات">لاب توبات</option>
+                                    <option value="شاشات">شاشات</option>
+                                    <option value="إكسسوارات">إكسسوارات</option>
+                                    <option value="خدمات صيانة">خدمات صيانة</option>
+                                    <option value="أخرى">أخرى</option>
                                 </select>
                             </div>
                             <div>
@@ -153,9 +157,20 @@
                 <!-- Products Table -->
                 <div class="lg:col-span-3">
                     <div class="glass-panel p-5 rounded-xl h-full flex flex-col border border-primary/10">
-                        <h3 class="font-headline-md text-lg mb-5 text-on-surface border-b border-outline-variant/30 pb-3 flex items-center gap-2">
-                            <span class="material-symbols-outlined text-primary text-[20px]">edit_note</span> تعديل المنتجات والمخزون
-                        </h3>
+                        <div class="flex items-center justify-between border-b border-outline-variant/30 pb-3 mb-5">
+                            <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">edit_note</span> المنتجات والمخزون
+                            </h3>
+                            <div class="flex gap-2">
+                                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="importCSV(this)">
+                                <button onclick="document.getElementById('csvFileInput').click()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-3 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-1 border border-outline-variant/30">
+                                    <span class="material-symbols-outlined text-[16px]">upload_file</span> استيراد CSV
+                                </button>
+                                <button onclick="exportCSV()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-3 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-1 border border-outline-variant/30">
+                                    <span class="material-symbols-outlined text-[16px]">download</span> تصدير الكتالوج
+                                </button>
+                            </div>
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-right border-collapse">
                                 <thead>
@@ -282,6 +297,80 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="editProductModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-surface border border-outline-variant/30 rounded-xl p-6 w-full max-w-2xl transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
+            <button onclick="closeEditModal()" class="absolute top-4 left-4 text-on-surface-variant hover:text-red-500 transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+            <h3 class="font-headline-md text-xl mb-4 text-on-surface flex items-center gap-2 border-b border-outline-variant/30 pb-2">
+                <span class="material-symbols-outlined text-primary text-[22px]">edit</span> تعديل المنتج
+            </h3>
+            
+            <form id="editProductForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <input type="hidden" id="editProductId">
+                
+                <div class="md:col-span-2">
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
+                    <input type="text" id="editPTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                </div>
+                
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
+                    <select id="editPCategory" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                        <option value="أنظمة مراقبة">أنظمة مراقبة</option>
+                        <option value="شبكات">شبكات</option>
+                        <option value="تجميعات كمبيوتر">تجميعات كمبيوتر</option>
+                        <option value="لاب توبات">لاب توبات</option>
+                        <option value="شاشات">شاشات</option>
+                        <option value="إكسسوارات">إكسسوارات</option>
+                        <option value="خدمات صيانة">خدمات صيانة</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
+                    <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                </div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
+                    <textarea id="editPDesc" required rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></textarea>
+                </div>
+
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
+                    <input type="number" id="editPQuantity" required min="0" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                </div>
+                
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">رقم الموديل (SKU)</label>
+                    <input type="text" id="editPSku" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
+                    <input type="text" id="editPBrand" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
+                    <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                </div>
+                
+                <div class="md:col-span-2 mt-4 flex gap-3">
+                    <button type="submit" class="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
+                    </button>
+                    <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 bg-surface-container border border-outline-variant text-on-surface font-bold rounded hover:bg-surface-variant transition-all text-sm">
+                        إلغاء
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script>

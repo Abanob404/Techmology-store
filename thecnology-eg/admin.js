@@ -103,6 +103,7 @@ async function loadAdminProducts() {
     try {
         const response = await fetch(API_URL);
         const products = await response.json();
+        window.adminProducts = products;
 
         if (products.length === 0) {
             table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد منتجات بعد. ابدأ بإضافة منتج جديد.</td></tr>';
@@ -131,6 +132,7 @@ async function loadAdminProducts() {
                     </div>
                 </td>
                 <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
+                    <button onclick="openEditModal('${p._id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
                     <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
                 </td>
             `;
@@ -471,6 +473,168 @@ window.saveBrandingSettings = function() {
 // ==========================================
 // Initialize
 // ==========================================
+// Initialize branding
+document.addEventListener('DOMContentLoaded', loadStoreBranding);
+
+// ==========================================
+// Edit Product Modal
+// ==========================================
+window.openEditModal = function(id) {
+    const product = window.adminProducts.find(p => p._id === id);
+    if (!product) return;
+
+    document.getElementById('editProductId').value = product._id;
+    document.getElementById('editPTitle').value = product.title;
+    document.getElementById('editPCategory').value = product.category;
+    document.getElementById('editPPrice').value = product.price;
+    document.getElementById('editPDesc').value = product.description.join('\n');
+    document.getElementById('editPQuantity').value = product.stockQuantity || 0;
+    document.getElementById('editPSku').value = product.sku || '';
+    document.getElementById('editPBrand').value = product.brand || '';
+    document.getElementById('editPWarranty').value = product.warranty || '';
+
+    const modal = document.getElementById('editProductModal');
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        document.getElementById('editProductModalContent').classList.remove('scale-95');
+    }, 10);
+};
+
+window.closeEditModal = function() {
+    const modal = document.getElementById('editProductModal');
+    modal.classList.add('opacity-0');
+    document.getElementById('editProductModalContent').classList.add('scale-95');
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        document.getElementById('editProductForm').reset();
+    }, 300);
+};
+
+const editForm = document.getElementById('editProductForm');
+if (editForm) {
+    editForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const id = document.getElementById('editProductId').value;
+        const data = {
+            title: document.getElementById('editPTitle').value,
+            category: document.getElementById('editPCategory').value,
+            price: document.getElementById('editPPrice').value,
+            description: document.getElementById('editPDesc').value,
+            stockQuantity: document.getElementById('editPQuantity').value,
+            sku: document.getElementById('editPSku').value,
+            brand: document.getElementById('editPBrand').value,
+            warranty: document.getElementById('editPWarranty').value
+        };
+
+        const submitBtn = editForm.querySelector('button[type="submit"]');
+        const originalText = submitBtn.innerHTML;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> جاري الحفظ...';
+        submitBtn.disabled = true;
+
+        try {
+            const response = await fetch(`${API_URL}/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                closeEditModal();
+                showToast('✅ تم تحديث بيانات المنتج بنجاح!');
+                loadAdminProducts();
+            } else {
+                const errorData = await response.json();
+                alert(`خطأ: ${errorData.message}`);
+            }
+        } catch (error) {
+            console.error(error);
+            alert('حدث خطأ أثناء الاتصال بالسيرفر.');
+        } finally {
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+        }
+    });
+}
+
+// ==========================================
+// CSV Export & Import
+// ==========================================
+window.exportCSV = function() {
+    if (!window.adminProducts || window.adminProducts.length === 0) {
+        alert('لا توجد منتجات لتصديرها.');
+        return;
+    }
+
+    const csvData = window.adminProducts.map(p => ({
+        name: p.title,
+        price: p.price,
+        sku: p.sku || '',
+        category: p.category,
+        stockQuantity: p.stockQuantity || 0,
+        brand: p.brand || '',
+        description: p.description.join('\n'),
+        warranty: p.warranty || ''
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // \uFEFF is for UTF-8 BOM to support Arabic
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", "technology_store_catalog.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+window.importCSV = function(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async function(results) {
+            const products = results.data;
+            if (products.length === 0) {
+                alert('الملف فارغ أو لا يحتوي على بيانات صحيحة.');
+                input.value = '';
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_URL}/bulk`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(products)
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    showToast(`✅ تم استيراد ${data.count} منتج بنجاح!`);
+                    loadAdminProducts();
+                } else {
+                    const errorData = await response.json();
+                    alert(`خطأ: ${errorData.message}`);
+                }
+            } catch (error) {
+                console.error(error);
+                alert('حدث خطأ أثناء استيراد المنتجات.');
+            } finally {
+                input.value = ''; // Reset input
+            }
+        },
+        error: function(error) {
+            console.error(error);
+            alert('حدث خطأ أثناء قراءة ملف CSV.');
+            input.value = '';
+        }
+    });
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
 });
