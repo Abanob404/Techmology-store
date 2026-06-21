@@ -697,21 +697,21 @@ function checkoutWhatsApp() {
         return;
     }
 
-    let message = "مرحباً، أريد طلب المنتجات التالية من المعرض:\\n\\n";
+    let message = "مرحباً، أريد طلب المنتجات التالية من المعرض:\n\n";
     let grandTotal = 0;
 
     cart.forEach((item, index) => {
         const itemTotal = item.price * item.quantity;
         grandTotal += itemTotal;
-        message += `${index + 1}- ${item.title}\\n`;
-        if (item.sku) message += `   - كود (SKU): ${item.sku}\\n`;
-        message += `   - السعر: ${item.price} ج.م\\n`;
-        message += `   - الكمية: ${item.quantity}\\n`;
-        message += `   - الإجمالي للمنتج: ${itemTotal} ج.م\\n\\n`;
+        message += `*${index + 1}- ${item.title}*\n`;
+        if (item.sku) message += `   - كود (SKU): ${item.sku}\n`;
+        message += `   - السعر: ${item.price} ج.م\n`;
+        message += `   - الكمية: ${item.quantity}\n`;
+        message += `   - *الإجمالي للمنتج: ${itemTotal} ج.م*\n\n`;
     });
 
-    message += `----------------------------------------\\n`;
-    message += `إجمالي الطلب: ${grandTotal} ج.م`;
+    message += `----------------------------------------\n`;
+    message += `*إجمالي الطلب: ${grandTotal} ج.م*`;
 
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://api.whatsapp.com/send/?phone=201515664919&text=${encodedMessage}`;
