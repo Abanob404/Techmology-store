@@ -199,6 +199,28 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
+// 4.5. تعديل اسم قسم بالكامل لجميع المنتجات (تحديث جماعي)
+app.put('/api/categories/rename', async (req, res) => {
+  try {
+    const { oldCategory, newCategory } = req.body;
+    if (!oldCategory || !newCategory) {
+      return res.status(400).json({ message: 'الرجاء إرسال الاسم القديم والجديد للقسم' });
+    }
+
+    const result = await Product.updateMany(
+      { category: oldCategory },
+      { $set: { category: newCategory } }
+    );
+
+    res.json({ 
+      message: `تم تحديث اسم القسم بنجاح من "${oldCategory}" إلى "${newCategory}"`,
+      modifiedCount: result.modifiedCount 
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء تحديث القسم جماعياً', error: err.message });
+  }
+});
+
 // 4. حذف منتج نهائياً وحذف صورته من Cloudinary
 app.delete('/api/products/:id', async (req, res) => {
   try {

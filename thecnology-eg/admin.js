@@ -129,25 +129,94 @@ function renderCategoriesAdminList() {
     const container = document.getElementById('categoriesAdminList');
     if (!container) return;
 
-    const categories = getCategories();
-    if (categories.length === 0) {
+    // جلب الأقسام المخزنة افتراضياً
+    const savedCategories = getCategories();
+
+    // جلب الأقسام الفعلية للمنتجات الموجودة في قاعدة البيانات وحساب عددها
+    const products = window.adminProducts || [];
+    const productCategoryCounts = {};
+    products.forEach(p => {
+        if (p.category) {
+            productCategoryCounts[p.category] = (productCategoryCounts[p.category] || 0) + 1;
+        }
+    });
+
+    // دمج الأقسام الافتراضية مع الأقسام الفعلية لكي يظهر كل شيء
+    const allCategories = [...new Set([...savedCategories, ...Object.keys(productCategoryCounts)])];
+
+    if (allCategories.length === 0) {
         container.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">لا توجد أقسام مضافة بعد.</div>';
         return;
     }
 
     container.innerHTML = '';
-    categories.forEach(cat => {
+    allCategories.forEach(cat => {
+        const count = productCategoryCounts[cat] || 0;
         const div = document.createElement('div');
-        div.className = 'flex items-center justify-between bg-surface border border-outline-variant/30 rounded px-3 py-1.5 text-sm';
+        div.className = 'flex items-center justify-between bg-surface border border-outline-variant/30 rounded px-3 py-1.5 text-sm hover:border-primary/30 transition-colors';
         div.innerHTML = `
-            <span class="text-on-surface font-semibold">${cat}</span>
-            <button onclick="deleteCategory('${cat}')" class="text-red-400 hover:text-red-500 transition-colors p-1" title="حذف القسم">
-                <span class="material-symbols-outlined text-[18px]">delete</span>
-            </button>
+            <div class="flex items-center gap-2">
+                <span class="text-on-surface font-semibold">${cat}</span>
+                <span class="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full">${count} منتج</span>
+            </div>
+            <div class="flex items-center gap-1">
+                <button onclick="renameCategoryPrompt('${cat}')" class="text-blue-400 hover:text-blue-500 transition-colors p-1" title="تعديل اسم القسم جماعياً">
+                    <span class="material-symbols-outlined text-[18px]">edit</span>
+                </button>
+                <button onclick="deleteCategory('${cat}')" class="text-red-400 hover:text-red-500 transition-colors p-1" title="حذف القسم">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+            </div>
         `;
         container.appendChild(div);
     });
 }
+
+window.renameCategoryPrompt = async function(oldCat) {
+    const newCat = prompt(`تعديل اسم القسم جماعياً:\n\nسيتم تغيير اسم القسم "${oldCat}" إلى الاسم الجديد لجميع المنتجات في الكتالوج.\n\nأدخل الاسم الجديد:`, oldCat);
+    if (newCat === null) return; // تم الإلغاء
+    
+    const trimmedNewCat = newCat.trim();
+    if (!trimmedNewCat) {
+        alert('اسم القسم الجديد لا يمكن أن يكون فارغاً.');
+        return;
+    }
+
+    if (trimmedNewCat === oldCat) return; // لم يتغير شيء
+
+    // 1. تعديل الاسم في localStorage إذا كان مسجلاً هناك
+    let categories = getCategories();
+    if (categories.includes(oldCat)) {
+        categories = categories.map(c => c === oldCat ? trimmedNewCat : c);
+        saveCategories(categories);
+    }
+
+    // 2. تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم
+    try {
+        const response = await fetch('/api/categories/rename', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ oldCategory: oldCat, newCategory: trimmedNewCat })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            showToast(`✅ تم تعديل القسم وتحديث ${data.modifiedCount || 0} منتج!`);
+            // إعادة تحميل المنتجات لتحديث الواجهة بالكامل
+            loadAdminProducts();
+        } else {
+            const error = await response.json();
+            alert(`خطأ أثناء تحديث المنتجات: ${error.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('⚠️ تم تعديل الاسم محلياً فقط. فشل الاتصال بالسيرفر لتعديل المنتجات.');
+        renderCategoriesAdminList();
+        if (window.adminProducts) {
+            populateCategoriesDatalist(window.adminProducts);
+        }
+    }
+};
 
 window.addNewCategory = function() {
     const input = document.getElementById('newCategoryInput');
@@ -846,4 +915,19 @@ window.importCSV = function(input) {
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
+
+    // حل مشكلة فلترة المتصفح الافتراضية للـ datalist عند فتح نافذة التعديل
+    const editPCategory = document.getElementById('editPCategory');
+    if (editPCategory) {
+        let tempVal = '';
+        editPCategory.addEventListener('focus', function() {
+            tempVal = this.value;
+            this.value = ''; // مسح القيمة مؤقتاً لكي يظهر المتصفح جميع أقسام الـ datalist
+        });
+        editPCategory.addEventListener('blur', function() {
+            if (!this.value.trim()) {
+                this.value = tempVal; // استعادة القسم الأصلي إذا خرج العميل دون كتابة/اختيار شيء
+            }
+        });
+    }
 });
