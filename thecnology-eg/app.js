@@ -124,8 +124,8 @@ function injectProductModal() {
                 </button>
 
                 <!-- Image Section -->
-                <div class="w-full md:w-1/2 bg-gradient-to-b from-surface-container-highest to-surface p-6 flex items-center justify-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <img id="modalImage" src="" alt="Product Image" class="max-w-full max-h-[400px] object-contain drop-shadow-2xl mix-blend-screen">
+                <div class="w-full md:w-1/2 bg-gradient-to-b from-surface-container-highest to-surface p-6 flex justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
+                    <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain max-h-[300px] w-full drop-shadow-2xl">
                     <div id="modalBadge" class="absolute top-6 right-6"></div>
                 </div>
 
