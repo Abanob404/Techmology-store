@@ -5,9 +5,8 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TECHNOLOGY | لوحة التحكم</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
     
@@ -105,16 +104,8 @@
                             </div>
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
-                                <select id="pCategory" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
-                                    <option value="أنظمة مراقبة">أنظمة مراقبة</option>
-                                    <option value="شبكات">شبكات</option>
-                                    <option value="تجميعات كمبيوتر">تجميعات كمبيوتر</option>
-                                    <option value="لاب توبات">لاب توبات</option>
-                                    <option value="شاشات">شاشات</option>
-                                    <option value="إكسسوارات">إكسسوارات</option>
-                                    <option value="خدمات صيانة">خدمات صيانة</option>
-                                    <option value="أخرى">أخرى</option>
-                                </select>
+                                <input type="text" id="pCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                <datalist id="categoriesList"></datalist>
                             </div>
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
@@ -171,6 +162,13 @@
                                 </button>
                             </div>
                         </div>
+                        <!-- Search Bar -->
+                        <div class="mb-4">
+                            <div class="relative">
+                                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                                <input type="search" id="adminSearchInput" placeholder="بحث باسم المنتج أو رقم الموديل SKU..." class="w-full bg-surface-container border border-outline-variant rounded-lg py-2.5 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary text-sm" oninput="filterAdminProducts()">
+                            </div>
+                        </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-right border-collapse">
                                 <thead>
@@ -185,6 +183,16 @@
                                 <tbody id="adminProductsTable">
                                 </tbody>
                             </table>
+                        </div>
+                        <!-- Pagination Controls -->
+                        <div id="paginationControls" class="flex items-center justify-center gap-3 pt-4 mt-4 border-t border-outline-variant/30">
+                            <button onclick="goToPage(window.currentPage - 1)" id="prevPageBtn" class="px-3 py-1.5 bg-surface-container border border-outline-variant rounded text-on-surface-variant text-xs font-bold hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[16px]">chevron_right</span> السابق
+                            </button>
+                            <span id="pageIndicator" class="text-on-surface-variant text-xs font-mono-data">صفحة 1 / 1</span>
+                            <button onclick="goToPage(window.currentPage + 1)" id="nextPageBtn" class="px-3 py-1.5 bg-surface-container border border-outline-variant rounded text-on-surface-variant text-xs font-bold hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                                التالي <span class="material-symbols-outlined text-[16px]">chevron_left</span>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -319,16 +327,7 @@
                 
                 <div>
                     <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
-                    <select id="editPCategory" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                        <option value="أنظمة مراقبة">أنظمة مراقبة</option>
-                        <option value="شبكات">شبكات</option>
-                        <option value="تجميعات كمبيوتر">تجميعات كمبيوتر</option>
-                        <option value="لاب توبات">لاب توبات</option>
-                        <option value="شاشات">شاشات</option>
-                        <option value="إكسسوارات">إكسسوارات</option>
-                        <option value="خدمات صيانة">خدمات صيانة</option>
-                        <option value="أخرى">أخرى</option>
-                    </select>
+                    <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
                 </div>
                 
                 <div>
@@ -359,6 +358,12 @@
                 <div>
                     <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
                     <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                </div>
+
+                <div class="md:col-span-2">
+                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصورة <span class="text-on-surface-variant/50 text-xs">(اختياري)</span></label>
+                    <input type="file" id="editPImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                    <img id="editImagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
                 </div>
                 
                 <div class="md:col-span-2 mt-4 flex gap-3">

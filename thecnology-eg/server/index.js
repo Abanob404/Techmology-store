@@ -93,36 +93,45 @@ app.post('/api/products', async (req, res) => {
     });
 
     await newProduct.save();
-    await newProduct.save();
     res.status(201).json(newProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إضافة المنتج', error: err.message });
   }
 });
 
-// إضافة منتجات متعددة (Bulk CSV Import)
+// إضافة/تحديث منتجات متعددة (Bulk CSV Upsert)
 app.post('/api/products/bulk', async (req, res) => {
   try {
     const productsArray = req.body;
     if (!Array.isArray(productsArray) || productsArray.length === 0) {
       return res.status(400).json({ message: 'بيانات غير صالحة، يجب إرسال مصفوفة منتجات.' });
     }
-    
-    // إعطاء صورة افتراضية للمنتجات المستوردة
-    const productsToInsert = productsArray.map(p => ({
-      title: p.name || 'بدون اسم',
-      category: p.category || 'أخرى',
-      price: Number(p.price) || 0,
-      description: p.description ? p.description.split('\n') : [],
-      stockQuantity: Number(p.stockQuantity) || 0,
-      sku: p.sku || '',
-      brand: p.brand || '',
-      warranty: p.warranty || '',
-      image: 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image'
-    }));
 
-    const result = await Product.insertMany(productsToInsert);
-    res.status(201).json({ message: 'تم استيراد المنتجات بنجاح', count: result.length });
+    const operations = productsArray.map(p => {
+      const filter = p.sku ? { sku: p.sku } : { title: p.name || 'بدون اسم' };
+      const update = {
+        title: p.name || 'بدون اسم',
+        category: p.category || 'أخرى',
+        price: Number(p.price) || 0,
+        description: p.description ? p.description.split('\n') : [],
+        stockQuantity: Number(p.stockQuantity) || 0,
+        sku: p.sku || '',
+        brand: p.brand || '',
+        warranty: p.warranty || '',
+        image: p.image || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image'
+      };
+      return {
+        updateOne: {
+          filter,
+          update: { $set: update },
+          upsert: true
+        }
+      };
+    });
+
+    const result = await Product.bulkWrite(operations);
+    const count = (result.upsertedCount || 0) + (result.modifiedCount || 0);
+    res.status(201).json({ message: 'تم استيراد/تحديث المنتجات بنجاح', count, upserted: result.upsertedCount || 0, modified: result.modifiedCount || 0 });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء استيراد المنتجات', error: err.message });
   }
@@ -144,24 +153,42 @@ app.put('/api/products/:id/quantity', async (req, res) => {
   }
 });
 
-// 4. تعديل منتج بالكامل
+// 4. تعديل منتج بالكامل (يدعم رفع صورة جديدة اختيارياً)
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     
+    const updateData = {
+      title,
+      category,
+      price,
+      description: descArray,
+      stockQuantity: parseInt(stockQuantity, 10) || 0,
+      sku: sku || '',
+      warranty: warranty || '',
+      brand: brand || ''
+    };
+
+    // إذا تم رفع صورة جديدة
+    if (req.files && req.files.image) {
+      const file = req.files.image;
+      // حذف الصورة القديمة من Cloudinary
+      const oldProduct = await Product.findById(req.params.id);
+      if (oldProduct && oldProduct.imagePublicId) {
+        await cloudinary.uploader.destroy(oldProduct.imagePublicId);
+      }
+      // رفع الصورة الجديدة
+      const result = await cloudinary.uploader.upload(file.tempFilePath, {
+        folder: 'technology_store'
+      });
+      updateData.image = result.secure_url;
+      updateData.imagePublicId = result.public_id;
+    }
+
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
-      {
-        title,
-        category,
-        price,
-        description: descArray,
-        stockQuantity: parseInt(stockQuantity, 10) || 0,
-        sku: sku || '',
-        warranty: warranty || '',
-        brand: brand || ''
-      },
+      updateData,
       { new: true }
     );
     

@@ -1,4 +1,12 @@
 const API_URL = '/api/products';
+const ITEMS_PER_PAGE = 20;
+
+// ==========================================
+// State
+// ==========================================
+window.adminProducts = [];
+window.filteredProducts = [];
+window.currentPage = 1;
 
 // ==========================================
 // Multi-User Authentication System
@@ -27,11 +35,9 @@ function checkAuth() {
         document.getElementById('adminContainer').classList.remove('hidden');
         document.getElementById('adminContainer').style.display = 'block';
         
-        // Show current user info
         const userBadge = document.getElementById('currentUserBadge');
         if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
         
-        // Check permissions for user management
         const userMgmt = document.getElementById('tab-users');
         if (userMgmt) {
             userMgmt.style.display = hasPermission('manage_users') ? 'block' : 'none';
@@ -67,8 +73,6 @@ function login() {
         alert('اسم المستخدم أو كلمة المرور غير صحيحة!');
     }
 }
-
-// Make login globally available for inline HTML handlers
 window.login = login;
 
 function logout() {
@@ -93,7 +97,22 @@ function showToast(message) {
 }
 
 // ==========================================
-// Admin Products Table (API Integration)
+// Dynamic Categories Datalist
+// ==========================================
+const DEFAULT_CATEGORIES = ['أنظمة مراقبة', 'شبكات', 'تجميعات كمبيوتر', 'لاب توبات', 'شاشات', 'إكسسوارات', 'خدمات صيانة', 'أخرى'];
+
+function populateCategoriesDatalist(products) {
+    const datalist = document.getElementById('categoriesList');
+    if (!datalist) return;
+
+    const categoriesFromProducts = products.map(p => p.category).filter(Boolean);
+    const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...categoriesFromProducts])];
+    
+    datalist.innerHTML = allCategories.map(cat => `<option value="${cat}">`).join('');
+}
+
+// ==========================================
+// Admin Products Table (with Pagination, Search, Low Stock Alerts)
 // ==========================================
 async function loadAdminProducts() {
     const table = document.getElementById('adminProductsTable');
@@ -104,17 +123,53 @@ async function loadAdminProducts() {
         const response = await fetch(API_URL);
         const products = await response.json();
         window.adminProducts = products;
+        window.filteredProducts = products;
+        window.currentPage = 1;
+
+        populateCategoriesDatalist(products);
 
         if (products.length === 0) {
             table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد منتجات بعد. ابدأ بإضافة منتج جديد.</td></tr>';
+            updatePaginationControls();
             return;
         }
 
-        table.innerHTML = '';
-        products.forEach(p => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors';
-            tr.innerHTML = `
+        renderProductsPage();
+    } catch (error) {
+        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';
+        console.error(error);
+    }
+}
+
+function renderProductsPage() {
+    const table = document.getElementById('adminProductsTable');
+    if (!table) return;
+
+    const products = window.filteredProducts;
+    const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
+
+    if (window.currentPage > totalPages) window.currentPage = totalPages;
+    if (window.currentPage < 1) window.currentPage = 1;
+
+    const start = (window.currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const pageProducts = products.slice(start, end);
+
+    if (pageProducts.length === 0) {
+        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد نتائج مطابقة.</td></tr>';
+        updatePaginationControls();
+        return;
+    }
+
+    table.innerHTML = '';
+    pageProducts.forEach(p => {
+        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
+        const isLowStock = qty <= 3 && qty > 0;
+        const isOutOfStock = qty === 0;
+
+        const tr = document.createElement('tr');
+        tr.className = `border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ${isOutOfStock ? 'bg-red-900/10' : isLowStock ? 'bg-orange-900/10' : ''}`;
+        tr.innerHTML = `
                 <td class="py-4 pr-2 font-semibold text-on-surface">
                     <div class="flex items-center gap-3">
                         <img src="${p.image}" class="w-10 h-10 rounded object-cover border border-outline-variant/50">
@@ -125,7 +180,7 @@ async function loadAdminProducts() {
                 <td class="py-4 font-mono-data text-primary">${p.price}</td>
                 <td class="py-4">
                     <div class="flex items-center justify-center gap-2">
-                        <input type="number" id="qty-${p._id}" value="${p.stockQuantity !== undefined ? p.stockQuantity : 1}" min="0" class="w-16 bg-surface border ${p.stockQuantity > 0 || p.stockQuantity === undefined ? 'border-green-500 text-green-400' : 'border-red-500 text-red-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
+                        <input type="number" id="qty-${p._id}" value="${qty}" min="0" class="w-16 bg-surface border ${isOutOfStock ? 'border-red-500 text-red-400' : isLowStock ? 'border-orange-500 text-orange-400' : 'border-green-500 text-green-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
                         <button onclick="updateQuantity('${p._id}')" class="bg-primary/20 text-primary hover:bg-primary hover:text-white px-2 py-1 rounded transition-colors text-xs" title="حفظ الكمية">
                             <span class="material-symbols-outlined text-[14px]">save</span>
                         </button>
@@ -136,13 +191,52 @@ async function loadAdminProducts() {
                     <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
                 </td>
             `;
-            table.appendChild(tr);
-        });
-    } catch (error) {
-        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';
-        console.error(error);
-    }
+        table.appendChild(tr);
+    });
+
+    updatePaginationControls();
 }
+
+// ==========================================
+// Pagination
+// ==========================================
+function updatePaginationControls() {
+    const totalPages = Math.max(1, Math.ceil(window.filteredProducts.length / ITEMS_PER_PAGE));
+    const pageIndicator = document.getElementById('pageIndicator');
+    const prevBtn = document.getElementById('prevPageBtn');
+    const nextBtn = document.getElementById('nextPageBtn');
+
+    if (pageIndicator) pageIndicator.textContent = `صفحة ${window.currentPage} / ${totalPages}`;
+    if (prevBtn) prevBtn.disabled = window.currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = window.currentPage >= totalPages;
+}
+
+window.goToPage = function(page) {
+    const totalPages = Math.max(1, Math.ceil(window.filteredProducts.length / ITEMS_PER_PAGE));
+    if (page < 1 || page > totalPages) return;
+    window.currentPage = page;
+    renderProductsPage();
+};
+
+// ==========================================
+// Live Search / Filter
+// ==========================================
+window.filterAdminProducts = function() {
+    const query = (document.getElementById('adminSearchInput')?.value || '').trim().toLowerCase();
+    
+    if (!query) {
+        window.filteredProducts = window.adminProducts;
+    } else {
+        window.filteredProducts = window.adminProducts.filter(p => {
+            const titleMatch = p.title.toLowerCase().includes(query);
+            const skuMatch = (p.sku || '').toLowerCase().includes(query);
+            return titleMatch || skuMatch;
+        });
+    }
+
+    window.currentPage = 1;
+    renderProductsPage();
+};
 
 // ==========================================
 // Update Stock Quantity
@@ -159,7 +253,7 @@ window.updateQuantity = async function(id) {
         
         if (response.ok) {
             showToast('✅ تم تحديث الكمية بنجاح!');
-            loadAdminProducts(); // Reload to update colors
+            loadAdminProducts();
         } else {
             const data = await response.json();
             alert(`خطأ: ${data.message}`);
@@ -214,6 +308,31 @@ if (pImage) {
             if (imgPreview) {
                 imgPreview.classList.add('hidden');
                 imgPreview.src = '';
+            }
+        }
+    });
+}
+
+// Edit Image Preview
+const editPImage = document.getElementById('editPImage');
+const editImgPreview = document.getElementById('editImagePreview');
+
+if (editPImage) {
+    editPImage.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                if (editImgPreview) {
+                    editImgPreview.src = event.target.result;
+                    editImgPreview.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        } else {
+            if (editImgPreview) {
+                editImgPreview.classList.add('hidden');
+                editImgPreview.src = '';
             }
         }
     });
@@ -300,44 +419,43 @@ if (settingsForm) {
 
         const currentUser = getCurrentUser();
         if (!currentUser) return;
-
         const users = getUsers();
-        const idx = users.findIndex(u => u.id === currentUser.id);
-        if (idx === -1) return;
+        const userIndex = users.findIndex(u => u.id === currentUser.id);
+        if (userIndex === -1) return;
 
-        if (newUser) users[idx].username = newUser;
-        if (newPass) users[idx].password = newPass;
+        if (newUser) users[userIndex].username = newUser;
+        if (newPass) users[userIndex].password = newPass;
+
         saveUsers(users);
-
         settingsForm.reset();
         showToast('✅ تم تحديث بيانات الدخول بنجاح!');
-        
-        // Update badge
-        const userBadge = document.getElementById('currentUserBadge');
-        if (userBadge) userBadge.textContent = `${users[idx].username} (${users[idx].role})`;
+        checkAuth();
     });
 }
 
 // ==========================================
-// User Management (Admin Only)
+// Users Management
 // ==========================================
 function loadUsersTable() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
-    tbody.innerHTML = '';
     const users = getUsers();
     const currentUser = getCurrentUser();
 
-    users.forEach(u => {
-        const isCurrentUser = currentUser && u.id === currentUser.id;
+    tbody.innerHTML = '';
+    users.forEach(user => {
         const tr = document.createElement('tr');
         tr.className = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors';
+        const isSelf = currentUser && user.id === currentUser.id;
         tr.innerHTML = `
-            <td class="py-3 pr-2 font-semibold text-on-surface">${u.username} ${isCurrentUser ? '<span class="text-primary text-[10px]">(أنت)</span>' : ''}</td>
-            <td class="py-3 text-on-surface-variant">${u.role}</td>
-            <td class="py-3 text-on-surface-variant text-xs">${u.permissions.join(', ')}</td>
-            <td class="py-3 text-center">
-                ${!isCurrentUser ? `<button onclick="deleteUser('${u.id}')" class="px-3 py-1 bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>` : '<span class="text-on-surface-variant text-xs">—</span>'}
+            <td class="py-4 pr-2 font-semibold text-on-surface flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[20px]">person</span>
+                ${user.username} ${isSelf ? '<span class="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">أنت</span>' : ''}
+            </td>
+            <td class="py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${user.role === 'مدير' ? 'bg-primary/20 text-primary' : 'bg-secondary/20 text-secondary'}">${user.role}</span></td>
+            <td class="py-4 text-on-surface-variant text-xs">الصلاحيات: ${user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.join(', ')}</td>
+            <td class="py-4 text-center">
+                ${!isSelf ? `<button onclick="deleteUser('${user.id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>` : '<span class="text-xs text-on-surface-variant">—</span>'}
             </td>
         `;
         tbody.appendChild(tr);
@@ -350,59 +468,59 @@ window.addNewUser = function() {
     const role = document.getElementById('newUserRole').value;
 
     if (!username || !password) {
-        showToast('⚠️ يرجى إدخال اسم المستخدم وكلمة المرور');
+        alert('يرجى إدخال اسم المستخدم وكلمة المرور.');
         return;
     }
 
     const users = getUsers();
     if (users.find(u => u.username === username)) {
-        showToast('⚠️ اسم المستخدم موجود بالفعل!');
+        alert('اسم المستخدم موجود بالفعل!');
         return;
     }
 
-    const permissions = role === 'مدير' ? ['all'] : ['add_products', 'edit_products'];
-
-    users.push({
-        id: Date.now().toString(),
-        username,
-        password,
-        role,
-        permissions
-    });
-
+    const permissions = role === 'مدير' ? ['all'] : ['add_product', 'edit_product'];
+    users.push({ id: Date.now().toString(), username, password, role, permissions });
     saveUsers(users);
+
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
+    showToast('✅ تم إضافة المستخدم بنجاح!');
     loadUsersTable();
-    showToast(`✅ تم إضافة المستخدم "${username}" بنجاح!`);
 };
 
 window.deleteUser = function(id) {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
-    let users = getUsers();
-    users = users.filter(u => u.id !== id);
+    const users = getUsers().filter(u => u.id !== id);
     saveUsers(users);
+    showToast('🗑️ تم حذف المستخدم!');
     loadUsersTable();
-    showToast('تم حذف المستخدم.');
 };
 
+// ==========================================
+// Branding (Logo & Background)
+// ==========================================
 let tempLogo = null;
 let tempBg = null;
 
-// ==========================================
-// Store Logo Upload
-// ==========================================
-const storeLogoInput = document.getElementById('storeLogoInput');
-const currentLogoPreview = document.getElementById('currentLogoPreview');
-
 function loadCurrentLogo() {
-    const customLogo = localStorage.getItem('tech_store_logo');
-    if (customLogo && currentLogoPreview) {
-        currentLogoPreview.src = customLogo;
-        currentLogoPreview.classList.remove('hidden');
+    const savedLogo = localStorage.getItem('tech_store_logo');
+    const preview = document.getElementById('currentLogoPreview');
+    if (savedLogo && preview) {
+        preview.src = savedLogo;
+        preview.classList.remove('hidden');
     }
 }
 
+function loadCurrentBg() {
+    const savedBg = localStorage.getItem('tech_store_bg');
+    const preview = document.getElementById('currentBgPreview');
+    if (savedBg && preview) {
+        preview.src = savedBg;
+        preview.classList.remove('hidden');
+    }
+}
+
+const storeLogoInput = document.getElementById('storeLogoInput');
 if (storeLogoInput) {
     storeLogoInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -410,9 +528,10 @@ if (storeLogoInput) {
             const reader = new FileReader();
             reader.onload = function(event) {
                 tempLogo = event.target.result;
-                if (currentLogoPreview) {
-                    currentLogoPreview.src = tempLogo;
-                    currentLogoPreview.classList.remove('hidden');
+                const preview = document.getElementById('currentLogoPreview');
+                if (preview) {
+                    preview.src = tempLogo;
+                    preview.classList.remove('hidden');
                 }
             };
             reader.readAsDataURL(file);
@@ -420,20 +539,7 @@ if (storeLogoInput) {
     });
 }
 
-// ==========================================
-// Store Background Upload
-// ==========================================
 const storeBgInput = document.getElementById('storeBgInput');
-const currentBgPreview = document.getElementById('currentBgPreview');
-
-function loadCurrentBg() {
-    const customBg = localStorage.getItem('tech_store_bg');
-    if (customBg && currentBgPreview) {
-        currentBgPreview.src = customBg;
-        currentBgPreview.classList.remove('hidden');
-    }
-}
-
 if (storeBgInput) {
     storeBgInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
@@ -441,9 +547,10 @@ if (storeBgInput) {
             const reader = new FileReader();
             reader.onload = function(event) {
                 tempBg = event.target.result;
-                if (currentBgPreview) {
-                    currentBgPreview.src = tempBg;
-                    currentBgPreview.classList.remove('hidden');
+                const preview = document.getElementById('currentBgPreview');
+                if (preview) {
+                    preview.src = tempBg;
+                    preview.classList.remove('hidden');
                 }
             };
             reader.readAsDataURL(file);
@@ -471,12 +578,7 @@ window.saveBrandingSettings = function() {
 };
 
 // ==========================================
-// Initialize
-// ==========================================
-// Initialize branding removed to prevent crash since it's in app.js
-
-// ==========================================
-// Edit Product Modal
+// Edit Product Modal (with Image Upload)
 // ==========================================
 window.openEditModal = function(id) {
     const product = window.adminProducts.find(p => p._id === id);
@@ -491,6 +593,17 @@ window.openEditModal = function(id) {
     document.getElementById('editPSku').value = product.sku || '';
     document.getElementById('editPBrand').value = product.brand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
+
+    // Show current image
+    const editPreview = document.getElementById('editImagePreview');
+    if (editPreview && product.image) {
+        editPreview.src = product.image;
+        editPreview.classList.remove('hidden');
+    }
+
+    // Reset file input
+    const editFileInput = document.getElementById('editPImage');
+    if (editFileInput) editFileInput.value = '';
 
     const modal = document.getElementById('editProductModal');
     modal.classList.remove('hidden');
@@ -507,6 +620,11 @@ window.closeEditModal = function() {
     setTimeout(() => {
         modal.classList.add('hidden');
         document.getElementById('editProductForm').reset();
+        const editPreview = document.getElementById('editImagePreview');
+        if (editPreview) {
+            editPreview.classList.add('hidden');
+            editPreview.src = '';
+        }
     }, 300);
 };
 
@@ -515,16 +633,23 @@ if (editForm) {
     editForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         const id = document.getElementById('editProductId').value;
-        const data = {
-            title: document.getElementById('editPTitle').value,
-            category: document.getElementById('editPCategory').value,
-            price: document.getElementById('editPPrice').value,
-            description: document.getElementById('editPDesc').value,
-            stockQuantity: document.getElementById('editPQuantity').value,
-            sku: document.getElementById('editPSku').value,
-            brand: document.getElementById('editPBrand').value,
-            warranty: document.getElementById('editPWarranty').value
-        };
+        
+        // Use FormData to support optional image upload
+        const formData = new FormData();
+        formData.append('title', document.getElementById('editPTitle').value);
+        formData.append('category', document.getElementById('editPCategory').value);
+        formData.append('price', document.getElementById('editPPrice').value);
+        formData.append('description', document.getElementById('editPDesc').value);
+        formData.append('stockQuantity', document.getElementById('editPQuantity').value);
+        formData.append('sku', document.getElementById('editPSku').value);
+        formData.append('brand', document.getElementById('editPBrand').value);
+        formData.append('warranty', document.getElementById('editPWarranty').value);
+
+        // Append image only if a new one was selected
+        const editFileInput = document.getElementById('editPImage');
+        if (editFileInput && editFileInput.files && editFileInput.files.length > 0) {
+            formData.append('image', editFileInput.files[0]);
+        }
 
         const submitBtn = editForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
@@ -534,8 +659,7 @@ if (editForm) {
         try {
             const response = await fetch(`${API_URL}/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
+                body: formData
             });
 
             if (response.ok) {
@@ -557,7 +681,7 @@ if (editForm) {
 }
 
 // ==========================================
-// CSV Export & Import
+// CSV Export (includes image column)
 // ==========================================
 window.exportCSV = function() {
     if (!window.adminProducts || window.adminProducts.length === 0) {
@@ -573,11 +697,12 @@ window.exportCSV = function() {
         stockQuantity: p.stockQuantity || 0,
         brand: p.brand || '',
         description: p.description.join('\n'),
-        warranty: p.warranty || ''
+        warranty: p.warranty || '',
+        image: p.image || ''
     }));
 
     const csv = Papa.unparse(csvData);
-    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // \uFEFF is for UTF-8 BOM to support Arabic
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     
@@ -589,6 +714,9 @@ window.exportCSV = function() {
     document.body.removeChild(link);
 };
 
+// ==========================================
+// CSV Import (Upsert)
+// ==========================================
 window.importCSV = function(input) {
     const file = input.files[0];
     if (!file) return;
@@ -613,7 +741,7 @@ window.importCSV = function(input) {
 
                 if (response.ok) {
                     const data = await response.json();
-                    showToast(`✅ تم استيراد ${data.count} منتج بنجاح!`);
+                    showToast(`✅ تم معالجة ${data.count} منتج (${data.upserted || 0} جديد، ${data.modified || 0} محدّث)!`);
                     loadAdminProducts();
                 } else {
                     const errorData = await response.json();
@@ -623,7 +751,7 @@ window.importCSV = function(input) {
                 console.error(error);
                 alert('حدث خطأ أثناء استيراد المنتجات.');
             } finally {
-                input.value = ''; // Reset input
+                input.value = '';
             }
         },
         error: function(error) {
@@ -634,6 +762,9 @@ window.importCSV = function(input) {
     });
 };
 
+// ==========================================
+// Initialize
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
 });
