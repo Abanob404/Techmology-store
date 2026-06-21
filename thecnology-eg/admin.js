@@ -47,6 +47,7 @@ function checkAuth() {
         loadCurrentLogo();
         loadCurrentBg();
         loadUsersTable();
+        renderCategoriesAdminList();
     } else {
         document.getElementById('loginContainer').style.display = 'flex';
         document.getElementById('adminContainer').style.display = 'none';
@@ -97,19 +98,93 @@ function showToast(message) {
 }
 
 // ==========================================
-// Dynamic Categories Datalist
+// Dynamic Categories Datalist & Management
 // ==========================================
 const DEFAULT_CATEGORIES = ['أنظمة مراقبة', 'شبكات', 'تجميعات كمبيوتر', 'لاب توبات', 'شاشات', 'إكسسوارات', 'خدمات صيانة', 'أخرى'];
+
+function getCategories() {
+    const saved = localStorage.getItem('tech_store_categories');
+    if (!saved) {
+        localStorage.setItem('tech_store_categories', JSON.stringify(DEFAULT_CATEGORIES));
+        return DEFAULT_CATEGORIES;
+    }
+    return JSON.parse(saved);
+}
+
+function saveCategories(categories) {
+    localStorage.setItem('tech_store_categories', JSON.stringify(categories));
+}
 
 function populateCategoriesDatalist(products) {
     const datalist = document.getElementById('categoriesList');
     if (!datalist) return;
 
     const categoriesFromProducts = products.map(p => p.category).filter(Boolean);
-    const allCategories = [...new Set([...DEFAULT_CATEGORIES, ...categoriesFromProducts])];
+    const allCategories = [...new Set([...getCategories(), ...categoriesFromProducts])];
     
     datalist.innerHTML = allCategories.map(cat => `<option value="${cat}">`).join('');
 }
+
+function renderCategoriesAdminList() {
+    const container = document.getElementById('categoriesAdminList');
+    if (!container) return;
+
+    const categories = getCategories();
+    if (categories.length === 0) {
+        container.innerHTML = '<div class="text-xs text-on-surface-variant text-center py-4">لا توجد أقسام مضافة بعد.</div>';
+        return;
+    }
+
+    container.innerHTML = '';
+    categories.forEach(cat => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between bg-surface border border-outline-variant/30 rounded px-3 py-1.5 text-sm';
+        div.innerHTML = `
+            <span class="text-on-surface font-semibold">${cat}</span>
+            <button onclick="deleteCategory('${cat}')" class="text-red-400 hover:text-red-500 transition-colors p-1" title="حذف القسم">
+                <span class="material-symbols-outlined text-[18px]">delete</span>
+            </button>
+        `;
+        container.appendChild(div);
+    });
+}
+
+window.addNewCategory = function() {
+    const input = document.getElementById('newCategoryInput');
+    const newCat = input.value.trim();
+    if (!newCat) {
+        showToast('⚠️ الرجاء إدخال اسم القسم أولاً.');
+        return;
+    }
+
+    const categories = getCategories();
+    if (categories.includes(newCat)) {
+        showToast('⚠️ هذا القسم موجود بالفعل!');
+        return;
+    }
+
+    categories.push(newCat);
+    saveCategories(categories);
+    input.value = '';
+    showToast('✅ تم إضافة القسم الجديد بنجاح!');
+    
+    renderCategoriesAdminList();
+    populateCategoriesDatalist(window.adminProducts || []);
+};
+
+window.deleteCategory = function(cat) {
+    if (!confirm(`هل أنت متأكد من حذف قسم "${cat}"؟\n(ملاحظة: هذا لن يحذف المنتجات التي تنتمي لهذا القسم، ولكن سيزيل القسم من قائمة الاختيارات الافتراضية)`)) {
+        return;
+    }
+
+    let categories = getCategories();
+    categories = categories.filter(c => c !== cat);
+    saveCategories(categories);
+    showToast('🗑️ تم حذف القسم من الاختيارات الافتراضية.');
+    
+    renderCategoriesAdminList();
+    populateCategoriesDatalist(window.adminProducts || []);
+};
 
 // ==========================================
 // Admin Products Table (with Pagination, Search, Low Stock Alerts)
@@ -117,6 +192,10 @@ function populateCategoriesDatalist(products) {
 async function loadAdminProducts() {
     const table = document.getElementById('adminProductsTable');
     if (!table) return;
+
+    // شحن الأقسام الافتراضية فوراً دون انتظار السيرفر
+    populateCategoriesDatalist([]);
+
     table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
     
     try {

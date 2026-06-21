@@ -1,5 +1,9 @@
 const API_URL = '/api/products';
 let globalProducts = [];
+let currentPage = 1;
+const ITEMS_PER_PAGE = 50;
+let activeCategory = "all";
+let activeSearchTerm = "";
 
 // جلب المنتجات وتفعيل البحث
 async function fetchProducts() {
@@ -7,14 +11,34 @@ async function fetchProducts() {
         const response = await fetch(API_URL);
         globalProducts = await response.json();
 
+        // إنشاء فلاتر الأقسام ديناميكياً بناءً على المنتجات المتاحة
+        renderDynamicCategoryFilters();
+
         const urlParams = new URLSearchParams(window.location.search);
         const initialSearch = urlParams.get('q');
         const initialId = urlParams.get('id');
+        const initialCategory = urlParams.get('category');
 
         if (initialId) {
             // عرض منتج محدد عبر ID
-            globalProducts = globalProducts.filter(p => p._id === initialId);
+            const singleProduct = globalProducts.find(p => p._id === initialId);
+            if (singleProduct) {
+                globalProducts = [singleProduct];
+            }
             renderProducts();
+        } else if (initialCategory) {
+            // تفعيل الفلترة للفئة المحددة في الرابط
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            let found = false;
+            filterButtons.forEach(btn => {
+                if (btn.dataset.category === initialCategory) {
+                    btn.click();
+                    found = true;
+                }
+            });
+            if (!found) {
+                renderProducts(initialCategory, initialSearch || "");
+            }
         } else if (initialSearch) {
             document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."]').forEach(input => input.value = initialSearch);
             renderProducts("all", initialSearch);
@@ -28,25 +52,165 @@ async function fetchProducts() {
     }
 }
 
-// عرض المنتجات (مع دعم البحث والتصنيف)
+// إنشاء فلاتر الأقسام ديناميكياً
+function renderDynamicCategoryFilters() {
+    const sidebar = document.getElementById('categoryFilters');
+    const mobileBar = document.getElementById('mobileCategoryFilters');
+    if (!sidebar && !mobileBar) return;
+
+    // جلب الأقسام الفريدة المتاحة في المنتجات
+    const uniqueCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
+
+    // أيقونات الأقسام الافتراضية
+    const iconMap = {
+        'أنظمة مراقبة': 'videocam',
+        'شبكات': 'router',
+        'تجميعات كمبيوتر': 'computer',
+        'لاب توبات': 'laptop_mac',
+        'شاشات': 'monitor',
+        'إكسسوارات': 'mouse',
+        'اكسسوارات': 'mouse',
+        'خدمات صيانة': 'build',
+        'أخرى': 'more_horiz'
+    };
+    
+    const getIcon = (cat) => iconMap[cat] || 'category';
+
+    // 1. رندرة القائمة الجانبية (شاشات الكمبيوتر)
+    if (sidebar) {
+        let html = `
+            <button class="filter-btn active flex w-full items-center gap-3 p-3 rounded-lg bg-primary/10 text-primary border-r-4 border-primary hover:border-primary/40 transition-all duration-200 text-lg" data-category="all">
+                <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1, 'wght' 400;">grid_view</span> عرض الكل
+            </button>
+        `;
+        uniqueCategories.forEach(cat => {
+            html += `
+                <button class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg" data-category="${cat}">
+                    <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0, 'wght' 300;">${getIcon(cat)}</span> ${cat}
+                </button>
+            `;
+        });
+        sidebar.innerHTML = html;
+    }
+
+    // 2. رندرة قائمة الموبايل العلوية
+    if (mobileBar) {
+        let html = `
+            <button class="filter-btn active shrink-0 px-4 py-2 rounded-full bg-primary/20 text-primary border border-primary/30 text-sm font-bold whitespace-nowrap" data-category="all">الكل</button>
+        `;
+        uniqueCategories.forEach(cat => {
+            html += `
+                <button class="filter-btn shrink-0 px-4 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant text-sm whitespace-nowrap" data-category="${cat}">${cat}</button>
+            `;
+        });
+        mobileBar.innerHTML = html;
+    }
+
+    // 3. تفعيل الأكشن للفلاتر الديناميكية
+    const allFilters = document.querySelectorAll('.filter-btn');
+    allFilters.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const selectedCat = e.currentTarget.dataset.category;
+
+            // مزامنة حالة النشاط في القائمتين
+            allFilters.forEach(f => {
+                if (f.dataset.category === selectedCat) {
+                    f.classList.add('active');
+                    if (f.classList.contains('flex')) {
+                        f.classList.add('bg-primary/10', 'text-primary', 'border-r-4', 'border-primary');
+                        f.classList.remove('text-on-surface-variant');
+                    } else {
+                        f.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
+                        f.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                    }
+                } else {
+                    f.classList.remove('active');
+                    if (f.classList.contains('flex')) {
+                        f.classList.remove('bg-primary/10', 'text-primary', 'border-r-4', 'border-primary');
+                        f.classList.add('text-on-surface-variant');
+                    } else {
+                        f.classList.remove('bg-primary/20', 'text-primary', 'border-primary/30');
+                        f.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                    }
+                }
+            });
+
+            const searchBox = document.querySelector('input[placeholder="ابحث في الكتالوج..."]');
+            renderProducts(selectedCat, searchBox ? searchBox.value.trim() : "");
+        });
+    });
+}
+
+// عرض المنتجات (مع دعم البحث والتصنيف والترجمة التلقائية)
 function renderProducts(categoryFilter = "all", searchTerm = "") {
     const grid = document.getElementById('productsGrid');
     if (!grid) return;
 
     grid.innerHTML = '';
 
-    let filtered = categoryFilter === "all" ? globalProducts : globalProducts.filter(p => p.category === categoryFilter);
-
-    if (searchTerm) {
-        filtered = filtered.filter(p => p.title.toLowerCase().includes(searchTerm.toLowerCase()) || p.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    // إعادة التعيين للصفحة 1 إذا تغير الفلتر أو كلمة البحث
+    if (activeCategory !== categoryFilter || activeSearchTerm !== searchTerm) {
+        activeCategory = categoryFilter;
+        activeSearchTerm = searchTerm;
+        currentPage = 1;
     }
+
+    const categoryMap = {
+        'Laptops': ['لاب توبات', 'laptops', 'لابتوب', 'لابتوبات'],
+        'Desktops': ['تجميعات كمبيوتر', 'تجميعات', 'desktops', 'desktop'],
+        'Monitors': ['شاشات', 'monitors', 'شاشة'],
+        'Accessories': ['إكسسوارات', 'اكسسوارات', 'accessories', 'accessory'],
+        'Networking': ['شبكات', 'networking', 'شبكة'],
+        'Surveillance': ['أنظمة مراقبة', 'مراقبة', 'surveillance', 'كاميرات']
+    };
+
+    let filtered = globalProducts;
+    if (categoryFilter !== "all") {
+        filtered = globalProducts.filter(p => {
+            if (p.category === categoryFilter) return true;
+            const mappedValues = categoryMap[categoryFilter];
+            if (mappedValues) {
+                return mappedValues.some(val => p.category.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(p.category.toLowerCase()));
+            }
+            return false;
+        });
+    }
+
+    // البحث الذكي (Smart Multi-keyword Search)
+    if (searchTerm) {
+        const keywords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+        filtered = filtered.filter(p => {
+            return keywords.every(keyword => {
+                const titleMatch = p.title.toLowerCase().includes(keyword);
+                const descMatch = Array.isArray(p.description)
+                    ? p.description.some(spec => spec.toLowerCase().includes(keyword))
+                    : (p.description || '').toLowerCase().includes(keyword);
+                const categoryMatch = (p.category || '').toLowerCase().includes(keyword);
+                const brandMatch = (p.brand || '').toLowerCase().includes(keyword);
+                const skuMatch = (p.sku || '').toLowerCase().includes(keyword);
+                
+                return titleMatch || descMatch || categoryMatch || brandMatch || skuMatch;
+            });
+        });
+    }
+
+    // حساب الصفحات
+    const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    // قطع المنتجات الخاصة بالصفحة الحالية (Pagination Slice)
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const pageProducts = filtered.slice(start, end);
 
     if (filtered.length === 0) {
         grid.innerHTML = '<p style="text-align:center; width:100%; color:#94a3b8;">لا توجد منتجات مطابقة للبحث.</p>';
+        updatePaginationControls(0);
         return;
     }
 
-    filtered.forEach(p => {
+    pageProducts.forEach(p => {
         const specsHtml = p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('');
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
         
@@ -66,7 +230,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
         const cardHtml = `
             <article class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-video bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 mix-blend-screen" src="${p.image}">
+                    <img alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image}">
                     ${availabilityBadge}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
@@ -92,7 +256,49 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
         `;
         grid.innerHTML += cardHtml;
     });
+
+    updatePaginationControls(filtered.length);
 }
+
+// تحديث أزرار التنقل بين الصفحات
+function updatePaginationControls(totalItems) {
+    const controls = document.getElementById('paginationControls');
+    if (!controls) return;
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+    
+    if (totalPages <= 1) {
+        controls.innerHTML = '';
+        controls.classList.add('hidden');
+        return;
+    }
+    controls.classList.remove('hidden');
+
+    let html = `
+        <button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/30 text-on-surface hover:bg-primary/20 hover:text-primary transition-all disabled:opacity-50 disabled:pointer-events-none" title="الصفحة السابقة">
+            <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+        </button>
+        <span class="text-sm font-bold text-on-surface-variant font-mono-data">صفحة ${currentPage} / ${totalPages}</span>
+        <button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/30 text-on-surface hover:bg-primary/20 hover:text-primary transition-all disabled:opacity-50 disabled:pointer-events-none" title="الصفحة التالية">
+            <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+        </button>
+    `;
+    controls.innerHTML = html;
+}
+
+window.changePage = function(page) {
+    const totalPages = Math.max(1, Math.ceil(globalProducts.length / ITEMS_PER_PAGE));
+    if (page < 1 || page > totalPages) return;
+    
+    currentPage = page;
+    renderProducts(activeCategory, activeSearchTerm);
+    
+    // التمرير بسلاسة لأعلى المحتوى
+    const mainSection = document.querySelector('main');
+    if (mainSection) {
+        mainSection.scrollIntoView({ behavior: 'smooth' });
+    }
+};
 
 // دالة المشاركة
 window.shareProduct = async (title, price, url) => {
@@ -111,7 +317,7 @@ window.searchProducts = function() {};
 // نافذة تفاصيل المنتج (Product Modal)
 function injectProductModal() {
     const modalHtml = `
-        <div id="productModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4 sm:p-6 opacity-0 transition-opacity duration-300">
+        <div id="productModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 sm:p-6 opacity-0 transition-opacity duration-300">
             <!-- Overlay -->
             <div class="absolute inset-0 bg-background/80 backdrop-blur-md cursor-pointer" onclick="closeProductModal()"></div>
             
@@ -293,16 +499,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // تشغيل الفلاتر (الأقسام)
-    const filters = document.querySelectorAll('.filter-btn');
-    filters.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            filters.forEach(f => f.classList.remove('active'));
-            e.target.classList.add('active');
-            const searchBox = document.querySelector('input[placeholder="ابحث في الكتالوج..."]');
-            renderProducts(e.target.dataset.category, searchBox ? searchBox.value.trim() : "");
-        });
-    });
 
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
     const mobileMenu = document.getElementById('mobileMenu');

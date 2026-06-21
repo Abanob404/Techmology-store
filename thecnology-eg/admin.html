@@ -201,7 +201,7 @@
 
         <!-- ========= TAB 2: Settings ========= -->
         <div id="panel-settings" class="tab-panel hidden">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 <!-- Account Settings -->
                 <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
@@ -242,6 +242,24 @@
                         <button onclick="saveBrandingSettings()" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ مظهر الموقع
                         </button>
+                    </div>
+                </div>
+
+                <!-- Categories Settings -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">category</span> إدارة أقسام المنتجات
+                    </h3>
+                    <div class="flex flex-col gap-4">
+                        <div class="flex gap-2">
+                            <input type="text" id="newCategoryInput" placeholder="اسم القسم الجديد..." class="flex-1 bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            <button onclick="addNewCategory()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm shrink-0 flex items-center justify-center">
+                                <span class="material-symbols-outlined text-[18px]">add</span>
+                            </button>
+                        </div>
+                        <div id="categoriesAdminList" class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 border border-outline-variant/20 rounded-lg p-2 bg-surface-container-low">
+                            <!-- Dynamically populated -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -308,7 +326,7 @@
     </div>
 
     <!-- Edit Product Modal -->
-    <div id="editProductModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+    <div id="editProductModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
         <div class="bg-surface border border-outline-variant/30 rounded-xl p-6 w-full max-w-2xl transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
             <button onclick="closeEditModal()" class="absolute top-4 left-4 text-on-surface-variant hover:text-red-500 transition-colors">
                 <span class="material-symbols-outlined">close</span>
