@@ -755,6 +755,7 @@ window.openEditModal = function(id) {
 
     const modal = document.getElementById('editProductModal');
     modal.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden'); // منع التمرير في الخلفية
     setTimeout(() => {
         modal.classList.remove('opacity-0');
         document.getElementById('editProductModalContent').classList.remove('scale-95');
@@ -765,6 +766,7 @@ window.closeEditModal = function() {
     const modal = document.getElementById('editProductModal');
     modal.classList.add('opacity-0');
     document.getElementById('editProductModalContent').classList.add('scale-95');
+    document.body.classList.remove('overflow-hidden'); // إعادة تفعيل التمرير في الخلفية
     setTimeout(() => {
         modal.classList.add('hidden');
         document.getElementById('editProductForm').reset();

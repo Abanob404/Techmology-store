@@ -327,64 +327,72 @@
 
     <!-- Edit Product Modal -->
     <div id="editProductModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-        <div class="bg-surface border border-outline-variant/30 rounded-xl p-6 w-full max-w-2xl transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
-            <button onclick="closeEditModal()" class="absolute top-4 left-4 text-on-surface-variant hover:text-red-500 transition-colors">
-                <span class="material-symbols-outlined">close</span>
-            </button>
-            <h3 class="font-headline-md text-xl mb-4 text-on-surface flex items-center gap-2 border-b border-outline-variant/30 pb-2">
-                <span class="material-symbols-outlined text-primary text-[22px]">edit</span> تعديل المنتج
-            </h3>
+        <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
+            <!-- Header (Fixed) -->
+            <div class="p-6 pb-4 border-b border-outline-variant/30 flex justify-between items-center relative">
+                <h3 class="font-headline-md text-xl text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[22px]">edit</span> تعديل المنتج
+                </h3>
+                <button onclick="closeEditModal()" class="text-on-surface-variant hover:text-red-500 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
             
-            <form id="editProductForm" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Form containing scrollable body and fixed footer -->
+            <form id="editProductForm" class="flex flex-col flex-1 overflow-hidden">
                 <input type="hidden" id="editProductId">
-                
-                <div class="md:col-span-2">
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
-                    <input type="text" id="editPTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                </div>
-                
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
-                    <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                </div>
-                
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
-                    <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                </div>
-                
-                <div class="md:col-span-2">
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
-                    <textarea id="editPDesc" required rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></textarea>
+
+                <!-- Scrollable Fields Area -->
+                <div class="p-6 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
+                        <input type="text" id="editPTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
+                        <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
+                        <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
+                        <textarea id="editPDesc" required rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
+                        <input type="number" id="editPQuantity" required min="0" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">رقم الموديل (SKU)</label>
+                        <input type="text" id="editPSku" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
+                        <input type="text" id="editPBrand" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
+                        <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصورة <span class="text-on-surface-variant/50 text-xs">(اختياري)</span></label>
+                        <input type="file" id="editPImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                        <img id="editImagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
-                    <input type="number" id="editPQuantity" required min="0" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                </div>
-                
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">رقم الموديل (SKU)</label>
-                    <input type="text" id="editPSku" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                </div>
-
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
-                    <input type="text" id="editPBrand" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                </div>
-
-                <div>
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
-                    <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                </div>
-
-                <div class="md:col-span-2">
-                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصورة <span class="text-on-surface-variant/50 text-xs">(اختياري)</span></label>
-                    <input type="file" id="editPImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
-                    <img id="editImagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
-                </div>
-                
-                <div class="md:col-span-2 mt-4 flex gap-3">
+                <!-- Footer Actions (Fixed/Sticky at bottom) -->
+                <div class="p-6 bg-surface border-t border-outline-variant/30 flex gap-3 z-10">
                     <button type="submit" class="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2">
                         <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
                     </button>

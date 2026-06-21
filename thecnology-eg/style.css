@@ -68,3 +68,14 @@
             position: sticky;
             top: 0;
         }
+
+        /* Cart Sidebar Transitions */
+        .cart-sidebar {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .cart-sidebar-closed {
+            transform: translateX(-100%);
+        }
+        .cart-sidebar-open {
+            transform: translateX(0);
+        }
