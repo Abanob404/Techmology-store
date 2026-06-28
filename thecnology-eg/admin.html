@@ -134,9 +134,9 @@
                                 <input type="text" id="pWarranty" placeholder="اختياري (مثل: سنة واحدة)" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
                             </div>
                             <div>
-                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">صورة المنتج</label>
-                                <input type="file" id="pImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
-                                <img id="imagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">صور المنتج <span class="text-xs text-on-surface-variant/50">(يمكنك تحديد أكثر من صورة)</span></label>
+                                <input type="file" id="pImage" multiple accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                                <div id="imagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
                             </div>
                             <button type="submit" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">add</span> إضافة للكتالوج
@@ -385,9 +385,9 @@
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصورة <span class="text-on-surface-variant/50 text-xs">(اختياري)</span></label>
-                        <input type="file" id="editPImage" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
-                        <img id="editImagePreview" src="" alt="Preview" class="hidden w-full h-28 object-contain mt-3 rounded border border-outline-variant/30 bg-surface p-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصور <span class="text-on-surface-variant/50 text-xs">(اختياري - يمكنك تحديد أكثر من صورة)</span></label>
+                        <input type="file" id="editPImage" multiple accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                        <div id="editImagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
                     </div>
                 </div>
 

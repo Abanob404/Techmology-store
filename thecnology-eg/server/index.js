@@ -32,6 +32,13 @@ mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB'))
   .catch(err => console.error('❌ خطأ في الاتصال بقاعدة البيانات:', err));
 
+// تعريف موديل القسم (Category Schema)
+const categorySchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true },
+  createdAt: { type: Date, default: Date.now }
+});
+const Category = mongoose.model('Category', categorySchema);
+
 // تعريف موديل المنتج (Product Schema)
 const productSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -40,6 +47,10 @@ const productSchema = new mongoose.Schema({
   description: [String],
   image: { type: String, required: true },
   imagePublicId: String,
+  additionalImages: [{
+    url: String,
+    publicId: String
+  }],
   stockQuantity: { type: Number, default: 1 },
   sku: { type: String, default: '' },
   warranty: { type: String, default: '' },
@@ -48,6 +59,72 @@ const productSchema = new mongoose.Schema({
 });
 
 const Product = mongoose.model('Product', productSchema);
+
+// --- الـ API Routes الخاصة بالأقسام ---
+
+// جلب كل الأقسام
+app.get('/api/categories', async (req, res) => {
+  try {
+    const categories = await Category.find().sort({ createdAt: 1 });
+    res.json(categories);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء جلب الأقسام', error: err.message });
+  }
+});
+
+// إضافة قسم جديد
+app.post('/api/categories', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ message: 'اسم القسم مطلوب' });
+    
+    const existing = await Category.findOne({ name });
+    if (existing) return res.status(400).json({ message: 'هذا القسم موجود بالفعل' });
+    
+    const newCategory = new Category({ name });
+    await newCategory.save();
+    res.status(201).json(newCategory);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء إضافة القسم', error: err.message });
+  }
+});
+
+// حذف قسم
+app.delete('/api/categories/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    await Category.findOneAndDelete({ name });
+    res.json({ message: 'تم حذف القسم بنجاح' });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء حذف القسم', error: err.message });
+  }
+});
+
+// تعديل اسم قسم وتحديث كل منتجاته
+app.put('/api/categories/rename', async (req, res) => {
+  try {
+    const { oldCategory, newCategory } = req.body;
+    if (!oldCategory || !newCategory) {
+      return res.status(400).json({ message: 'الرجاء إرسال الاسم القديم والجديد للقسم' });
+    }
+
+    // تحديث في جدول الأقسام
+    await Category.findOneAndUpdate({ name: oldCategory }, { name: newCategory });
+
+    // تحديث في جدول المنتجات
+    const result = await Product.updateMany(
+      { category: oldCategory },
+      { $set: { category: newCategory } }
+    );
+
+    res.json({ 
+      message: `تم تحديث اسم القسم بنجاح من "${oldCategory}" إلى "${newCategory}"`,
+      modifiedCount: result.modifiedCount 
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء تحديث القسم جماعياً', error: err.message });
+  }
+});
 
 // --- الـ API Routes ---
 
@@ -61,21 +138,37 @@ app.get('/api/products', async (req, res) => {
   }
 });
 
-// 2. إضافة منتج جديد مع رفع الصورة
+// 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
   try {
     const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
 
-    if (!req.files || !req.files.image) {
-      return res.status(400).json({ message: 'برجاء رفع صورة للمنتج' });
+    if (!req.files || (!req.files.image && !req.files.images)) {
+      return res.status(400).json({ message: 'برجاء رفع صورة للمنتج على الأقل' });
     }
 
-    const file = req.files.image;
+    // السماح باستخدام req.files.image أو req.files.images
+    let uploadedFiles = req.files.images || req.files.image;
+    if (!Array.isArray(uploadedFiles)) {
+      uploadedFiles = [uploadedFiles]; // تحويل لـ array إذا كانت صورة واحدة
+    }
 
-    // رفع الصورة إلى Cloudinary
-    const result = await cloudinary.uploader.upload(file.tempFilePath, {
+    // رفع الصورة الأساسية (أول صورة)
+    const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
       folder: 'technology_store'
     });
+
+    // رفع باقي الصور إن وجدت
+    const additionalImages = [];
+    for (let i = 1; i < uploadedFiles.length; i++) {
+      const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+        folder: 'technology_store'
+      });
+      additionalImages.push({
+        url: result.secure_url,
+        publicId: result.public_id
+      });
+    }
 
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
 
@@ -84,8 +177,9 @@ app.post('/api/products', async (req, res) => {
       category,
       price,
       description: descArray,
-      image: result.secure_url,
-      imagePublicId: result.public_id,
+      image: mainResult.secure_url,
+      imagePublicId: mainResult.public_id,
+      additionalImages: additionalImages,
       stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
       sku: sku || '',
       warranty: warranty || '',
@@ -153,7 +247,7 @@ app.put('/api/products/:id/quantity', async (req, res) => {
   }
 });
 
-// 4. تعديل منتج بالكامل (يدعم رفع صورة جديدة اختيارياً)
+// 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', async (req, res) => {
   try {
     const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
@@ -170,20 +264,46 @@ app.put('/api/products/:id', async (req, res) => {
       brand: brand || ''
     };
 
-    // إذا تم رفع صورة جديدة
-    if (req.files && req.files.image) {
-      const file = req.files.image;
-      // حذف الصورة القديمة من Cloudinary
+    // إذا تم رفع صور جديدة (سنقوم باستبدال الصور القديمة)
+    if (req.files && (req.files.image || req.files.images)) {
+      let uploadedFiles = req.files.images || req.files.image;
+      if (!Array.isArray(uploadedFiles)) {
+        uploadedFiles = [uploadedFiles];
+      }
+
       const oldProduct = await Product.findById(req.params.id);
+      
+      // حذف الصورة الأساسية القديمة
       if (oldProduct && oldProduct.imagePublicId) {
         await cloudinary.uploader.destroy(oldProduct.imagePublicId);
       }
-      // رفع الصورة الجديدة
-      const result = await cloudinary.uploader.upload(file.tempFilePath, {
+      
+      // حذف الصور الإضافية القديمة
+      if (oldProduct && oldProduct.additionalImages && oldProduct.additionalImages.length > 0) {
+        for (const img of oldProduct.additionalImages) {
+          if (img.publicId) await cloudinary.uploader.destroy(img.publicId);
+        }
+      }
+
+      // رفع الصورة الأساسية الجديدة
+      const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
         folder: 'technology_store'
       });
-      updateData.image = result.secure_url;
-      updateData.imagePublicId = result.public_id;
+      updateData.image = mainResult.secure_url;
+      updateData.imagePublicId = mainResult.public_id;
+
+      // رفع الصور الإضافية الجديدة
+      const additionalImages = [];
+      for (let i = 1; i < uploadedFiles.length; i++) {
+        const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+          folder: 'technology_store'
+        });
+        additionalImages.push({
+          url: result.secure_url,
+          publicId: result.public_id
+        });
+      }
+      updateData.additionalImages = additionalImages;
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -199,41 +319,26 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-// 4.5. تعديل اسم قسم بالكامل لجميع المنتجات (تحديث جماعي)
-app.put('/api/categories/rename', async (req, res) => {
-  try {
-    const { oldCategory, newCategory } = req.body;
-    if (!oldCategory || !newCategory) {
-      return res.status(400).json({ message: 'الرجاء إرسال الاسم القديم والجديد للقسم' });
-    }
-
-    const result = await Product.updateMany(
-      { category: oldCategory },
-      { $set: { category: newCategory } }
-    );
-
-    res.json({ 
-      message: `تم تحديث اسم القسم بنجاح من "${oldCategory}" إلى "${newCategory}"`,
-      modifiedCount: result.modifiedCount 
-    });
-  } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث القسم جماعياً', error: err.message });
-  }
-});
-
-// 4. حذف منتج نهائياً وحذف صورته من Cloudinary
+// 4. حذف منتج نهائياً وحذف صوره من Cloudinary
 app.delete('/api/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'المنتج غير موجود' });
 
-    // حذف الصورة من كلاوديناري أولاً
+    // حذف الصورة الأساسية من كلاوديناري
     if (product.imagePublicId) {
       await cloudinary.uploader.destroy(product.imagePublicId);
     }
+    
+    // حذف الصور الإضافية من كلاوديناري
+    if (product.additionalImages && product.additionalImages.length > 0) {
+      for (const img of product.additionalImages) {
+        if (img.publicId) await cloudinary.uploader.destroy(img.publicId);
+      }
+    }
 
     await Product.findByIdAndDelete(req.params.id);
-    res.json({ message: 'تم حذف المنتج وصورته بنجاح' });
+    res.json({ message: 'تم حذف المنتج وصوره بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف المنتج', error: err.message });
   }

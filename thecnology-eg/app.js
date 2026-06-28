@@ -12,8 +12,8 @@ async function fetchProducts() {
         const response = await fetch(API_URL);
         globalProducts = await response.json();
 
-        // إنشاء فلاتر الأقسام ديناميكياً بناءً على المنتجات المتاحة
-        renderDynamicCategoryFilters();
+        // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
+        await renderDynamicCategoryFilters();
 
         const urlParams = new URLSearchParams(window.location.search);
         const initialSearch = urlParams.get('q');
@@ -54,13 +54,20 @@ async function fetchProducts() {
 }
 
 // إنشاء فلاتر الأقسام ديناميكياً
-function renderDynamicCategoryFilters() {
+async function renderDynamicCategoryFilters() {
     const sidebar = document.getElementById('categoryFilters');
     const mobileBar = document.getElementById('mobileCategoryFilters');
     if (!sidebar && !mobileBar) return;
 
-    // جلب الأقسام الفريدة المتاحة في المنتجات
-    const uniqueCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
+    // جلب الأقسام من السيرفر (وكملاذ أخير نستخدم الموجود في المنتجات)
+    let uniqueCategories = [];
+    try {
+        const res = await fetch('/api/categories');
+        const data = await res.json();
+        uniqueCategories = data.map(c => c.name);
+    } catch(err) {
+        uniqueCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
+    }
 
     // أيقونات الأقسام الافتراضية
     const iconMap = {
@@ -335,9 +342,11 @@ function injectProductModal() {
                 </button>
 
                 <!-- Image Section -->
-                <div class="w-full md:w-1/2 bg-gradient-to-b from-surface-container-highest to-surface p-6 flex justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain max-h-[300px] w-full drop-shadow-2xl">
-                    <div id="modalBadge" class="absolute top-6 right-6"></div>
+                <div class="w-full md:w-1/2 bg-gradient-to-b from-surface-container-highest to-surface p-6 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
+                    <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain max-h-[300px] w-full drop-shadow-2xl mb-4 transition-opacity duration-200">
+                    <div id="modalBadge" class="absolute top-6 right-6 z-10"></div>
+                    <!-- Image Gallery -->
+                    <div id="modalImageGallery" class="flex flex-wrap justify-center gap-2 mt-auto w-full px-4"></div>
                 </div>
 
                 <!-- Details Section -->
@@ -381,9 +390,59 @@ window.openProductModal = function(id) {
     if (!p) return;
 
     document.getElementById('modalImage').src = p.image;
+    document.getElementById('modalImage').style.opacity = 1;
     document.getElementById('modalCategory').textContent = p.category;
     document.getElementById('modalTitle').textContent = p.title;
     document.getElementById('modalPrice').textContent = isNaN(p.price) ? p.price : `${p.price} ج.م`;
+    
+    // Render Image Gallery
+    const galleryContainer = document.getElementById('modalImageGallery');
+    if (galleryContainer) {
+        galleryContainer.innerHTML = '';
+        
+        // Add main image to gallery
+        const mainImgBtn = document.createElement('button');
+        mainImgBtn.className = 'w-14 h-14 rounded-lg overflow-hidden border-2 border-primary transition-all opacity-100 hover:opacity-100';
+        mainImgBtn.innerHTML = `<img src="${p.image}" class="w-full h-full object-cover">`;
+        mainImgBtn.onclick = () => {
+            const mainImageEl = document.getElementById('modalImage');
+            mainImageEl.style.opacity = 0;
+            setTimeout(() => {
+                mainImageEl.src = p.image;
+                mainImageEl.style.opacity = 1;
+            }, 150);
+            updateActiveGalleryImage(mainImgBtn);
+        };
+        galleryContainer.appendChild(mainImgBtn);
+
+        // Add additional images
+        if (p.additionalImages && p.additionalImages.length > 0) {
+            p.additionalImages.forEach(img => {
+                const btn = document.createElement('button');
+                btn.className = 'w-14 h-14 rounded-lg overflow-hidden border-2 border-transparent transition-all opacity-60 hover:opacity-100';
+                btn.innerHTML = `<img src="${img.url}" class="w-full h-full object-cover">`;
+                btn.onclick = () => {
+                    const mainImageEl = document.getElementById('modalImage');
+                    mainImageEl.style.opacity = 0;
+                    setTimeout(() => {
+                        mainImageEl.src = img.url;
+                        mainImageEl.style.opacity = 1;
+                    }, 150);
+                    updateActiveGalleryImage(btn);
+                };
+                galleryContainer.appendChild(btn);
+            });
+        }
+
+        function updateActiveGalleryImage(activeBtn) {
+            Array.from(galleryContainer.children).forEach(btn => {
+                btn.classList.remove('border-primary', 'opacity-100');
+                btn.classList.add('border-transparent', 'opacity-60');
+            });
+            activeBtn.classList.remove('border-transparent', 'opacity-60');
+            activeBtn.classList.add('border-primary', 'opacity-100');
+        }
+    }
     
     const specsHtml = p.description.map(spec => `<li class="flex gap-2"><span class="text-primary">•</span><span>${spec}</span></li>`).join('');
     document.getElementById('modalSpecs').innerHTML = specsHtml;

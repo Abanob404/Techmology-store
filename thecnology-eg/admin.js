@@ -98,39 +98,37 @@ function showToast(message) {
 }
 
 // ==========================================
-// Dynamic Categories Datalist & Management
+// Dynamic Categories Management via API
 // ==========================================
-const DEFAULT_CATEGORIES = ['أنظمة مراقبة', 'شبكات', 'تجميعات كمبيوتر', 'لاب توبات', 'شاشات', 'إكسسوارات', 'خدمات صيانة', 'أخرى'];
 
-function getCategories() {
-    const saved = localStorage.getItem('tech_store_categories');
-    if (!saved) {
-        localStorage.setItem('tech_store_categories', JSON.stringify(DEFAULT_CATEGORIES));
-        return DEFAULT_CATEGORIES;
+async function fetchCategoriesAPI() {
+    try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        return data.map(c => c.name);
+    } catch (err) {
+        console.error('خطأ في جلب الأقسام من السيرفر', err);
+        return [];
     }
-    return JSON.parse(saved);
 }
 
-function saveCategories(categories) {
-    localStorage.setItem('tech_store_categories', JSON.stringify(categories));
-}
-
-function populateCategoriesDatalist(products) {
+async function populateCategoriesDatalist(products) {
     const datalist = document.getElementById('categoriesList');
     if (!datalist) return;
 
-    const categoriesFromProducts = products.map(p => p.category).filter(Boolean);
-    const allCategories = [...new Set([...getCategories(), ...categoriesFromProducts])];
+    const savedCategories = await fetchCategoriesAPI();
+    const categoriesFromProducts = (products || []).map(p => p.category).filter(Boolean);
+    const allCategories = [...new Set([...savedCategories, ...categoriesFromProducts])];
     
     datalist.innerHTML = allCategories.map(cat => `<option value="${cat}">`).join('');
 }
 
-function renderCategoriesAdminList() {
+async function renderCategoriesAdminList() {
     const container = document.getElementById('categoriesAdminList');
     if (!container) return;
 
-    // جلب الأقسام المخزنة افتراضياً
-    const savedCategories = getCategories();
+    // جلب الأقسام المخزنة من السيرفر
+    const savedCategories = await fetchCategoriesAPI();
 
     // جلب الأقسام الفعلية للمنتجات الموجودة في قاعدة البيانات وحساب عددها
     const products = window.adminProducts || [];
@@ -141,7 +139,7 @@ function renderCategoriesAdminList() {
         }
     });
 
-    // دمج الأقسام الافتراضية مع الأقسام الفعلية لكي يظهر كل شيء
+    // دمج الأقسام من السيرفر مع الأقسام الفعلية
     const allCategories = [...new Set([...savedCategories, ...Object.keys(productCategoryCounts)])];
 
     if (allCategories.length === 0) {
@@ -184,14 +182,7 @@ window.renameCategoryPrompt = async function(oldCat) {
 
     if (trimmedNewCat === oldCat) return; // لم يتغير شيء
 
-    // 1. تعديل الاسم في localStorage إذا كان مسجلاً هناك
-    let categories = getCategories();
-    if (categories.includes(oldCat)) {
-        categories = categories.map(c => c === oldCat ? trimmedNewCat : c);
-        saveCategories(categories);
-    }
-
-    // 2. تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم
+    // تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم وتحديث جدول الأقسام
     try {
         const response = await fetch('/api/categories/rename', {
             method: 'PUT',
@@ -206,19 +197,15 @@ window.renameCategoryPrompt = async function(oldCat) {
             loadAdminProducts();
         } else {
             const error = await response.json();
-            alert(`خطأ أثناء تحديث المنتجات: ${error.message}`);
+            alert(`خطأ أثناء تحديث القسم: ${error.message}`);
         }
     } catch (err) {
         console.error(err);
-        showToast('⚠️ تم تعديل الاسم محلياً فقط. فشل الاتصال بالسيرفر لتعديل المنتجات.');
-        renderCategoriesAdminList();
-        if (window.adminProducts) {
-            populateCategoriesDatalist(window.adminProducts);
-        }
+        showToast('❌ فشل الاتصال بالسيرفر.');
     }
 };
 
-window.addNewCategory = function() {
+window.addNewCategory = async function() {
     const input = document.getElementById('newCategoryInput');
     const newCat = input.value.trim();
     if (!newCat) {
@@ -226,19 +213,6 @@ window.addNewCategory = function() {
         return;
     }
 
-    const categories = getCategories();
-    if (categories.includes(newCat)) {
-        showToast('⚠️ هذا القسم موجود بالفعل!');
-        return;
-    }
-
-    categories.push(newCat);
-    saveCategories(categories);
-    input.value = '';
-    showToast('✅ تم إضافة القسم الجديد بنجاح!');
-    
-    renderCategoriesAdminList();
-    populateCategoriesDatalist(window.adminProducts || []);
 };
 
 window.deleteCategory = function(cat) {
@@ -438,24 +412,27 @@ window.deleteProduct = async function(id) {
 // Image Preview & Upload (Add Product)
 // ==========================================
 const pImage = document.getElementById('pImage');
-const imgPreview = document.getElementById('imagePreview');
+const imgPreviewContainer = document.getElementById('imagePreviewContainer');
 
 if (pImage) {
     pImage.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                if (imgPreview) {
-                    imgPreview.src = event.target.result;
-                    imgPreview.classList.remove('hidden');
-                }
-            };
-            reader.readAsDataURL(file);
-        } else {
-            if (imgPreview) {
-                imgPreview.classList.add('hidden');
-                imgPreview.src = '';
+        const files = e.target.files;
+        if (imgPreviewContainer) {
+            imgPreviewContainer.innerHTML = '';
+            if (files && files.length > 0) {
+                imgPreviewContainer.classList.remove('hidden');
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
+                        imgPreviewContainer.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                imgPreviewContainer.classList.add('hidden');
             }
         }
     });
@@ -463,24 +440,27 @@ if (pImage) {
 
 // Edit Image Preview
 const editPImage = document.getElementById('editPImage');
-const editImgPreview = document.getElementById('editImagePreview');
+const editImgPreviewContainer = document.getElementById('editImagePreviewContainer');
 
 if (editPImage) {
     editPImage.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(event) {
-                if (editImgPreview) {
-                    editImgPreview.src = event.target.result;
-                    editImgPreview.classList.remove('hidden');
-                }
-            };
-            reader.readAsDataURL(file);
-        } else {
-            if (editImgPreview) {
-                editImgPreview.classList.add('hidden');
-                editImgPreview.src = '';
+        const files = e.target.files;
+        if (editImgPreviewContainer) {
+            editImgPreviewContainer.innerHTML = '';
+            if (files && files.length > 0) {
+                editImgPreviewContainer.classList.remove('hidden');
+                Array.from(files).forEach(file => {
+                    const reader = new FileReader();
+                    reader.onload = function(event) {
+                        const img = document.createElement('img');
+                        img.src = event.target.result;
+                        img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
+                        editImgPreviewContainer.appendChild(img);
+                    };
+                    reader.readAsDataURL(file);
+                });
+            } else {
+                editImgPreviewContainer.classList.add('hidden');
             }
         }
     });
@@ -518,7 +498,10 @@ if (addForm) {
         formData.append('sku', sku);
         formData.append('warranty', warranty);
         formData.append('brand', brand);
-        formData.append('image', fileInput.files[0]);
+        
+        for (let i = 0; i < fileInput.files.length; i++) {
+            formData.append('images', fileInput.files[i]);
+        }
 
         const submitBtn = addForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
@@ -533,7 +516,7 @@ if (addForm) {
 
             if (response.ok) {
                 addForm.reset();
-                if (imgPreview) imgPreview.classList.add('hidden');
+                if (imgPreviewContainer) imgPreviewContainer.classList.add('hidden');
                 loadAdminProducts();
                 showToast('✅ تم إضافة المنتج بنجاح!');
             } else {
@@ -742,11 +725,28 @@ window.openEditModal = function(id) {
     document.getElementById('editPBrand').value = product.brand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
 
-    // Show current image
-    const editPreview = document.getElementById('editImagePreview');
-    if (editPreview && product.image) {
-        editPreview.src = product.image;
-        editPreview.classList.remove('hidden');
+    // Show current image(s) in preview
+    const editPreviewContainer = document.getElementById('editImagePreviewContainer');
+    if (editPreviewContainer) {
+        editPreviewContainer.innerHTML = '';
+        if (product.image) {
+            editPreviewContainer.classList.remove('hidden');
+            const mainImg = document.createElement('img');
+            mainImg.src = product.image;
+            mainImg.className = 'w-20 h-20 object-cover rounded border border-primary/50';
+            editPreviewContainer.appendChild(mainImg);
+
+            if (product.additionalImages && product.additionalImages.length > 0) {
+                product.additionalImages.forEach(imgData => {
+                    const img = document.createElement('img');
+                    img.src = imgData.url;
+                    img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
+                    editPreviewContainer.appendChild(img);
+                });
+            }
+        } else {
+            editPreviewContainer.classList.add('hidden');
+        }
     }
 
     // Reset file input
@@ -770,10 +770,10 @@ window.closeEditModal = function() {
     setTimeout(() => {
         modal.classList.add('hidden');
         document.getElementById('editProductForm').reset();
-        const editPreview = document.getElementById('editImagePreview');
-        if (editPreview) {
-            editPreview.classList.add('hidden');
-            editPreview.src = '';
+        const editPreviewContainer = document.getElementById('editImagePreviewContainer');
+        if (editPreviewContainer) {
+            editPreviewContainer.classList.add('hidden');
+            editPreviewContainer.innerHTML = '';
         }
     }, 300);
 };
@@ -795,10 +795,12 @@ if (editForm) {
         formData.append('brand', document.getElementById('editPBrand').value);
         formData.append('warranty', document.getElementById('editPWarranty').value);
 
-        // Append image only if a new one was selected
+        // Append images only if new ones were selected
         const editFileInput = document.getElementById('editPImage');
         if (editFileInput && editFileInput.files && editFileInput.files.length > 0) {
-            formData.append('image', editFileInput.files[0]);
+            for (let i = 0; i < editFileInput.files.length; i++) {
+                formData.append('images', editFileInput.files[i]);
+            }
         }
 
         const submitBtn = editForm.querySelector('button[type="submit"]');
