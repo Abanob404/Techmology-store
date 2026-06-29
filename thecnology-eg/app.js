@@ -235,10 +235,12 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
 
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
+        const optimizedImage = p.image ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : '';
+
         const cardHtml = `
             <article class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-video bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${p.image}">
+                    <img alt="${p.title}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
