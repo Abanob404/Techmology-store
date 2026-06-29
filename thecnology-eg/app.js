@@ -59,14 +59,16 @@ async function renderDynamicCategoryFilters() {
     const mobileBar = document.getElementById('mobileCategoryFilters');
     if (!sidebar && !mobileBar) return;
 
-    // جلب الأقسام من السيرفر (وكملاذ أخير نستخدم الموجود في المنتجات)
+    // جلب الأقسام من السيرفر ودمجها مع الأقسام الموجودة في المنتجات
     let uniqueCategories = [];
+    const productCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
     try {
         const res = await fetch('/api/categories');
         const data = await res.json();
-        uniqueCategories = data.map(c => c.name);
+        const apiCategories = Array.isArray(data) ? data.map(c => c.name) : [];
+        uniqueCategories = [...new Set([...apiCategories, ...productCategories])];
     } catch(err) {
-        uniqueCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
+        uniqueCategories = productCategories;
     }
 
     // أيقونات الأقسام الافتراضية
