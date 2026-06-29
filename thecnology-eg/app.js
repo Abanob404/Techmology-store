@@ -4,6 +4,7 @@ let currentPage = 1;
 const ITEMS_PER_PAGE = 50;
 let activeCategory = "all";
 let activeSearchTerm = "";
+let currentSort = "newest";
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 
 // جلب المنتجات وتفعيل البحث
@@ -14,6 +15,15 @@ async function fetchProducts() {
 
         // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
         await renderDynamicCategoryFilters();
+
+        // تفعيل فلتر الترتيب
+        const sortSelect = document.getElementById('sortSelect');
+        if (sortSelect) {
+            sortSelect.addEventListener('change', (e) => {
+                currentSort = e.target.value;
+                renderProducts(activeCategory, activeSearchTerm);
+            });
+        }
 
         const urlParams = new URLSearchParams(window.location.search);
         const initialSearch = urlParams.get('q');
@@ -201,6 +211,21 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
                 
                 return titleMatch || descMatch || categoryMatch || brandMatch || skuMatch;
             });
+        });
+    }
+
+    // الترتيب
+    if (currentSort === 'price_asc') {
+        filtered.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
+    } else if (currentSort === 'price_desc') {
+        filtered.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    } else { // newest
+        // افتراضياً السيرفر يرسل الأحدث أولاً، لكن يمكن الترتيب بناءً على تاريخ الإنشاء إذا وجد
+        filtered.sort((a, b) => {
+            if (a.createdAt && b.createdAt) {
+                return new Date(b.createdAt) - new Date(a.createdAt);
+            }
+            return 0; // الحفاظ على الترتيب الأصلي (وهو الأحدث من السيرفر)
         });
     }
 

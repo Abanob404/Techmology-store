@@ -803,6 +803,11 @@ if (editForm) {
             }
         }
 
+        const clearImagesCheckbox = document.getElementById('editPClearImages');
+        if (clearImagesCheckbox && clearImagesCheckbox.checked) {
+            formData.append('clearImages', 'true');
+        }
+
         const submitBtn = editForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
         submitBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> جاري الحفظ...';

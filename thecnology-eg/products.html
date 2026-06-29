@@ -203,18 +203,18 @@
                 <div class="flex items-center gap-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-hide"></div>
                 <div class="flex items-center gap-3 shrink-0">
                     <span class="text-xs font-mono-data text-on-surface-variant">ترتيب حسب:</span>
-                    <select
+                    <select id="sortSelect" aria-label="ترتيب حسب"
                         class="bg-surface border border-outline-variant rounded text-xs font-mono-data text-on-surface py-1.5 pl-8 pr-3 focus:ring-primary focus:border-primary outline-none"
                         dir="rtl">
-                        <option>الأحدث</option>
-                        <option>السعر: الأقل للأعلى</option>
-                        <option>السعر: الأعلى للأقل</option>
+                        <option value="newest">الأحدث</option>
+                        <option value="price_asc">السعر: الأقل للأعلى</option>
+                        <option value="price_desc">السعر: الأعلى للأقل</option>
                     </select>
                 </div>
             </div>
 
             <!-- Product Grid -->
-            <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-gutter">
+            <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-gutter min-h-[500px]">
                 <!-- Products will be injected by app.js here -->
             </div>
             

@@ -387,6 +387,12 @@
                     <div class="md:col-span-2">
                         <label class="block text-on-surface-variant text-sm font-semibold mb-1">تغيير الصور <span class="text-on-surface-variant/50 text-xs">(اختياري - يمكنك تحديد أكثر من صورة)</span></label>
                         <input type="file" id="editPImage" multiple accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                        
+                        <label class="flex items-center gap-2 mt-3 cursor-pointer text-error font-bold text-sm bg-error/10 p-2 rounded border border-error/20 w-max">
+                            <input type="checkbox" id="editPClearImages" class="form-checkbox text-error rounded border-error/30 focus:ring-error">
+                            <span>حذف جميع الصور القديمة للمنتج</span>
+                        </label>
+                        
                         <div id="editImagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
                     </div>
                 </div>
