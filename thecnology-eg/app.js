@@ -220,7 +220,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
         return;
     }
 
-    pageProducts.forEach(p => {
+    pageProducts.forEach((p, index) => {
         const specsHtml = p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('');
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
         
@@ -238,11 +238,12 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
         const optimizedImage = p.image ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : '';
+        const loadingAttr = index < 4 ? 'eager' : 'lazy';
 
         const cardHtml = `
             <article class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-video bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="${loadingAttr}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
