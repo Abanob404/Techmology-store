@@ -264,46 +264,84 @@ app.put('/api/products/:id', async (req, res) => {
       brand: brand || ''
     };
 
-    // إذا تم رفع صور جديدة (سنقوم باستبدال الصور القديمة)
+    // حذف صور مخصصة (إذا اختار المستخدم حذف صور معينة)
+    if (req.body.imagesToDelete) {
+      let idsToDelete = [];
+      try { idsToDelete = JSON.parse(req.body.imagesToDelete); } catch(e) {}
+
+      if (idsToDelete.length > 0) {
+        const oldProduct = await Product.findById(req.params.id);
+        if (oldProduct) {
+          // حذف من Cloudinary
+          for (const pid of idsToDelete) {
+            try { await cloudinary.uploader.destroy(pid); } catch(e) {}
+          }
+
+          // هل الصورة الأساسية ضمن المحذوفة؟
+          const mainDeleted = idsToDelete.includes(oldProduct.imagePublicId) || idsToDelete.includes('main');
+
+          // تصفية الصور الإضافية المتبقية
+          const remainingAdditional = (oldProduct.additionalImages || []).filter(
+            img => !idsToDelete.includes(img.publicId)
+          );
+
+          if (mainDeleted) {
+            // ترقية أول صورة إضافية متبقية لتكون الأساسية
+            if (remainingAdditional.length > 0) {
+              const promoted = remainingAdditional.shift();
+              updateData.image = promoted.url;
+              updateData.imagePublicId = promoted.publicId;
+              updateData.additionalImages = remainingAdditional;
+            } else {
+              updateData.image = '';
+              updateData.imagePublicId = '';
+              updateData.additionalImages = [];
+            }
+          } else {
+            updateData.additionalImages = remainingAdditional;
+          }
+        }
+      }
+    }
+
+    // إذا تم رفع صور جديدة (إضافتها للصور الحالية)
     if (req.files && (req.files.image || req.files.images)) {
       let uploadedFiles = req.files.images || req.files.image;
       if (!Array.isArray(uploadedFiles)) {
         uploadedFiles = [uploadedFiles];
       }
 
-      const oldProduct = await Product.findById(req.params.id);
-      
-      // حذف الصورة الأساسية القديمة
-      if (oldProduct && oldProduct.imagePublicId) {
-        await cloudinary.uploader.destroy(oldProduct.imagePublicId);
-      }
-      
-      // حذف الصور الإضافية القديمة
-      if (oldProduct && oldProduct.additionalImages && oldProduct.additionalImages.length > 0) {
-        for (const img of oldProduct.additionalImages) {
-          if (img.publicId) await cloudinary.uploader.destroy(img.publicId);
-        }
-      }
+      const currentProduct = await Product.findById(req.params.id);
+      const hasMainImage = updateData.image || (currentProduct && currentProduct.image);
 
-      // رفع الصورة الأساسية الجديدة
-      const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
-        folder: 'technology_store'
-      });
-      updateData.image = mainResult.secure_url;
-      updateData.imagePublicId = mainResult.public_id;
-
-      // رفع الصور الإضافية الجديدة
-      const additionalImages = [];
-      for (let i = 1; i < uploadedFiles.length; i++) {
-        const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+      if (!hasMainImage) {
+        // لا توجد صورة أساسية → أول صورة جديدة تصبح الأساسية
+        const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
           folder: 'technology_store'
         });
-        additionalImages.push({
-          url: result.secure_url,
-          publicId: result.public_id
-        });
+        updateData.image = mainResult.secure_url;
+        updateData.imagePublicId = mainResult.public_id;
+
+        // باقي الصور تكون إضافية
+        const newAdditional = updateData.additionalImages || currentProduct?.additionalImages || [];
+        for (let i = 1; i < uploadedFiles.length; i++) {
+          const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+            folder: 'technology_store'
+          });
+          newAdditional.push({ url: result.secure_url, publicId: result.public_id });
+        }
+        updateData.additionalImages = newAdditional;
+      } else {
+        // توجد صورة أساسية → كل الصور الجديدة تُضاف كإضافية
+        const existingAdditional = updateData.additionalImages || currentProduct?.additionalImages || [];
+        for (let i = 0; i < uploadedFiles.length; i++) {
+          const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+            folder: 'technology_store'
+          });
+          existingAdditional.push({ url: result.secure_url, publicId: result.public_id });
+        }
+        updateData.additionalImages = existingAdditional;
       }
-      updateData.additionalImages = additionalImages;
     }
 
     const updatedProduct = await Product.findByIdAndUpdate(

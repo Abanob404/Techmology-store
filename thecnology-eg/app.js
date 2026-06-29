@@ -372,11 +372,13 @@ function injectProductModal() {
                 </button>
 
                 <!-- Image Section -->
-                <div class="w-full md:w-1/2 bg-gradient-to-b from-surface-container-highest to-surface p-6 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain max-h-[300px] w-full drop-shadow-2xl mb-4 transition-opacity duration-200">
-                    <div id="modalBadge" class="absolute top-6 right-6 z-10"></div>
+                <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
+                    <div class="w-full rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center aspect-square max-h-[350px]">
+                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain w-full h-full p-4 drop-shadow-2xl transition-opacity duration-200">
+                    </div>
+                    <div id="modalBadge" class="absolute top-7 right-7 z-10"></div>
                     <!-- Image Gallery -->
-                    <div id="modalImageGallery" class="flex flex-wrap justify-center gap-2 mt-auto w-full px-4"></div>
+                    <div id="modalImageGallery" class="flex flex-wrap justify-center gap-2 mt-4 w-full px-2"></div>
                 </div>
 
                 <!-- Details Section -->
@@ -432,8 +434,8 @@ window.openProductModal = function(id) {
         
         // Add main image to gallery
         const mainImgBtn = document.createElement('button');
-        mainImgBtn.className = 'w-14 h-14 rounded-lg overflow-hidden border-2 border-primary transition-all opacity-100 hover:opacity-100';
-        mainImgBtn.innerHTML = `<img src="${p.image}" class="w-full h-full object-cover">`;
+        mainImgBtn.className = 'w-14 h-14 rounded-xl overflow-hidden border-2 border-primary bg-surface-container-high transition-all opacity-100 hover:opacity-100';
+        mainImgBtn.innerHTML = `<img src="${p.image}" class="w-full h-full object-contain p-1">`;
         mainImgBtn.onclick = () => {
             const mainImageEl = document.getElementById('modalImage');
             mainImageEl.style.opacity = 0;
@@ -449,8 +451,8 @@ window.openProductModal = function(id) {
         if (p.additionalImages && p.additionalImages.length > 0) {
             p.additionalImages.forEach(img => {
                 const btn = document.createElement('button');
-                btn.className = 'w-14 h-14 rounded-lg overflow-hidden border-2 border-transparent transition-all opacity-60 hover:opacity-100';
-                btn.innerHTML = `<img src="${img.url}" class="w-full h-full object-cover">`;
+                btn.className = 'w-14 h-14 rounded-xl overflow-hidden border-2 border-transparent bg-surface-container-high transition-all opacity-60 hover:opacity-100';
+                btn.innerHTML = `<img src="${img.url}" class="w-full h-full object-contain p-1">`;
                 btn.onclick = () => {
                     const mainImageEl = document.getElementById('modalImage');
                     mainImageEl.style.opacity = 0;

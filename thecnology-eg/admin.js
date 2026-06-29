@@ -711,9 +711,14 @@ window.saveBrandingSettings = function() {
 // ==========================================
 // Edit Product Modal (with Image Upload)
 // ==========================================
+let imagesToDelete = []; // مصفوفة لتتبع الصور المراد حذفها
+
 window.openEditModal = function(id) {
     const product = window.adminProducts.find(p => p._id === id);
     if (!product) return;
+
+    // إعادة تعيين مصفوفة الحذف عند فتح نافذة جديدة
+    imagesToDelete = [];
 
     document.getElementById('editProductId').value = product._id;
     document.getElementById('editPTitle').value = product.title;
@@ -725,42 +730,99 @@ window.openEditModal = function(id) {
     document.getElementById('editPBrand').value = product.brand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
 
-    // Show current image(s) in preview
-    const editPreviewContainer = document.getElementById('editImagePreviewContainer');
-    if (editPreviewContainer) {
-        editPreviewContainer.innerHTML = '';
-        if (product.image) {
-            editPreviewContainer.classList.remove('hidden');
-            const mainImg = document.createElement('img');
-            mainImg.src = product.image;
-            mainImg.className = 'w-20 h-20 object-cover rounded border border-primary/50';
-            editPreviewContainer.appendChild(mainImg);
+    // عرض الصور الحالية مع أزرار حذف فردية
+    const currentImagesContainer = document.getElementById('editCurrentImages');
+    if (currentImagesContainer) {
+        currentImagesContainer.innerHTML = '';
+        let hasImages = false;
 
-            if (product.additionalImages && product.additionalImages.length > 0) {
-                product.additionalImages.forEach(imgData => {
-                    const img = document.createElement('img');
-                    img.src = imgData.url;
-                    img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
-                    editPreviewContainer.appendChild(img);
-                });
-            }
-        } else {
-            editPreviewContainer.classList.add('hidden');
+        // الصورة الأساسية
+        if (product.image) {
+            hasImages = true;
+            const wrapper = createImageDeleteCard(product.image, product.imagePublicId || 'main', true);
+            currentImagesContainer.appendChild(wrapper);
+        }
+
+        // الصور الإضافية
+        if (product.additionalImages && product.additionalImages.length > 0) {
+            product.additionalImages.forEach(imgData => {
+                hasImages = true;
+                const wrapper = createImageDeleteCard(imgData.url, imgData.publicId, false);
+                currentImagesContainer.appendChild(wrapper);
+            });
+        }
+
+        if (!hasImages) {
+            currentImagesContainer.innerHTML = '<span class="text-on-surface-variant/50 text-xs self-center">لا توجد صور لهذا المنتج</span>';
         }
     }
 
-    // Reset file input
+    // Reset file input and preview
     const editFileInput = document.getElementById('editPImage');
     if (editFileInput) editFileInput.value = '';
+    const editPreviewContainer = document.getElementById('editImagePreviewContainer');
+    if (editPreviewContainer) {
+        editPreviewContainer.classList.add('hidden');
+        editPreviewContainer.innerHTML = '';
+    }
 
     const modal = document.getElementById('editProductModal');
     modal.classList.remove('hidden');
-    document.body.classList.add('overflow-hidden'); // منع التمرير في الخلفية
+    document.body.classList.add('overflow-hidden');
     setTimeout(() => {
         modal.classList.remove('opacity-0');
         document.getElementById('editProductModalContent').classList.remove('scale-95');
     }, 10);
 };
+
+// إنشاء كارت صورة مع زر حذف
+function createImageDeleteCard(imageUrl, publicId, isMain) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'relative group';
+    wrapper.dataset.publicId = publicId;
+
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.className = 'w-20 h-20 object-cover rounded-lg border-2 transition-all ' + (isMain ? 'border-primary' : 'border-outline-variant/30');
+
+    const badge = document.createElement('span');
+    badge.className = 'absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ' + (isMain ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface-variant');
+    badge.textContent = isMain ? 'أساسية' : 'إضافية';
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer';
+    deleteBtn.innerHTML = '✕';
+    deleteBtn.onclick = () => {
+        imagesToDelete.push(publicId);
+        wrapper.style.opacity = '0.3';
+        wrapper.style.transform = 'scale(0.9)';
+        wrapper.style.pointerEvents = 'none';
+        deleteBtn.style.display = 'none';
+
+        // إضافة زر استعادة
+        const undoBtn = document.createElement('button');
+        undoBtn.type = 'button';
+        undoBtn.className = 'absolute inset-0 w-full h-full flex items-center justify-center bg-red-500/20 rounded-lg cursor-pointer';
+        undoBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-400">undo</span>';
+        undoBtn.onclick = (e) => {
+            e.stopPropagation();
+            imagesToDelete = imagesToDelete.filter(pid => pid !== publicId);
+            wrapper.style.opacity = '1';
+            wrapper.style.transform = 'scale(1)';
+            wrapper.style.pointerEvents = 'auto';
+            deleteBtn.style.display = '';
+            undoBtn.remove();
+        };
+        wrapper.style.pointerEvents = 'auto';
+        wrapper.appendChild(undoBtn);
+    };
+
+    wrapper.appendChild(img);
+    wrapper.appendChild(badge);
+    wrapper.appendChild(deleteBtn);
+    return wrapper;
+}
 
 window.closeEditModal = function() {
     const modal = document.getElementById('editProductModal');
@@ -803,9 +865,9 @@ if (editForm) {
             }
         }
 
-        const clearImagesCheckbox = document.getElementById('editPClearImages');
-        if (clearImagesCheckbox && clearImagesCheckbox.checked) {
-            formData.append('clearImages', 'true');
+        // إرسال مصفوفة الصور المراد حذفها
+        if (imagesToDelete.length > 0) {
+            formData.append('imagesToDelete', JSON.stringify(imagesToDelete));
         }
 
         const submitBtn = editForm.querySelector('button[type="submit"]');
