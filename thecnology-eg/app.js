@@ -7,9 +7,24 @@ let activeSearchTerm = "";
 let currentSort = "newest";
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 
+window.defaultProductImage = '';
+
+async function loadStoreSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const settings = await response.json();
+        if (settings && settings.defaultProductImage) {
+            window.defaultProductImage = settings.defaultProductImage;
+        }
+    } catch (err) {
+        console.error('Error loading settings:', err);
+    }
+}
+
 // جلب المنتجات وتفعيل البحث
 async function fetchProducts() {
     try {
+        await loadStoreSettings();
         const response = await fetch(API_URL);
         globalProducts = await response.json();
 
@@ -248,6 +263,15 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
     pageProducts.forEach((p, index) => {
         const specsHtml = p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('');
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
+        const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
+        const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
+
+        const priceHtml = hasDiscount 
+            ? `<div class="flex flex-col">
+                 <span class="text-[10px] md:text-xs text-on-surface-variant/50 line-through font-mono-data mb-0.5">${p.oldPrice} ج.م</span>
+                 <span class="font-display-lg text-base md:text-xl text-primary text-glow font-bold">${p.price} ج.م</span>
+               </div>`
+            : `<span class="font-display-lg text-base md:text-xl text-primary text-glow font-bold">${priceDisplay}</span>`;
         
         let availabilityBadge = '';
         let isOutOfStock = false;
@@ -262,7 +286,8 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
 
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
-        const optimizedImage = p.image ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : '';
+        const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+        const optimizedImage = p.image ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fallbackImage;
         const loadingAttr = index < 4 ? 'eager' : 'lazy';
 
         const cardHtml = `
@@ -270,6 +295,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
                 <div class="relative aspect-video bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
                     <img alt="${p.title}" loading="${loadingAttr}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
+                    ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
                     <span class="text-on-surface-variant text-[9px] md:text-[10px] font-mono-data tracking-wider uppercase mb-1">${p.category}</span>
@@ -278,7 +304,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
                     
                     <div class="mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
                         <div class="flex items-center justify-between gap-2">
-                            <span class="font-display-lg text-base md:text-xl text-primary text-glow font-bold">${priceDisplay}</span>
+                            ${priceHtml}
                             <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products.html?id=${p._id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1.5 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
                                 <span class="material-symbols-outlined text-[16px] sm:text-[18px]">share</span>
                             </button>
@@ -421,11 +447,25 @@ window.openProductModal = function(id) {
     const p = globalProducts.find(prod => prod._id === id);
     if (!p) return;
 
-    document.getElementById('modalImage').src = p.image;
+    const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+    document.getElementById('modalImage').src = p.image || fallbackImage;
     document.getElementById('modalImage').style.opacity = 1;
     document.getElementById('modalCategory').textContent = p.category;
     document.getElementById('modalTitle').textContent = p.title;
-    document.getElementById('modalPrice').textContent = isNaN(p.price) ? p.price : `${p.price} ج.م`;
+    const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
+    const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
+    
+    if (hasDiscount) {
+        document.getElementById('modalPrice').innerHTML = `
+            <div class="flex items-baseline gap-3">
+                <span class="text-glow text-primary">${p.price} ج.م</span>
+                <span class="text-lg text-on-surface-variant/50 line-through font-mono-data">${p.oldPrice} ج.م</span>
+                <span class="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">خصم ${discountPercentage}%</span>
+            </div>
+        `;
+    } else {
+        document.getElementById('modalPrice').textContent = isNaN(p.price) ? p.price : `${p.price} ج.م`;
+    }
     
     // Render Image Gallery
     const galleryContainer = document.getElementById('modalImageGallery');
@@ -435,12 +475,12 @@ window.openProductModal = function(id) {
         // Add main image to gallery
         const mainImgBtn = document.createElement('button');
         mainImgBtn.className = 'w-14 h-14 rounded-xl overflow-hidden border-2 border-primary bg-surface-container-high transition-all opacity-100 hover:opacity-100';
-        mainImgBtn.innerHTML = `<img src="${p.image}" class="w-full h-full object-contain p-1">`;
+        mainImgBtn.innerHTML = `<img src="${p.image || fallbackImage}" class="w-full h-full object-contain p-1">`;
         mainImgBtn.onclick = () => {
             const mainImageEl = document.getElementById('modalImage');
             mainImageEl.style.opacity = 0;
             setTimeout(() => {
-                mainImageEl.src = p.image;
+                mainImageEl.src = p.image || fallbackImage;
                 mainImageEl.style.opacity = 1;
             }, 150);
             updateActiveGalleryImage(mainImgBtn);

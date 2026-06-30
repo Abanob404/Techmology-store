@@ -48,6 +48,7 @@ function checkAuth() {
         loadCurrentBg();
         loadUsersTable();
         renderCategoriesAdminList();
+        loadStoreSettings();
     } else {
         document.getElementById('loginContainer').style.display = 'flex';
         document.getElementById('adminContainer').style.display = 'none';
@@ -242,6 +243,7 @@ async function loadAdminProducts() {
     table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
     
     try {
+        await loadStoreSettings();
         const response = await fetch(API_URL);
         const products = await response.json();
         window.adminProducts = products;
@@ -289,12 +291,13 @@ function renderProductsPage() {
         const isLowStock = qty <= 3 && qty > 0;
         const isOutOfStock = qty === 0;
 
+        const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
         const tr = document.createElement('tr');
         tr.className = `border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ${isOutOfStock ? 'bg-red-900/10' : isLowStock ? 'bg-orange-900/10' : ''}`;
         tr.innerHTML = `
                 <td class="py-4 pr-2 font-semibold text-on-surface">
                     <div class="flex items-center gap-3">
-                        <img src="${p.image}" class="w-10 h-10 rounded object-cover border border-outline-variant/50">
+                        <img src="${p.image || fallbackImage}" class="w-10 h-10 rounded object-cover border border-outline-variant/50">
                         <span>${p.title}</span>
                     </div>
                 </td>
@@ -483,6 +486,7 @@ if (addForm) {
         const title = document.getElementById('pTitle').value;
         const category = document.getElementById('pCategory').value;
         const price = document.getElementById('pPrice').value;
+        const oldPrice = document.getElementById('pOldPrice').value;
         const desc = document.getElementById('pDesc').value;
         const quantity = document.getElementById('pQuantity').value;
         const sku = document.getElementById('pSku').value;
@@ -493,6 +497,7 @@ if (addForm) {
         formData.append('title', title);
         formData.append('category', category);
         formData.append('price', price);
+        if (oldPrice) formData.append('oldPrice', oldPrice);
         formData.append('description', desc);
         formData.append('stockQuantity', quantity);
         formData.append('sku', sku);
@@ -709,6 +714,84 @@ window.saveBrandingSettings = function() {
 };
 
 // ==========================================
+// Store Settings (Default Product Image)
+// ==========================================
+let defaultProductImage = '';
+let tempDefaultProductImageFile = null;
+
+async function loadStoreSettings() {
+    try {
+        const response = await fetch('/api/settings');
+        const settings = await response.json();
+        defaultProductImage = settings.defaultProductImage;
+        const preview = document.getElementById('defaultProductImagePreview');
+        if (preview && defaultProductImage) {
+            preview.src = defaultProductImage;
+            preview.classList.remove('hidden');
+        }
+    } catch (err) {
+        console.error('Error loading store settings:', err);
+    }
+}
+
+const defaultProductImageInput = document.getElementById('defaultProductImageInput');
+if (defaultProductImageInput) {
+    defaultProductImageInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            tempDefaultProductImageFile = file;
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const preview = document.getElementById('defaultProductImagePreview');
+                if (preview) {
+                    preview.src = event.target.result;
+                    preview.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+window.saveStoreSettings = async function() {
+    if (!tempDefaultProductImageFile) {
+        showToast('⚠️ يرجى اختيار صورة أولاً.');
+        return;
+    }
+
+    const saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    const originalText = saveSettingsBtn.innerHTML;
+    saveSettingsBtn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[18px]">sync</span> جاري الحفظ...';
+    saveSettingsBtn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('defaultProductImage', tempDefaultProductImageFile);
+
+    try {
+        const response = await fetch('/api/settings', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            const settings = await response.json();
+            defaultProductImage = settings.defaultProductImage;
+            tempDefaultProductImageFile = null;
+            showToast('✅ تم حفظ الإعدادات بنجاح!');
+        } else {
+            const errData = await response.json();
+            alert(`خطأ: ${errData.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ فشل الاتصال بالسيرفر.');
+    } finally {
+        saveSettingsBtn.innerHTML = originalText;
+        saveSettingsBtn.disabled = false;
+    }
+};
+
+// ==========================================
 // Edit Product Modal (with Image Upload)
 // ==========================================
 let imagesToDelete = []; // مصفوفة لتتبع الصور المراد حذفها
@@ -724,6 +807,7 @@ window.openEditModal = function(id) {
     document.getElementById('editPTitle').value = product.title;
     document.getElementById('editPCategory').value = product.category;
     document.getElementById('editPPrice').value = product.price;
+    document.getElementById('editPOldPrice').value = product.oldPrice || '';
     document.getElementById('editPDesc').value = product.description.join('\n');
     document.getElementById('editPQuantity').value = product.stockQuantity || 0;
     document.getElementById('editPSku').value = product.sku || '';
@@ -851,6 +935,7 @@ if (editForm) {
         formData.append('title', document.getElementById('editPTitle').value);
         formData.append('category', document.getElementById('editPCategory').value);
         formData.append('price', document.getElementById('editPPrice').value);
+        formData.append('oldPrice', document.getElementById('editPOldPrice').value);
         formData.append('description', document.getElementById('editPDesc').value);
         formData.append('stockQuantity', document.getElementById('editPQuantity').value);
         formData.append('sku', document.getElementById('editPSku').value);

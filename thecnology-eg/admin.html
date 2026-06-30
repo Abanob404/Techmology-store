@@ -5,35 +5,9 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TECHNOLOGY | لوحة التحكم</title>
     
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
-    
     <link rel="stylesheet" href="style.css">
-
-    <script id="tailwind-config">
-        tailwind.config = {
-            darkMode: "class",
-            theme: {
-                extend: {
-                    "colors": {
-                        "secondary": "#a6c8ff", "error": "#ffb4ab", "surface-variant": "#30353a", "surface-container-highest": "#30353a",
-                        "surface-container-high": "#252b2f", "surface-container": "#1b2024", "inverse-on-surface": "#2c3135", "secondary-container": "#2992ff",
-                        "tertiary": "#ffb876", "surface": "#0f1418", "outline-variant": "#3e4850", "primary": "#82cfff", "surface-dim": "#0f1418",
-                        "surface-container-lowest": "#090f13", "on-primary": "#00344b", "outline": "#87929b", "on-background": "#dee3e8",
-                        "background": "#0f1418", "surface-container-low": "#171c20", "on-surface": "#dee3e8", "on-surface-variant": "#bdc8d1"
-                    },
-                    "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
-                    "spacing": { "gutter": "24px", "unit": "8px", "container-max": "1440px", "margin-mobile": "20px", "margin-desktop": "64px" },
-                    "fontFamily": {
-                        "body-md": ["Inter"], "mono-data": ["Geist"], "label-caps": ["Geist"], "display-lg-mobile": ["Sora"],
-                        "headline-md": ["Sora"], "display-lg": ["Sora"], "body-lg": ["Inter"]
-                    }
-                }
-            }
-        }
-    </script>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30" dir="rtl">
 
@@ -107,9 +81,15 @@
                                 <input type="text" id="pCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
                                 <datalist id="categoriesList"></datalist>
                             </div>
-                            <div>
-                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
-                                <input type="number" id="pPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
+                                    <input type="number" id="pPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                                </div>
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر قبل الخصم (اختياري)</label>
+                                    <input type="number" id="pOldPrice" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
@@ -245,6 +225,23 @@
                     </div>
                 </div>
 
+                <!-- Store Settings (Fallback Image) -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">image</span> إعدادات المتجر
+                    </h3>
+                    <div class="flex flex-col gap-5">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصورة الافتراضية للمنتجات</label>
+                            <input type="file" id="defaultProductImageInput" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                            <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-contain mt-3 rounded bg-surface p-2 border border-outline-variant/30">
+                        </div>
+                        <button onclick="saveStoreSettings()" id="saveSettingsBtn" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Categories Settings -->
                 <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
                     <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
@@ -357,6 +354,10 @@
                     <div>
                         <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
                         <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر قبل الخصم (اختياري)</label>
+                        <input type="number" id="editPOldPrice" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
                     </div>
                     
                     <div class="md:col-span-2">

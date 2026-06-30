@@ -44,6 +44,7 @@ const productSchema = new mongoose.Schema({
   title: { type: String, required: true },
   category: { type: String, required: true },
   price: { type: Number, required: true },
+  oldPrice: { type: Number },
   description: [String],
   image: { type: String, required: true },
   imagePublicId: String,
@@ -59,6 +60,23 @@ const productSchema = new mongoose.Schema({
 });
 
 const Product = mongoose.model('Product', productSchema);
+
+// تعريف موديل إعدادات المتجر (Settings Schema)
+const settingsSchema = new mongoose.Schema({
+  defaultProductImage: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+const Settings = mongoose.model('Settings', settingsSchema);
+
+// دالة لجلب أو إنشاء وثيقة الإعدادات الافتراضية
+async function getOrCreateSettings() {
+  let settings = await Settings.findOne();
+  if (!settings) {
+    settings = new Settings({ defaultProductImage: 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image' });
+    await settings.save();
+  }
+  return settings;
+}
 
 // --- الـ API Routes الخاصة بالأقسام ---
 
@@ -141,7 +159,7 @@ app.get('/api/products', async (req, res) => {
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
   try {
-    const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
 
     if (!req.files || (!req.files.image && !req.files.images)) {
       return res.status(400).json({ message: 'برجاء رفع صورة للمنتج على الأقل' });
@@ -176,6 +194,7 @@ app.post('/api/products', async (req, res) => {
       title,
       category,
       price,
+      oldPrice: oldPrice ? Number(oldPrice) : undefined,
       description: descArray,
       image: mainResult.secure_url,
       imagePublicId: mainResult.public_id,
@@ -207,6 +226,7 @@ app.post('/api/products/bulk', async (req, res) => {
         title: p.name || 'بدون اسم',
         category: p.category || 'أخرى',
         price: Number(p.price) || 0,
+        oldPrice: p.oldPrice ? Number(p.oldPrice) : undefined,
         description: p.description ? p.description.split('\n') : [],
         stockQuantity: Number(p.stockQuantity) || 0,
         sku: p.sku || '',
@@ -250,13 +270,14 @@ app.put('/api/products/:id/quantity', async (req, res) => {
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', async (req, res) => {
   try {
-    const { title, category, price, description, stockQuantity, sku, warranty, brand } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     
     const updateData = {
       title,
       category,
       price,
+      oldPrice: oldPrice ? Number(oldPrice) : null,
       description: descArray,
       stockQuantity: parseInt(stockQuantity, 10) || 0,
       sku: sku || '',
@@ -379,6 +400,40 @@ app.delete('/api/products/:id', async (req, res) => {
     res.json({ message: 'تم حذف المنتج وصوره بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف المنتج', error: err.message });
+  }
+});
+
+// --- الـ API Routes الخاصة بإعدادات المتجر ---
+
+// 1. جلب الإعدادات
+app.get('/api/settings', async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في جلب الإعدادات', error: err.message });
+  }
+});
+
+// 2. تحديث الصورة الافتراضية
+app.post('/api/settings', async (req, res) => {
+  try {
+    if (!req.files || !req.files.defaultProductImage) {
+      return res.status(400).json({ message: 'يرجى رفع صورة أولاً' });
+    }
+
+    const file = req.files.defaultProductImage;
+    const result = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: 'technology_store_settings'
+    });
+
+    const settings = await getOrCreateSettings();
+    settings.defaultProductImage = result.secure_url;
+    await settings.save();
+
+    res.json(settings);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
   }
 });
 
