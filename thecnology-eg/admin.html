@@ -16,18 +16,16 @@
         تمت العملية بنجاح
     </div>
 
-    <!-- Login Container (Glassmorphism Overlay) -->
-    <div id="loginContainer" class="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-background/80 backdrop-blur-md transition-opacity duration-300">
-        <div class="glass-panel p-10 rounded-2xl w-full max-w-md text-center shadow-2xl border border-primary/20">
-            <span class="material-symbols-outlined text-primary text-6xl mb-4 text-glow">admin_panel_settings</span>
-            <h2 class="font-headline-md text-3xl text-on-surface mb-2 font-bold">لوحة الإدارة</h2>
+    <!-- Login Container -->
+    <div id="loginContainer" class="flex flex-1 items-center justify-center p-6">
+        <div class="glass-panel p-10 rounded-xl w-full max-w-md text-center">
+            <span class="material-symbols-outlined text-primary text-5xl mb-4">admin_panel_settings</span>
+            <h2 class="font-headline-md text-2xl text-on-surface mb-2">لوحة الإدارة</h2>
             <p class="text-on-surface-variant text-sm mb-8">تسجيل الدخول للتحكم في المتجر</p>
             
-            <input type="text" id="adminUsername" placeholder="اسم المستخدم..." class="w-full bg-surface-container border border-outline-variant rounded-xl py-3.5 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-4 text-center text-lg shadow-inner">
-            <input type="password" id="adminPassword" placeholder="كلمة المرور..." class="w-full bg-surface-container border border-outline-variant rounded-xl py-3.5 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-6 text-center text-lg shadow-inner" onkeypress="if(event.key==='Enter')login()">
-            <button onclick="login()" id="loginBtn" class="w-full py-3.5 bg-primary text-on-primary font-bold rounded-xl hover:bg-primary/90 hover:glow-primary transition-all text-lg flex items-center justify-center gap-2">
-                دخول <span class="material-symbols-outlined">login</span>
-            </button>
+            <input type="text" id="adminUsername" placeholder="اسم المستخدم..." class="w-full bg-surface-container-high border border-outline-variant rounded-lg py-3 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-4 text-center">
+            <input type="password" id="adminPassword" placeholder="كلمة المرور..." class="w-full bg-surface-container-high border border-outline-variant rounded-lg py-3 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-6 text-center" onkeypress="if(event.key==='Enter')login()">
+            <button onclick="login()" class="w-full py-3 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all">دخول</button>
         </div>
     </div>
 

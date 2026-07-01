@@ -9,113 +9,76 @@ window.filteredProducts = [];
 window.currentPage = 1;
 
 // ==========================================
-// Multi-User Authentication System (JWT)
+// Multi-User Authentication System
 // ==========================================
-
-function getAuthToken() {
-    return sessionStorage.getItem('tech_token');
+function getUsers() {
+    const defaultUsers = [
+        { id: '1', username: 'admin', password: '1234', role: 'مدير', permissions: ['all'] }
+    ];
+    return JSON.parse(localStorage.getItem('tech_users') || JSON.stringify(defaultUsers));
 }
 
-// Custom fetch wrapper to inject token and handle 401/403
-async function apiFetch(url, options = {}) {
-    const token = getAuthToken();
-    if (token) {
-        options.headers = {
-            ...options.headers,
-            'Authorization': `Bearer ${token}`
-        };
-    }
-    const response = await fetch(url, options);
-    if (response.status === 401 || response.status === 403) {
-        logout(true); // Token expired or invalid
-        throw new Error('غير مصرح لك بالوصول. يرجى تسجيل الدخول مجدداً.');
-    }
-    return response;
+function saveUsers(users) {
+    localStorage.setItem('tech_users', JSON.stringify(users));
+}
+
+function getCurrentUser() {
+    const userId = sessionStorage.getItem('tech_current_user_id');
+    if (!userId) return null;
+    return getUsers().find(u => u.id === userId) || null;
 }
 
 function checkAuth() {
-    const token = getAuthToken();
-    const loginContainer = document.getElementById('loginContainer');
-    const adminContainer = document.getElementById('adminContainer');
-
-    if (token) {
-        // فك تشفير التوكن للحصول على بيانات المستخدم للعرض
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const userBadge = document.getElementById('currentUserBadge');
-            if (userBadge) userBadge.textContent = `${payload.username}`;
-        } catch(e) {}
-
-        loginContainer.classList.add('opacity-0', 'pointer-events-none');
-        setTimeout(() => { loginContainer.classList.add('hidden'); }, 300);
+    const user = getCurrentUser();
+    if (user) {
+        document.getElementById('loginContainer').style.display = 'none';
+        document.getElementById('adminContainer').classList.remove('hidden');
+        document.getElementById('adminContainer').style.display = 'block';
         
-        adminContainer.classList.remove('hidden');
-        adminContainer.style.display = 'block';
-
+        const userBadge = document.getElementById('currentUserBadge');
+        if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
+        
         const userMgmt = document.getElementById('tab-users');
-        if (userMgmt) userMgmt.style.display = 'none'; // Only manager can see it (can be improved)
+        if (userMgmt) {
+            userMgmt.style.display = hasPermission('manage_users') ? 'block' : 'none';
+        }
 
         loadAdminProducts();
         loadCurrentLogo();
         loadCurrentBg();
+        loadUsersTable();
         renderCategoriesAdminList();
         loadStoreSettings();
     } else {
-        loginContainer.classList.remove('hidden');
-        // Force reflow
-        void loginContainer.offsetWidth;
-        loginContainer.classList.remove('opacity-0', 'pointer-events-none');
-        
-        adminContainer.style.display = 'none';
-        adminContainer.classList.add('hidden');
+        document.getElementById('loginContainer').style.display = 'flex';
+        document.getElementById('adminContainer').style.display = 'none';
     }
 }
 
-async function login() {
+function hasPermission(perm) {
+    const user = getCurrentUser();
+    if (!user) return false;
+    return user.permissions.includes('all') || user.permissions.includes(perm);
+}
+
+function login() {
     const username = document.getElementById('adminUsername').value.trim();
     const password = document.getElementById('adminPassword').value.trim();
-    const loginBtn = document.getElementById('loginBtn');
+    const users = getUsers();
+    const user = users.find(u => u.username === username && u.password === password);
 
-    if (!username || !password) {
-        showToast('يرجى إدخال اسم المستخدم وكلمة المرور');
-        return;
-    }
-
-    const originalText = loginBtn.innerHTML;
-    loginBtn.innerHTML = '<span class="material-symbols-outlined animate-spin">sync</span> جاري التحقق...';
-    loginBtn.disabled = true;
-
-    try {
-        const response = await fetch('/api/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-
-        const data = await response.json();
-
-        if (response.ok && data.token) {
-            sessionStorage.setItem('tech_token', data.token);
-            document.getElementById('adminUsername').value = '';
-            document.getElementById('adminPassword').value = '';
-            checkAuth();
-            showToast(`مرحباً ${username}!`);
-        } else {
-            alert(data.message || 'بيانات الدخول غير صحيحة!');
-        }
-    } catch (err) {
-        console.error(err);
-        alert('حدث خطأ أثناء الاتصال بالسيرفر.');
-    } finally {
-        loginBtn.innerHTML = originalText;
-        loginBtn.disabled = false;
+    if (user) {
+        sessionStorage.setItem('tech_current_user_id', user.id);
+        checkAuth();
+        showToast(`مرحباً ${user.username}!`);
+    } else {
+        alert('اسم المستخدم أو كلمة المرور غير صحيحة!');
     }
 }
 window.login = login;
 
-function logout(force = false) {
-    sessionStorage.removeItem('tech_token');
-    if (force) showToast('انتهت الجلسة، يرجى تسجيل الدخول مجدداً.');
+function logout() {
+    sessionStorage.removeItem('tech_current_user_id');
     checkAuth();
 }
 window.logout = logout;
@@ -222,7 +185,7 @@ window.renameCategoryPrompt = async function(oldCat) {
 
     // تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم وتحديث جدول الأقسام
     try {
-        const response = await apiFetch('/api/categories/rename', {
+        const response = await fetch('/api/categories/rename', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ oldCategory: oldCat, newCategory: trimmedNewCat })
@@ -407,7 +370,7 @@ window.updateQuantity = async function(id) {
     const qtyInput = document.getElementById(`qty-${id}`);
     const newQty = parseInt(qtyInput.value, 10) || 0;
     try {
-        const response = await apiFetch(`${API_URL}/${id}/quantity`, {
+        const response = await fetch(`${API_URL}/${id}/quantity`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ stockQuantity: newQty })
@@ -432,7 +395,7 @@ window.updateQuantity = async function(id) {
 window.deleteProduct = async function(id) {
     if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         try {
-            const response = await apiFetch(`${API_URL}/${id}`, {
+            const response = await fetch(`${API_URL}/${id}`, {
                 method: 'DELETE'
             });
             if (response.ok) {
@@ -551,7 +514,7 @@ if (addForm) {
         submitBtn.disabled = true;
 
         try {
-            const response = await apiFetch(API_URL, {
+            const response = await fetch(API_URL, {
                 method: 'POST',
                 body: formData
             });
@@ -805,7 +768,7 @@ window.saveStoreSettings = async function() {
     formData.append('defaultProductImage', tempDefaultProductImageFile);
 
     try {
-        const response = await apiFetch('/api/settings', {
+        const response = await fetch('/api/settings', {
             method: 'POST',
             body: formData
         });
@@ -998,7 +961,7 @@ if (editForm) {
         submitBtn.disabled = true;
 
         try {
-            const response = await apiFetch(`${API_URL}/${id}`, {
+            const response = await fetch(`${API_URL}/${id}`, {
                 method: 'PUT',
                 body: formData
             });
@@ -1074,7 +1037,7 @@ window.importCSV = function(input) {
             }
 
             try {
-                const response = await apiFetch(`${API_URL}/bulk`, {
+                const response = await fetch(`${API_URL}/bulk`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(products)
