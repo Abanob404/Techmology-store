@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const fileUpload = require('express-fileupload');
+const jwt = require('jsonwebtoken');
 const serverless = require('serverless-http'); // تم تصحيح المكتبة للـ Serverless
 require('dotenv').config();
 
@@ -78,6 +79,29 @@ async function getOrCreateSettings() {
   return settings;
 }
 
+// --- نظام المصادقة (JWT Authentication) ---
+app.post('/api/login', (req, res) => {
+  const { username, password } = req.body;
+  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
+    const token = jwt.sign({ username, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '12h' });
+    return res.json({ token, user: { username, role: 'مدير', permissions: ['all'] } });
+  }
+  return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+});
+
+const verifyToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ message: 'غير مصرح لك بالوصول (Missing Token)' });
+  }
+  const token = authHeader.split(' ')[1];
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return res.status(403).json({ message: 'غير مصرح لك بالوصول (Invalid Token)' });
+    req.user = decoded;
+    next();
+  });
+};
+
 // --- الـ API Routes الخاصة بالأقسام ---
 
 // جلب كل الأقسام
@@ -91,7 +115,7 @@ app.get('/api/categories', async (req, res) => {
 });
 
 // إضافة قسم جديد
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', verifyToken, async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: 'اسم القسم مطلوب' });
@@ -108,7 +132,7 @@ app.post('/api/categories', async (req, res) => {
 });
 
 // حذف قسم
-app.delete('/api/categories/:name', async (req, res) => {
+app.delete('/api/categories/:name', verifyToken, async (req, res) => {
   try {
     const { name } = req.params;
     await Category.findOneAndDelete({ name });
@@ -119,7 +143,7 @@ app.delete('/api/categories/:name', async (req, res) => {
 });
 
 // تعديل اسم قسم وتحديث كل منتجاته
-app.put('/api/categories/rename', async (req, res) => {
+app.put('/api/categories/rename', verifyToken, async (req, res) => {
   try {
     const { oldCategory, newCategory } = req.body;
     if (!oldCategory || !newCategory) {
@@ -157,7 +181,7 @@ app.get('/api/products', async (req, res) => {
 });
 
 // 2. إضافة منتج جديد مع رفع الصور
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', verifyToken, async (req, res) => {
   try {
     const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
 
@@ -213,7 +237,7 @@ app.post('/api/products', async (req, res) => {
 });
 
 // إضافة/تحديث منتجات متعددة (Bulk CSV Upsert)
-app.post('/api/products/bulk', async (req, res) => {
+app.post('/api/products/bulk', verifyToken, async (req, res) => {
   try {
     const productsArray = req.body;
     if (!Array.isArray(productsArray) || productsArray.length === 0) {
@@ -252,7 +276,7 @@ app.post('/api/products/bulk', async (req, res) => {
 });
 
 // 3. تعديل كمية المخزون
-app.put('/api/products/:id/quantity', async (req, res) => {
+app.put('/api/products/:id/quantity', verifyToken, async (req, res) => {
   try {
     const { stockQuantity } = req.body;
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -268,7 +292,7 @@ app.put('/api/products/:id/quantity', async (req, res) => {
 });
 
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', verifyToken, async (req, res) => {
   try {
     const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
@@ -379,7 +403,7 @@ app.put('/api/products/:id', async (req, res) => {
 });
 
 // 4. حذف منتج نهائياً وحذف صوره من Cloudinary
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', verifyToken, async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'المنتج غير موجود' });
@@ -416,7 +440,7 @@ app.get('/api/settings', async (req, res) => {
 });
 
 // 2. تحديث الصورة الافتراضية
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', verifyToken, async (req, res) => {
   try {
     if (!req.files || !req.files.defaultProductImage) {
       return res.status(400).json({ message: 'يرجى رفع صورة أولاً' });
