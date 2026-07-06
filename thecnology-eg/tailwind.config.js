@@ -43,14 +43,13 @@ module.exports = {
         "margin-desktop": "64px"
       },
       fontFamily: {
-        sans: ['"IBM Plex Sans Arabic"', 'sans-serif'],
-        "body-md": ['"IBM Plex Sans Arabic"', "sans-serif"],
+        "body-md": ["Cairo", "sans-serif"],
         "mono-data": ["Geist", "monospace"],
         "label-caps": ["Geist", "sans-serif"],
         "display-lg-mobile": ["Sora", "sans-serif"],
         "headline-md": ["Sora", "sans-serif"],
         "display-lg": ["Sora", "sans-serif"],
-        "body-lg": ['"IBM Plex Sans Arabic"', "sans-serif"]
+        "body-lg": ["Cairo", "sans-serif"]
       }
     }
   },

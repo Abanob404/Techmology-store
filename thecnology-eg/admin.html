@@ -66,7 +66,7 @@
             <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 
                 <!-- Add Product Form -->
-                <div class="lg:col-span-1">
+                <div class="lg:col-span-1" id="addProductWrapper">
                     <div class="glass-panel p-5 rounded-xl border border-primary/20">
                         <h3 class="font-headline-md text-lg mb-5 text-on-surface border-b border-outline-variant/30 pb-3 flex items-center gap-2">
                             <span class="material-symbols-outlined text-primary text-[20px]">add_circle</span> إضافة منتج
@@ -142,12 +142,15 @@
                                 </button>
                             </div>
                         </div>
-                        <!-- Search Bar -->
-                        <div class="mb-4">
-                            <div class="relative">
+                        <!-- Search & Filter Bar -->
+                        <div class="mb-4 flex flex-col md:flex-row gap-3">
+                            <div class="relative flex-1">
                                 <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
                                 <input type="search" id="adminSearchInput" placeholder="بحث باسم المنتج أو رقم الموديل SKU..." class="w-full bg-surface-container border border-outline-variant rounded-lg py-2.5 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary text-sm" oninput="filterAdminProducts()">
                             </div>
+                            <select id="adminCategoryFilter" onchange="filterAdminProducts()" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface focus:outline-none focus:border-primary text-sm min-w-[200px]">
+                                <option value="">كل الأقسام</option>
+                            </select>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full text-right border-collapse">
@@ -234,7 +237,7 @@
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصورة الافتراضية للمنتجات</label>
                             <input type="file" id="defaultProductImageInput" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
-                            <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-contain mt-3 rounded bg-surface p-2 border border-outline-variant/30">
+                            <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
                         <button onclick="saveStoreSettings()" id="saveSettingsBtn" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
@@ -243,7 +246,7 @@
                 </div>
 
                 <!-- Categories Settings -->
-                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50" id="manageCategoriesWrapper">
                     <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
                         <span class="material-symbols-outlined text-primary text-[20px]">category</span> إدارة أقسام المنتجات
                     </h3>
@@ -282,11 +285,15 @@
                                 <input type="password" id="newUserPassword" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
                             </div>
                             <div>
-                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">الصلاحية</label>
-                                <select id="newUserRole" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
-                                    <option value="مدير">مدير (كل الصلاحيات)</option>
-                                    <option value="محرر">محرر (إضافة وتعديل المنتجات فقط)</option>
-                                </select>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصلاحيات بدقة</label>
+                                <div class="flex flex-col gap-2 bg-surface-container border border-outline-variant rounded p-3">
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="add_product" class="accent-primary w-4 h-4 rounded"> إضافة منتجات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="edit_product" class="accent-primary w-4 h-4 rounded"> تعديل وحذف منتجات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_categories" class="accent-primary w-4 h-4 rounded"> إدارة الأقسام</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_settings" class="accent-primary w-4 h-4 rounded"> إعدادات وتصميم المتجر</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> إدارة المستخدمين</label>
+                                    <label class="flex items-center gap-2 text-sm font-bold text-primary cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="all" class="accent-primary w-4 h-4 rounded" onchange="document.querySelectorAll('input[name=permissions]').forEach(c => c.checked = this.checked)"> كل الصلاحيات (مدير)</label>
+                                </div>
                             </div>
                             <button onclick="addNewUser()" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">
                                 <span class="material-symbols-outlined text-[18px]">person_add</span> إضافة مستخدم

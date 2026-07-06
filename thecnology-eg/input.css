@@ -3,24 +3,32 @@
 @tailwind utilities;
 
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  src: url('./fonts/IBM/woff2/IBMPlexSansArabic-Regular.woff2') format('woff2');
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo/static/Cairo-Regular.ttf') format('truetype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  src: url('./fonts/IBM/woff2/IBMPlexSansArabic-Medium.woff2') format('woff2');
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo/static/Cairo-Medium.ttf') format('truetype');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  src: url('./fonts/IBM/woff2/IBMPlexSansArabic-Bold.woff2') format('woff2');
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo/static/Cairo-SemiBold.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cairo';
+  src: url('/fonts/Cairo/static/Cairo-Bold.ttf') format('truetype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;

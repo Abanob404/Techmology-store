@@ -28,7 +28,7 @@ function getCurrentUser() {
     return getUsers().find(u => u.id === userId) || null;
 }
 
-function checkAuth() {
+async function checkAuth() {
     const user = getCurrentUser();
     if (user) {
         document.getElementById('loginContainer').style.display = 'none';
@@ -39,11 +39,19 @@ function checkAuth() {
         if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
         
         const userMgmt = document.getElementById('tab-users');
-        if (userMgmt) {
-            userMgmt.style.display = hasPermission('manage_users') ? 'block' : 'none';
-        }
+        if (userMgmt) userMgmt.style.display = hasPermission('manage_users') ? 'block' : 'none';
 
-        loadAdminProducts();
+        const settingsTab = document.getElementById('tab-settings');
+        if (settingsTab) settingsTab.style.display = hasPermission('manage_settings') ? 'block' : 'none';
+
+        const addProductWrapper = document.getElementById('addProductWrapper');
+        if (addProductWrapper) addProductWrapper.style.display = hasPermission('add_product') ? 'block' : 'none';
+
+        const manageCategoriesWrapper = document.getElementById('manageCategoriesWrapper');
+        if (manageCategoriesWrapper) manageCategoriesWrapper.style.display = hasPermission('manage_categories') ? 'block' : 'none';
+
+        await loadAdminProducts();
+        
         loadCurrentLogo();
         loadCurrentBg();
         loadUsersTable();
@@ -115,13 +123,21 @@ async function fetchCategoriesAPI() {
 
 async function populateCategoriesDatalist(products) {
     const datalist = document.getElementById('categoriesList');
-    if (!datalist) return;
-
+    
     const savedCategories = await fetchCategoriesAPI();
     const categoriesFromProducts = (products || []).map(p => p.category).filter(Boolean);
     const allCategories = [...new Set([...savedCategories, ...categoriesFromProducts])];
     
-    datalist.innerHTML = allCategories.map(cat => `<option value="${cat}">`).join('');
+    if (datalist) {
+        datalist.innerHTML = allCategories.map(cat => `<option value="${cat}">`).join('');
+    }
+
+    const adminCatFilter = document.getElementById('adminCategoryFilter');
+    if (adminCatFilter) {
+        const currentVal = adminCatFilter.value;
+        adminCatFilter.innerHTML = '<option value="">كل الأقسام</option>' + allCategories.map(cat => `<option value="${cat}">${cat}</option>`).join('');
+        adminCatFilter.value = currentVal;
+    }
 }
 
 async function renderCategoriesAdminList() {
@@ -195,7 +211,7 @@ window.renameCategoryPrompt = async function(oldCat) {
             const data = await response.json();
             showToast(`✅ تم تعديل القسم وتحديث ${data.modifiedCount || 0} منتج!`);
             // إعادة تحميل المنتجات لتحديث الواجهة بالكامل
-            loadAdminProducts();
+            loadAdminProducts(true);
         } else {
             const error = await response.json();
             alert(`خطأ أثناء تحديث القسم: ${error.message}`);
@@ -233,32 +249,33 @@ window.deleteCategory = function(cat) {
 // ==========================================
 // Admin Products Table (with Pagination, Search, Low Stock Alerts)
 // ==========================================
-async function loadAdminProducts() {
+async function loadAdminProducts(preserveState = false) {
     const table = document.getElementById('adminProductsTable');
     if (!table) return;
 
     // شحن الأقسام الافتراضية فوراً دون انتظار السيرفر
     populateCategoriesDatalist([]);
 
-    table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
+    if (!preserveState) {
+        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
+    }
     
     try {
         await loadStoreSettings();
         const response = await fetch(API_URL);
         const products = await response.json();
         window.adminProducts = products;
-        window.filteredProducts = products;
-        window.currentPage = 1;
-
+        
         populateCategoriesDatalist(products);
 
         if (products.length === 0) {
             table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد منتجات بعد. ابدأ بإضافة منتج جديد.</td></tr>';
+            window.filteredProducts = [];
             updatePaginationControls();
             return;
         }
 
-        renderProductsPage();
+        filterAdminProducts(preserveState);
     } catch (error) {
         table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';
         console.error(error);
@@ -305,15 +322,19 @@ function renderProductsPage() {
                 <td class="py-4 font-mono-data text-primary">${p.price}</td>
                 <td class="py-4">
                     <div class="flex items-center justify-center gap-2">
-                        <input type="number" id="qty-${p._id}" value="${qty}" min="0" class="w-16 bg-surface border ${isOutOfStock ? 'border-red-500 text-red-400' : isLowStock ? 'border-orange-500 text-orange-400' : 'border-green-500 text-green-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
+                        <input type="number" id="qty-${p._id}" value="${qty}" min="0" ${hasPermission('edit_product') ? '' : 'disabled'} class="w-16 bg-surface border ${isOutOfStock ? 'border-red-500 text-red-400' : isLowStock ? 'border-orange-500 text-orange-400' : 'border-green-500 text-green-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
+                        ${hasPermission('edit_product') ? `
                         <button onclick="updateQuantity('${p._id}')" class="bg-primary/20 text-primary hover:bg-primary hover:text-white px-2 py-1 rounded transition-colors text-xs" title="حفظ الكمية">
                             <span class="material-symbols-outlined text-[14px]">save</span>
                         </button>
+                        ` : ''}
                     </div>
                 </td>
                 <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
+                    ${hasPermission('edit_product') ? `
                     <button onclick="openEditModal('${p._id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
                     <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
+                    ` : '<span class="text-xs text-on-surface-variant">لا تملك صلاحية</span>'}
                 </td>
             `;
         table.appendChild(tr);
@@ -346,20 +367,24 @@ window.goToPage = function(page) {
 // ==========================================
 // Live Search / Filter
 // ==========================================
-window.filterAdminProducts = function() {
+window.filterAdminProducts = function(preservePage = false) {
     const query = (document.getElementById('adminSearchInput')?.value || '').trim().toLowerCase();
+    const categoryFilter = document.getElementById('adminCategoryFilter')?.value || '';
     
-    if (!query) {
-        window.filteredProducts = window.adminProducts;
-    } else {
-        window.filteredProducts = window.adminProducts.filter(p => {
-            const titleMatch = p.title.toLowerCase().includes(query);
-            const skuMatch = (p.sku || '').toLowerCase().includes(query);
-            return titleMatch || skuMatch;
-        });
-    }
+    window.filteredProducts = window.adminProducts.filter(p => {
+        const titleMatch = p.title.toLowerCase().includes(query);
+        const skuMatch = (p.sku || '').toLowerCase().includes(query);
+        const catMatch = categoryFilter ? p.category === categoryFilter : true;
+        
+        if (query) {
+            return (titleMatch || skuMatch) && catMatch;
+        }
+        return catMatch;
+    });
 
-    window.currentPage = 1;
+    if (!preservePage) {
+        window.currentPage = 1;
+    }
     renderProductsPage();
 };
 
@@ -378,7 +403,7 @@ window.updateQuantity = async function(id) {
         
         if (response.ok) {
             showToast('✅ تم تحديث الكمية بنجاح!');
-            loadAdminProducts();
+            loadAdminProducts(true);
         } else {
             const data = await response.json();
             alert(`خطأ: ${data.message}`);
@@ -400,7 +425,7 @@ window.deleteProduct = async function(id) {
             });
             if (response.ok) {
                 showToast('🗑️ تم حذف المنتج!');
-                loadAdminProducts();
+                loadAdminProducts(true);
             } else {
                 alert('فشل حذف المنتج.');
             }
@@ -583,13 +608,21 @@ function loadUsersTable() {
         const tr = document.createElement('tr');
         tr.className = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors';
         const isSelf = currentUser && user.id === currentUser.id;
+        const permLabels = {
+            'add_product': 'إضافة',
+            'edit_product': 'تعديل/حذف',
+            'manage_categories': 'أقسام',
+            'manage_settings': 'إعدادات',
+            'manage_users': 'مستخدمين'
+        };
+        const permsText = user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.map(p => permLabels[p] || p).join('، ');
         tr.innerHTML = `
             <td class="py-4 pr-2 font-semibold text-on-surface flex items-center gap-2">
                 <span class="material-symbols-outlined text-primary text-[20px]">person</span>
                 ${user.username} ${isSelf ? '<span class="text-xs text-primary bg-primary/10 px-2 py-0.5 rounded-full">أنت</span>' : ''}
             </td>
             <td class="py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${user.role === 'مدير' ? 'bg-primary/20 text-primary' : 'bg-secondary/20 text-secondary'}">${user.role}</span></td>
-            <td class="py-4 text-on-surface-variant text-xs">الصلاحيات: ${user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.join(', ')}</td>
+            <td class="py-4 text-on-surface-variant text-xs">الصلاحيات: ${permsText}</td>
             <td class="py-4 text-center">
                 ${!isSelf ? `<button onclick="deleteUser('${user.id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>` : '<span class="text-xs text-on-surface-variant">—</span>'}
             </td>
@@ -601,10 +634,16 @@ function loadUsersTable() {
 window.addNewUser = function() {
     const username = document.getElementById('newUserUsername').value.trim();
     const password = document.getElementById('newUserPassword').value.trim();
-    const role = document.getElementById('newUserRole').value;
+    
+    const checkedBoxes = Array.from(document.querySelectorAll('input[name="permissions"]:checked')).map(cb => cb.value);
 
     if (!username || !password) {
         alert('يرجى إدخال اسم المستخدم وكلمة المرور.');
+        return;
+    }
+
+    if (checkedBoxes.length === 0) {
+        alert('يرجى اختيار صلاحية واحدة على الأقل.');
         return;
     }
 
@@ -614,12 +653,15 @@ window.addNewUser = function() {
         return;
     }
 
-    const permissions = role === 'مدير' ? ['all'] : ['add_product', 'edit_product'];
+    const permissions = checkedBoxes.includes('all') ? ['all'] : checkedBoxes;
+    const role = permissions.includes('all') ? 'مدير' : 'محرر';
+    
     users.push({ id: Date.now().toString(), username, password, role, permissions });
     saveUsers(users);
 
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
+    document.querySelectorAll('input[name="permissions"]').forEach(cb => cb.checked = false);
     showToast('✅ تم إضافة المستخدم بنجاح!');
     loadUsersTable();
 };
@@ -969,7 +1011,7 @@ if (editForm) {
             if (response.ok) {
                 closeEditModal();
                 showToast('✅ تم تحديث بيانات المنتج بنجاح!');
-                loadAdminProducts();
+                loadAdminProducts(true);
             } else {
                 const errorData = await response.json();
                 alert(`خطأ: ${errorData.message}`);
