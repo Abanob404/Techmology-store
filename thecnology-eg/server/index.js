@@ -335,8 +335,11 @@ app.put('/api/products/:id', async (req, res) => {
       const currentProduct = await Product.findById(req.params.id);
       const hasMainImage = updateData.image || (currentProduct && currentProduct.image);
 
-      if (!hasMainImage) {
-        // لا توجد صورة أساسية → أول صورة جديدة تصبح الأساسية
+      if (!hasMainImage || req.body.replaceMain === 'true') {
+        const oldMainUrl = updateData.image || currentProduct?.image;
+        const oldMainPublicId = updateData.imagePublicId || currentProduct?.imagePublicId;
+
+        // لا توجد صورة أساسية أو طلب المستخدم استبدالها → أول صورة جديدة تصبح الأساسية
         const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
           folder: 'technology_store'
         });
@@ -345,6 +348,16 @@ app.put('/api/products/:id', async (req, res) => {
 
         // باقي الصور تكون إضافية
         const newAdditional = updateData.additionalImages || currentProduct?.additionalImages || [];
+        
+        // إذا كنا نستبدل الصورة الأساسية القديمة، ننقلها للصور الإضافية (إلا إذا تم حذفها)
+        if (req.body.replaceMain === 'true' && oldMainUrl) {
+            let idsToDelete = [];
+            try { idsToDelete = JSON.parse(req.body.imagesToDelete); } catch(e) {}
+            if (!idsToDelete.includes(oldMainPublicId) && !idsToDelete.includes('main')) {
+                newAdditional.push({ url: oldMainUrl, publicId: oldMainPublicId });
+            }
+        }
+
         for (let i = 1; i < uploadedFiles.length; i++) {
           const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
             folder: 'technology_store'

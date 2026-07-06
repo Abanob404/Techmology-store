@@ -624,12 +624,33 @@ function loadUsersTable() {
             <td class="py-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${user.role === 'مدير' ? 'bg-primary/20 text-primary' : 'bg-secondary/20 text-secondary'}">${user.role}</span></td>
             <td class="py-4 text-on-surface-variant text-xs">الصلاحيات: ${permsText}</td>
             <td class="py-4 text-center">
-                ${!isSelf ? `<button onclick="deleteUser('${user.id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>` : '<span class="text-xs text-on-surface-variant">—</span>'}
+                ${!isSelf ? `
+                    <div class="flex items-center justify-center gap-2">
+                        <button onclick="editUser('${user.id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
+                        <button onclick="deleteUser('${user.id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
+                    </div>
+                ` : '<span class="text-xs text-on-surface-variant">—</span>'}
             </td>
         `;
         tbody.appendChild(tr);
     });
 }
+
+window.editUser = function(id) {
+    const user = getUsers().find(u => u.id === id);
+    if (!user) return;
+    document.getElementById('newUserUsername').value = user.username;
+    document.getElementById('newUserPassword').value = user.password;
+    document.querySelectorAll('input[name="permissions"]').forEach(cb => {
+        cb.checked = user.permissions.includes('all') || user.permissions.includes(cb.value);
+    });
+    
+    const submitBtn = document.querySelector('#panel-users button[onclick="addNewUser()"]');
+    if (submitBtn) {
+        submitBtn.dataset.editingId = id;
+        submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات';
+    }
+};
 
 window.addNewUser = function() {
     const username = document.getElementById('newUserUsername').value.trim();
@@ -648,7 +669,10 @@ window.addNewUser = function() {
     }
 
     const users = getUsers();
-    if (users.find(u => u.username === username)) {
+    const submitBtn = document.querySelector('#panel-users button[onclick="addNewUser()"]');
+    const editingId = submitBtn ? submitBtn.dataset.editingId : null;
+
+    if (!editingId && users.find(u => u.username === username)) {
         alert('اسم المستخدم موجود بالفعل!');
         return;
     }
@@ -656,13 +680,29 @@ window.addNewUser = function() {
     const permissions = checkedBoxes.includes('all') ? ['all'] : checkedBoxes;
     const role = permissions.includes('all') ? 'مدير' : 'محرر';
     
-    users.push({ id: Date.now().toString(), username, password, role, permissions });
+    if (editingId) {
+        const userIndex = users.findIndex(u => u.id === editingId);
+        if (userIndex !== -1) {
+            users[userIndex].username = username;
+            users[userIndex].password = password;
+            users[userIndex].role = role;
+            users[userIndex].permissions = permissions;
+        }
+        if (submitBtn) {
+            delete submitBtn.dataset.editingId;
+            submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">person_add</span> إضافة مستخدم';
+        }
+        showToast('✅ تم تعديل المستخدم بنجاح!');
+    } else {
+        users.push({ id: Date.now().toString(), username, password, role, permissions });
+        showToast('✅ تم إضافة المستخدم بنجاح!');
+    }
+    
     saveUsers(users);
 
     document.getElementById('newUserUsername').value = '';
     document.getElementById('newUserPassword').value = '';
     document.querySelectorAll('input[name="permissions"]').forEach(cb => cb.checked = false);
-    showToast('✅ تم إضافة المستخدم بنجاح!');
     loadUsersTable();
 };
 
@@ -986,6 +1026,11 @@ if (editForm) {
 
         // Append images only if new ones were selected
         const editFileInput = document.getElementById('editPImage');
+        const replaceMainCb = document.getElementById('editReplaceMainImage');
+        if (replaceMainCb && replaceMainCb.checked) {
+            formData.append('replaceMain', 'true');
+        }
+
         if (editFileInput && editFileInput.files && editFileInput.files.length > 0) {
             for (let i = 0; i < editFileInput.files.length; i++) {
                 formData.append('images', editFileInput.files[i]);
