@@ -56,6 +56,7 @@ const productSchema = new mongoose.Schema({
   sku: { type: String, default: '' },
   warranty: { type: String, default: '' },
   brand: { type: String, default: '' },
+  discountExpiresAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -150,6 +151,18 @@ app.put('/api/categories/rename', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
+    const now = new Date();
+    let needsSave = false;
+    
+    // مسح الخصم التلقائي إذا انتهى الوقت
+    for (let p of products) {
+      if (p.discountExpiresAt && p.discountExpiresAt < now) {
+        p.oldPrice = undefined;
+        p.discountExpiresAt = undefined;
+        await p.save();
+      }
+    }
+    
     res.json(products);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في السيرفر أثناء جلب المنتجات', error: err.message });
@@ -159,33 +172,30 @@ app.get('/api/products', async (req, res) => {
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
-
-    if (!req.files || (!req.files.image && !req.files.images)) {
-      return res.status(400).json({ message: 'برجاء رفع صورة للمنتج على الأقل' });
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
+    if (!title || !category || !price) {
+      return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
 
-    // السماح باستخدام req.files.image أو req.files.images
-    let uploadedFiles = req.files.images || req.files.image;
+    if (!req.files || !req.files.images) {
+      return res.status(400).json({ message: 'يرجى اختيار صورة واحدة على الأقل' });
+    }
+
+    let uploadedFiles = req.files.images;
     if (!Array.isArray(uploadedFiles)) {
-      uploadedFiles = [uploadedFiles]; // تحويل لـ array إذا كانت صورة واحدة
+      uploadedFiles = [uploadedFiles];
     }
 
-    // رفع الصورة الأساسية (أول صورة)
     const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
       folder: 'technology_store'
     });
 
-    // رفع باقي الصور إن وجدت
     const additionalImages = [];
     for (let i = 1; i < uploadedFiles.length; i++) {
       const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
         folder: 'technology_store'
       });
-      additionalImages.push({
-        url: result.secure_url,
-        publicId: result.public_id
-      });
+      additionalImages.push({ url: result.secure_url, publicId: result.public_id });
     }
 
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
@@ -202,7 +212,8 @@ app.post('/api/products', async (req, res) => {
       stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
       sku: sku || '',
       warranty: warranty || '',
-      brand: brand || ''
+      brand: brand || '',
+      discountExpiresAt: discountExpiresAt ? new Date(discountExpiresAt) : undefined
     });
 
     await newProduct.save();
@@ -270,7 +281,7 @@ app.put('/api/products/:id/quantity', async (req, res) => {
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     
     const updateData = {
@@ -284,6 +295,10 @@ app.put('/api/products/:id', async (req, res) => {
       warranty: warranty || '',
       brand: brand || ''
     };
+
+    if (discountExpiresAt !== undefined) {
+      updateData.discountExpiresAt = discountExpiresAt ? new Date(discountExpiresAt) : null;
+    }
 
     // حذف صور مخصصة (إذا اختار المستخدم حذف صور معينة)
     if (req.body.imagesToDelete) {

@@ -96,6 +96,12 @@ async function renderDynamicCategoryFilters() {
         uniqueCategories = productCategories;
     }
 
+    // أضف قسم العروض إذا كان هناك خصومات فعالة
+    const hasActiveDiscounts = globalProducts.some(p => p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date());
+    if (hasActiveDiscounts) {
+        uniqueCategories.unshift('🔥 عروض وخصومات');
+    }
+
     // أيقونات الأقسام الافتراضية
     const iconMap = {
         'أنظمة مراقبة': 'videocam',
@@ -105,7 +111,8 @@ async function renderDynamicCategoryFilters() {
         'شاشات': 'monitor',
         'إكسسوارات': 'mouse',
         'اكسسوارات': 'mouse',
-        'خدمات صيانة': 'build',
+        'صيانة واصلاح': 'build',
+        '🔥 عروض وخصومات': 'local_fire_department',
         'أخرى': 'more_horiz'
     };
     
@@ -200,7 +207,9 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
     };
 
     let filtered = globalProducts;
-    if (categoryFilter !== "all") {
+    if (categoryFilter === '🔥 عروض وخصومات') {
+        filtered = globalProducts.filter(p => p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date());
+    } else if (categoryFilter !== "all") {
         filtered = globalProducts.filter(p => {
             if (p.category === categoryFilter) return true;
             const mappedValues = categoryMap[categoryFilter];
@@ -284,6 +293,16 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
             availabilityBadge = `<div class="absolute top-3 right-3 bg-green-500/20 text-green-400 border border-green-500/30 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-lg">متوفر</div>`;
         }
 
+        let discountTimerHtml = '';
+        if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
+            discountTimerHtml = `
+                <div class="absolute bottom-2 left-2 right-2 bg-background/90 backdrop-blur border border-primary/30 rounded-lg p-1.5 flex flex-col items-center shadow-lg countdown-container" data-expires="${p.discountExpiresAt}">
+                    <span class="text-[9px] text-primary font-bold mb-0.5">⏱️ ينتهي العرض خلال</span>
+                    <div class="flex gap-1 text-[11px] font-mono-data font-bold text-on-surface countdown-timer" dir="ltr">جاري الحساب...</div>
+                </div>
+            `;
+        }
+
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
         const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
@@ -296,6 +315,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
                     <img alt="${p.title}" loading="${loadingAttr}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
+                    ${discountTimerHtml}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
                     <span class="text-on-surface-variant text-[9px] md:text-[10px] font-mono-data tracking-wider uppercase mb-1">${p.category}</span>
@@ -463,6 +483,14 @@ window.openProductModal = function(id) {
                 <span class="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">خصم ${discountPercentage}%</span>
             </div>
         `;
+        if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
+            document.getElementById('modalPrice').innerHTML += `
+                <div class="mt-3 bg-primary/10 border border-primary/20 rounded-lg p-2.5 flex items-center justify-between countdown-container" data-expires="${p.discountExpiresAt}">
+                    <span class="text-xs text-primary font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">timer</span> ينتهي العرض خلال:</span>
+                    <span class="text-sm font-mono-data font-bold text-on-surface countdown-timer" dir="ltr">جاري الحساب...</span>
+                </div>
+            `;
+        }
     } else {
         document.getElementById('modalPrice').textContent = isNaN(p.price) ? p.price : `${p.price} ج.م`;
     }
@@ -919,3 +947,34 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// Update countdown timers dynamically
+setInterval(() => {
+    const countdownContainers = document.querySelectorAll('.countdown-container');
+    const now = new Date();
+    
+    countdownContainers.forEach(container => {
+        const expiresAt = new Date(container.dataset.expires);
+        const timerElement = container.querySelector('.countdown-timer');
+        if (!timerElement) return;
+
+        const diff = expiresAt - now;
+        
+        if (diff <= 0) {
+            timerElement.textContent = "انتهى العرض";
+            container.classList.add('opacity-50');
+            return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        let timeStr = "";
+        if (days > 0) timeStr += `${days}d `;
+        timeStr += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        
+        timerElement.textContent = timeStr;
+    });
+}, 1000);

@@ -528,6 +528,14 @@ if (addForm) {
         formData.append('sku', sku);
         formData.append('warranty', warranty);
         formData.append('brand', brand);
+
+        const type = document.getElementById('pDiscountType')?.value;
+        const val = parseInt(document.getElementById('pDiscountValue')?.value);
+        if (type && val > 0) {
+            const ms = type === 'days' ? val * 24 * 60 * 60 * 1000 : val * 60 * 60 * 1000;
+            const expiresAt = new Date(Date.now() + ms).toISOString();
+            formData.append('discountExpiresAt', expiresAt);
+        }
         
         for (let i = 0; i < fileInput.files.length; i++) {
             formData.append('images', fileInput.files[i]);
@@ -896,6 +904,24 @@ window.openEditModal = function(id) {
     document.getElementById('editPBrand').value = product.brand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
 
+    if (product.discountExpiresAt) {
+        const remaining = new Date(product.discountExpiresAt) - new Date();
+        if (remaining > 0) {
+            const hours = Math.ceil(remaining / (1000 * 60 * 60));
+            document.getElementById('editPDiscountType').value = 'hours';
+            document.getElementById('editPDiscountValue').value = hours;
+            document.getElementById('editPDiscountValueContainer').style.display = 'block';
+        } else {
+            document.getElementById('editPDiscountType').value = '';
+            document.getElementById('editPDiscountValue').value = '';
+            document.getElementById('editPDiscountValueContainer').style.display = 'none';
+        }
+    } else {
+        document.getElementById('editPDiscountType').value = '';
+        document.getElementById('editPDiscountValue').value = '';
+        document.getElementById('editPDiscountValueContainer').style.display = 'none';
+    }
+
     // عرض الصور الحالية مع أزرار حذف فردية
     const currentImagesContainer = document.getElementById('editCurrentImages');
     if (currentImagesContainer) {
@@ -1023,6 +1049,16 @@ if (editForm) {
         formData.append('sku', document.getElementById('editPSku').value);
         formData.append('brand', document.getElementById('editPBrand').value);
         formData.append('warranty', document.getElementById('editPWarranty').value);
+
+        const type = document.getElementById('editPDiscountType')?.value;
+        const val = parseInt(document.getElementById('editPDiscountValue')?.value);
+        if (type && val > 0) {
+            const ms = type === 'days' ? val * 24 * 60 * 60 * 1000 : val * 60 * 60 * 1000;
+            const expiresAt = new Date(Date.now() + ms).toISOString();
+            formData.append('discountExpiresAt', expiresAt);
+        } else if (type === '') {
+            formData.append('discountExpiresAt', '');
+        }
 
         // Append images only if new ones were selected
         const editFileInput = document.getElementById('editPImage');
