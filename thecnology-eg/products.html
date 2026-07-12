@@ -7,8 +7,7 @@
     <meta name="description" content="Technology Store - وجهتك الأولى لأحدث أجهزة الكمبيوتر، اللابتوبات، وتجميعات الألعاب بأفضل الأسعار.">
     <title>TECHNOLOGY | المنتجات</title>
     <link rel="preconnect" href="https://res.cloudinary.com">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet">
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -24,8 +23,7 @@
                     <img src="logo.png" alt="Technology Store" width="160" height="56" class="h-10 md:h-14 object-contain" onerror="this.onerror=null; this.outerHTML='<span class=\'font-display-lg text-xl md:text-headline-md font-extrabold tracking-tighter text-primary\'>TECHNOLOGY</span>';">
                 </a>
                 <div class="hidden md:flex items-center relative w-64 lg:w-96">
-                    <span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">search</span>
+                    <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input id="searchInput" oninput="searchProducts()"
                         class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                         placeholder="ابحث في الكتالوج..." type="text">
@@ -49,8 +47,7 @@
                     <span class="hidden sm:inline">تواصل معنا</span>
                 </a>
                 <button id="mobileMenuBtn" class="md:hidden text-primary p-1">
-                    <span class="material-symbols-outlined text-[28px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 400;">menu</span>
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
                 </button>
             </div>
         </div>
@@ -58,8 +55,7 @@
         <div id="mobileMenu"
             class="hidden md:hidden bg-surface-container border-t border-primary/10 px-4 py-4 flex-col gap-3">
             <div class="flex items-center relative w-full mb-3">
-                <span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none"
-                    style="font-variation-settings: 'FILL' 0, 'wght' 300;">search</span>
+                <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                 <input oninput="searchProducts()"
                     class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                     placeholder="ابحث في الكتالوج..." type="text">
@@ -112,51 +108,43 @@
                 <button
                     class="filter-btn active flex w-full items-center gap-3 p-3 rounded-lg bg-primary/10 text-primary border-r-4 border-primary hover:border-primary/40 transition-all duration-200 text-lg"
                     data-category="all">
-                    <span class="material-symbols-outlined text-[24px]"
-                        style="font-variation-settings: 'FILL' 1, 'wght' 400;">grid_view</span> عرض الكل
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> عرض الكل
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg"
                     data-category="Laptops">
-                    <span class="material-symbols-outlined text-[24px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">laptop_mac</span> لابتوبات
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> لابتوبات
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg"
                     data-category="Desktops">
-                    <span class="material-symbols-outlined text-[24px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">computer</span> تجميعات كمبيوتر
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> تجميعات كمبيوتر
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
                     data-category="Monitors">
-                    <span class="material-symbols-outlined text-[20px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">monitor</span> شاشات
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> شاشات
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
                     data-category="Accessories">
-                    <span class="material-symbols-outlined text-[20px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">mouse</span> إكسسوارات
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg> إكسسوارات
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
                     data-category="Networking">
-                    <span class="material-symbols-outlined text-[20px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">router</span> شبكات
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg> شبكات
                 </button>
                 <button
                     class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
                     data-category="Surveillance">
-                    <span class="material-symbols-outlined text-[20px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">videocam</span> أنظمة مراقبة
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> أنظمة مراقبة
                 </button>
             </nav>
             <div class="mt-8 pt-8 border-t border-outline-variant/30 flex flex-col gap-2">
                 <a class="flex items-center gap-3 p-2 rounded-lg text-on-surface-variant hover:text-primary transition-colors text-xs font-mono-data"
                     href="#">
-                    <span class="material-symbols-outlined text-[16px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">help</span> الدعم والمساعدة
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> الدعم والمساعدة
                 </a>
             </div>
             <a href="https://wa.me/201515664919"
@@ -229,11 +217,9 @@
                 <!-- تمت إضافة أزرار السوشيال ميديا هنا -->
                 <div class="flex gap-4 mt-2">
                     <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">thumb_up</span> فيسبوك</a>
+                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1.5"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg> فيسبوك</a>
                     <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">forum</span> قناة الواتساب</a>
+                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1.5"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg> قناة الواتساب</a>
                 </div>
                 <p class="mt-4 text-on-surface-variant/80 text-xs">© 2026 TECHNOLOGY STORE</p>
             </div>

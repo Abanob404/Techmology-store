@@ -128,33 +128,33 @@ async function renderDynamicCategoryFilters() {
         uniqueCategories.unshift('🔥 عروض وخصومات');
     }
 
-    // أيقونات الأقسام الافتراضية
-    const iconMap = {
-        'أنظمة مراقبة': 'videocam',
-        'شبكات': 'router',
-        'تجميعات كمبيوتر': 'computer',
-        'لاب توبات': 'laptop_mac',
-        'شاشات': 'monitor',
-        'إكسسوارات': 'mouse',
-        'اكسسوارات': 'mouse',
-        'صيانة واصلاح': 'build',
-        '🔥 عروض وخصومات': 'local_fire_department',
-        'أخرى': 'more_horiz'
+    // أيقونات الأقسام الافتراضية (SVG)
+    const iconSvgMap = {
+        'أنظمة مراقبة': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>',
+        'شبكات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg>',
+        'تجميعات كمبيوتر': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>',
+        'لاب توبات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>',
+        'شاشات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>',
+        'إكسسوارات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>',
+        'اكسسوارات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>',
+        'صيانة واصلاح': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
+        '🔥 عروض وخصومات': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"></path></svg>',
+        'أخرى': '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>'
     };
-    
-    const getIcon = (cat) => iconMap[cat] || 'category';
+    const defaultCatSvg = '<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>';
+    const getIconSvg = (cat) => iconSvgMap[cat] || defaultCatSvg;
 
     // 1. رندرة القائمة الجانبية (شاشات الكمبيوتر)
     if (sidebar) {
         let html = `
             <button class="filter-btn active flex w-full items-center gap-3 p-3 rounded-lg bg-primary/10 text-primary border-r-4 border-primary hover:border-primary/40 transition-all duration-200 text-lg" data-category="all">
-                <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1, 'wght' 400;">grid_view</span> عرض الكل
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> عرض الكل
             </button>
         `;
         uniqueCategories.forEach(cat => {
             html += `
                 <button class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg" data-category="${cat}">
-                    <span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 0, 'wght' 300;">${getIcon(cat)}</span> ${cat}
+                    ${getIconSvg(cat)} ${cat}
                 </button>
             `;
         });
@@ -351,7 +351,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                         <div class="flex items-center justify-between gap-2">
                             ${priceHtml}
                             <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products.html?id=${p._id}')" class="text-on-surface-variant hover:text-primary transition-colors p-1.5 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
-                                <span class="material-symbols-outlined text-[16px] sm:text-[18px]">share</span>
+                                <svg class="w-4 h-4 sm:w-[18px] sm:h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                             </button>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
@@ -481,7 +481,7 @@ function injectProductModal() {
                             </a>
                         </div>
                         <button id="modalShareBtn" class="w-full py-3 bg-surface-container border border-outline-variant/50 text-on-surface hover:text-primary rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
-                            <span class="material-symbols-outlined">share</span>
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                             مشاركة رابط المنتج
                         </button>
                     </div>
@@ -515,7 +515,7 @@ window.openProductModal = function(id) {
         if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
             document.getElementById('modalPrice').innerHTML += `
                 <div class="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_15px_rgba(239,68,68,0.15)] countdown-container" data-expires="${p.discountExpiresAt}">
-                    <span class="text-sm text-red-400 font-bold flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px] animate-pulse">timer</span> ينتهي العرض خلال:</span>
+                    <span class="text-sm text-red-400 font-bold flex items-center gap-1.5"><svg class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ينتهي العرض خلال:</span>
                     <div class="text-lg font-mono-data font-bold text-red-400 tracking-widest countdown-timer flex items-center" dir="ltr">جاري الحساب...</div>
                 </div>
             `;
@@ -713,7 +713,7 @@ function injectCartUI() {
         
         <!-- Toast Notification -->
         <div id="toastNotification" class="fixed top-20 right-1/2 translate-x-1/2 z-[110] bg-surface-container border border-primary/30 text-primary px-6 py-3 rounded-full shadow-lg transition-all duration-300 transform -translate-y-full opacity-0 flex items-center gap-2 pointer-events-none">
-            <span class="material-symbols-outlined text-[20px]">check_circle</span>
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
             <span class="font-bold text-sm">تمت الإضافة للسلة</span>
         </div>
     `;
@@ -871,17 +871,17 @@ function renderCart() {
                     <h4 class="text-sm font-bold text-on-surface truncate">${item.title}</h4>
                     <span class="text-xs font-bold text-primary font-mono-data">${item.price} ج.م</span>
                 </div>
-                <div class="flex items-center gap-2 bg-surface-container p-1 rounded-lg border border-outline-variant/30 shrink-0">
-                    <button onclick="updateCartQuantity('${item._id}', -1)" class="w-6 h-6 flex items-center justify-center text-on-surface hover:text-error transition-colors bg-surface rounded">
-                        <span class="material-symbols-outlined text-[16px] font-bold">remove</span>
+                <div class="flex items-center gap-2 shrink-0">
+                    <button onclick="updateCartQuantity('${item._id}', -1)" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-error transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"></path></svg>
                     </button>
-                    <span class="text-sm font-bold font-mono-data w-5 text-center">${item.quantity}</span>
-                    <button onclick="updateCartQuantity('${item._id}', 1)" class="w-6 h-6 flex items-center justify-center text-on-surface hover:text-green-400 transition-colors bg-surface rounded">
-                        <span class="material-symbols-outlined text-[16px] font-bold">add</span>
+                    <span class="text-sm font-bold font-mono-data w-6 text-center">${item.quantity}</span>
+                    <button onclick="updateCartQuantity('${item._id}', 1)" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-green-400 transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                     </button>
                 </div>
-                <button onclick="removeFromCart('${item._id}')" class="text-error hover:text-red-400 transition-colors p-2 shrink-0 bg-error/10 hover:bg-error/20 rounded-lg" title="حذف">
-                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                <button onclick="removeFromCart('${item._id}')" class="w-8 h-8 flex items-center justify-center text-error hover:text-red-400 transition-colors shrink-0 bg-error/10 hover:bg-error/20 rounded-md border border-error/20" title="حذف">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
             </div>
         `;
