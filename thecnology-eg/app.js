@@ -210,16 +210,16 @@ async function renderDynamicCategoryFilters() {
 }
 
 // عرض المنتجات (مع دعم البحث والتصنيف والترجمة التلقائية)
-function renderProducts(categoryFilter = "all", searchTerm = "") {
+function renderProducts(categoryFilter = "all", searchTerm = "", append = false) {
     const grid = document.getElementById('productsGrid');
     if (!grid) return;
 
-    grid.innerHTML = '';
-
-    // إعادة التعيين للصفحة 1 إذا تغير الفلتر أو كلمة البحث
-    if (activeCategory !== categoryFilter || activeSearchTerm !== searchTerm) {
-        activeCategory = categoryFilter;
-        activeSearchTerm = searchTerm;
+    if (!append) {
+        grid.innerHTML = '';
+        if (activeCategory !== categoryFilter || activeSearchTerm !== searchTerm) {
+            activeCategory = categoryFilter;
+            activeSearchTerm = searchTerm;
+        }
         currentPage = 1;
     }
 
@@ -284,9 +284,9 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
     if (currentPage > totalPages) currentPage = totalPages;
     if (currentPage < 1) currentPage = 1;
 
-    // قطع المنتجات الخاصة بالصفحة الحالية (Pagination Slice)
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
+    // قطع المنتجات
+    const start = append ? (currentPage - 1) * ITEMS_PER_PAGE : 0;
+    const end = append ? currentPage * ITEMS_PER_PAGE : ITEMS_PER_PAGE;
     const pageProducts = filtered.slice(start, end);
 
     if (filtered.length === 0) {
@@ -322,23 +322,22 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
         let discountTimerHtml = '';
         if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
             discountTimerHtml = `
-                <div class="absolute bottom-2 left-2 right-2 bg-background/90 backdrop-blur border border-primary/30 rounded-lg p-1.5 flex flex-col items-center shadow-lg countdown-container" data-expires="${p.discountExpiresAt}">
-                    <span class="text-[9px] text-primary font-bold mb-0.5">⏱️ ينتهي العرض خلال</span>
-                    <div class="flex gap-1 text-[11px] font-mono-data font-bold text-on-surface countdown-timer" dir="ltr">جاري الحساب...</div>
+                <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] bg-red-500/10 backdrop-blur border border-red-500/30 rounded-md py-1 px-2 flex justify-center shadow-[0_0_10px_rgba(239,68,68,0.2)] countdown-container" data-expires="${p.discountExpiresAt}">
+                    <div class="flex gap-1 text-[11px] font-mono-data font-bold text-red-400 tracking-widest countdown-timer" dir="ltr">جاري الحساب...</div>
                 </div>
             `;
         }
 
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
-        const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+        const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
         const optimizedImage = p.image ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fallbackImage;
         const loadingAttr = index < 4 ? 'eager' : 'lazy';
 
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
-                <div class="relative aspect-video bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
+                    <img alt="${p.title}" loading="${loadingAttr}" class="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -357,7 +356,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "") {
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
                             <button onclick="addToCart('${p._id}'); event.stopPropagation();" class="${!isOutOfStock ? 'bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary' : 'bg-primary/10 border border-primary/10 text-primary/40 pointer-events-none'} rounded py-2 px-1.5 text-[11px] md:text-xs font-bold transition-all flex items-center justify-center gap-1" title="أضف للسلة">
-                                <span class="material-symbols-outlined text-[14px] md:text-[16px]">add_shopping_cart</span>
+                                <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                 <span class="whitespace-nowrap">أضف للسلة</span>
                             </button>
                             <a href="${whatsappLink}" target="_blank" onclick="event.stopPropagation();" class="${!isOutOfStock ? 'btn-modern-green' : 'btn-modern-green opacity-50 pointer-events-none'} !py-2 !px-1.5 flex items-center justify-center gap-1 text-[11px] md:text-xs rounded" title="استفسر">
@@ -379,26 +378,30 @@ function updatePaginationControls(totalItems) {
     const controls = document.getElementById('paginationControls');
     if (!controls) return;
 
-    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
     
-    if (totalPages <= 1) {
+    if (currentPage >= totalPages || totalItems === 0) {
         controls.innerHTML = '';
         controls.classList.add('hidden');
         return;
     }
     controls.classList.remove('hidden');
 
-    let html = `
-        <button onclick="changePage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/30 text-on-surface hover:bg-primary/20 hover:text-primary transition-all disabled:opacity-50 disabled:pointer-events-none" title="الصفحة السابقة">
-            <span class="material-symbols-outlined text-[20px]">chevron_right</span>
-        </button>
-        <span class="text-sm font-bold text-on-surface-variant font-mono-data">صفحة ${currentPage} / ${totalPages}</span>
-        <button onclick="changePage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="w-10 h-10 flex items-center justify-center rounded-lg border border-outline-variant/30 text-on-surface hover:bg-primary/20 hover:text-primary transition-all disabled:opacity-50 disabled:pointer-events-none" title="الصفحة التالية">
-            <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+    controls.innerHTML = `
+        <button onclick="loadMoreProducts()" class="w-full md:w-auto px-10 py-3 bg-primary/10 text-primary border border-primary/30 font-bold rounded-full hover:bg-primary hover:text-white transition-all shadow-lg hover:shadow-primary/30 mx-auto block mt-8">
+            عرض المزيد
         </button>
     `;
-    controls.innerHTML = html;
 }
+
+window.loadMoreProducts = function() {
+    currentPage++;
+    renderProducts(activeCategory, activeSearchTerm, true);
+};
+
+window.changePage = function(page) {
+    // deprecated
+};
 
 window.changePage = function(page) {
     const totalPages = Math.max(1, Math.ceil(globalProducts.length / ITEMS_PER_PAGE));
@@ -440,13 +443,13 @@ function injectProductModal() {
                 
                 <!-- Close Button -->
                 <button onclick="closeProductModal()" class="absolute top-4 left-4 z-10 w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
-                    <span class="material-symbols-outlined">close</span>
+                    <svg class="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
 
                 <!-- Image Section -->
                 <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <div class="w-full rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center aspect-square max-h-[350px]">
-                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-cover w-full h-full p-4 drop-shadow-2xl transition-opacity duration-200">
+                    <div class="w-full rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center aspect-square md:h-80">
+                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain w-full h-full p-4 drop-shadow-2xl transition-opacity duration-200">
                     </div>
                     <div id="modalBadge" class="absolute top-7 right-7 z-10"></div>
                     <!-- Image Gallery -->
@@ -469,7 +472,7 @@ function injectProductModal() {
                     <div class="flex flex-col gap-3 mt-auto pt-4 border-t border-outline-variant/30">
                         <div class="flex gap-3">
                             <button id="modalAddToCartBtn" class="flex-1 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm md:text-base">
-                                <span class="material-symbols-outlined">add_shopping_cart</span>
+                                <svg class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                 أضف للسلة
                             </button>
                             <a id="modalWhatsappBtn" href="#" target="_blank" class="flex-1 btn-modern-green flex items-center justify-center gap-2 text-sm md:text-base font-bold py-3 !rounded-lg">
@@ -493,7 +496,7 @@ window.openProductModal = function(id) {
     const p = globalProducts.find(prod => prod._id === id);
     if (!p) return;
 
-    const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+    const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
     document.getElementById('modalImage').src = p.image || fallbackImage;
     document.getElementById('modalImage').style.opacity = 1;
     document.getElementById('modalCategory').textContent = p.category;
@@ -511,9 +514,9 @@ window.openProductModal = function(id) {
         `;
         if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
             document.getElementById('modalPrice').innerHTML += `
-                <div class="mt-3 bg-primary/10 border border-primary/20 rounded-lg p-2.5 flex items-center justify-between countdown-container" data-expires="${p.discountExpiresAt}">
-                    <span class="text-xs text-primary font-bold flex items-center gap-1"><span class="material-symbols-outlined text-[16px]">timer</span> ينتهي العرض خلال:</span>
-                    <span class="text-sm font-mono-data font-bold text-on-surface countdown-timer" dir="ltr">جاري الحساب...</span>
+                <div class="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_15px_rgba(239,68,68,0.15)] countdown-container" data-expires="${p.discountExpiresAt}">
+                    <span class="text-sm text-red-400 font-bold flex items-center gap-1.5"><span class="material-symbols-outlined text-[20px] animate-pulse">timer</span> ينتهي العرض خلال:</span>
+                    <div class="text-lg font-mono-data font-bold text-red-400 tracking-widest countdown-timer flex items-center" dir="ltr">جاري الحساب...</div>
                 </div>
             `;
         }
@@ -666,7 +669,7 @@ function injectCartUI() {
     cartIcon.id = 'floatingCartBtn';
     cartIcon.className = 'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
     cartIcon.innerHTML = `
-        <span class="material-symbols-outlined text-[28px]">shopping_cart</span>
+        <svg class="w-7 h-7 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         <div id="cartBadge" class="absolute -top-1 -right-1 w-6 h-6 bg-error text-white rounded-full flex items-center justify-center text-xs font-bold font-mono-data shadow-md border border-background ${cart.length === 0 ? 'hidden' : ''}">
             ${cart.reduce((sum, item) => sum + item.quantity, 0)}
         </div>
@@ -683,11 +686,11 @@ function injectCartUI() {
         <div id="cartSidebar" class="fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed">
             <div class="flex items-center justify-between p-6 border-b border-outline-variant/30">
                 <div class="flex items-center gap-3 text-primary">
-                    <span class="material-symbols-outlined text-3xl">shopping_cart</span>
+                    <svg class="w-7 h-7 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     <h2 class="font-headline-md text-2xl">عربة التسوق</h2>
                 </div>
                 <button onclick="closeCartSidebar()" class="w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
-                    <span class="material-symbols-outlined">close</span>
+                    <svg class="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
             
@@ -847,7 +850,7 @@ function renderCart() {
     if (cart.length === 0) {
         container.innerHTML = `
             <div class="flex flex-col items-center justify-center h-full text-on-surface-variant/50">
-                <span class="material-symbols-outlined text-[64px] mb-4">remove_shopping_cart</span>
+                <svg class="w-16 h-16 inline-block mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path><line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2"></line></svg>
                 <p class="text-lg">سلة التسوق فارغة</p>
             </div>
         `;
@@ -1009,10 +1012,12 @@ setInterval(() => {
         const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
-        let timeStr = "";
-        if (days > 0) timeStr += `${days}d `;
-        timeStr += `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        const daysStr = days > 0 ? `<div class="bg-red-500/20 px-1.5 rounded">${days}d</div><span class="text-red-500/50 mx-0.5">:</span>` : '';
+        const hoursStr = `<div class="bg-red-500/20 px-1.5 rounded">${hours.toString().padStart(2, '0')}</div>`;
+        const minsStr = `<div class="bg-red-500/20 px-1.5 rounded">${minutes.toString().padStart(2, '0')}</div>`;
+        const secsStr = `<div class="bg-red-500/20 px-1.5 rounded">${seconds.toString().padStart(2, '0')}</div>`;
         
-        timerElement.textContent = timeStr;
+        timerElement.innerHTML = `${daysStr}${hoursStr}<span class="text-red-500/50 mx-0.5">:</span>${minsStr}<span class="text-red-500/50 mx-0.5">:</span>${secsStr}`;
     });
 }, 1000);
+
