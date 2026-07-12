@@ -356,8 +356,8 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                             </button>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
-                            <button onclick="addToCart('${p._id}'); event.stopPropagation();" class="${!isOutOfStock ? 'bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary' : 'bg-primary/10 border border-primary/10 text-primary/40 pointer-events-none'} rounded py-2 px-1.5 text-[11px] md:text-xs font-bold transition-all flex items-center justify-center gap-1" title="أضف للسلة">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                            <button onclick="addToCart('${p._id}'); event.stopPropagation();" class="${!isOutOfStock ? 'bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary' : 'bg-primary/10 border border-primary/10 text-primary/40 pointer-events-none'} rounded py-2 px-1.5 text-[11px] md:text-xs font-bold transition-all flex items-center justify-center gap-2" title="أضف للسلة">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                 <span class="whitespace-nowrap">أضف للسلة</span>
                             </button>
                             <a href="${whatsappLink}" target="_blank" onclick="event.stopPropagation();" class="${!isOutOfStock ? 'btn-modern-green' : 'btn-modern-green opacity-50 pointer-events-none'} !py-2 !px-1.5 flex items-center justify-center gap-1 text-[11px] md:text-xs rounded" title="استفسر">
@@ -672,7 +672,7 @@ function injectCartUI() {
     cartIcon.id = 'floatingCartBtn';
     cartIcon.className = 'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
     cartIcon.innerHTML = `
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         <div id="cartBadge" class="absolute -top-1 -right-1 w-6 h-6 bg-error text-white rounded-full flex items-center justify-center text-xs font-bold font-mono-data shadow-md border border-background ${cart.length === 0 ? 'hidden' : ''}">
             ${cart.reduce((sum, item) => sum + item.quantity, 0)}
         </div>
@@ -874,16 +874,16 @@ function renderCart() {
                     <h4 class="text-sm font-bold text-on-surface truncate">${item.title}</h4>
                     <span class="text-xs font-bold text-primary font-mono-data">${item.price} ج.م</span>
                 </div>
-                <div class="flex items-center gap-2 shrink-0">
-                    <button onclick="updateCartQuantity('${item._id}', -1)" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-error transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
+                <div class="flex items-center gap-1 shrink-0">
+                    <button onclick="updateCartQuantity('${item._id}', -1)" class="w-8 h-8 p-1 flex items-center justify-center text-on-surface hover:text-error transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"></path></svg>
                     </button>
                     <span class="text-sm font-bold font-mono-data w-6 text-center">${item.quantity}</span>
-                    <button onclick="updateCartQuantity('${item._id}', 1)" class="w-8 h-8 flex items-center justify-center text-on-surface hover:text-green-400 transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
+                    <button onclick="updateCartQuantity('${item._id}', 1)" class="w-8 h-8 p-1 flex items-center justify-center text-on-surface hover:text-green-400 transition-colors bg-surface-variant rounded-md border border-outline-variant/30">
                         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
                     </button>
                 </div>
-                <button onclick="removeFromCart('${item._id}')" class="w-8 h-8 flex items-center justify-center text-error hover:text-red-400 transition-colors shrink-0 bg-error/10 hover:bg-error/20 rounded-md border border-error/20" title="حذف">
+                <button onclick="removeFromCart('${item._id}')" class="w-8 h-8 p-1 flex items-center justify-center text-error hover:text-red-400 transition-colors shrink-0 bg-error/10 hover:bg-error/20 rounded-md border border-error/20" title="حذف">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
             </div>
