@@ -30,11 +30,11 @@
                 </div>
             </div>
             <nav class="hidden md:flex items-center gap-6">
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="index.html">الرئيسية</a>
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="services.html">الخدمات</a>
-                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base"
+                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base font-bold"
                     href="products.html">الكتالوج</a>
             </nav>
             <div class="flex items-center gap-3">
@@ -47,7 +47,7 @@
                     <span class="hidden sm:inline">تواصل معنا</span>
                 </a>
                 <!-- Mobile Menu Button -->
-                <button id="mobileMenuBtn" class="block md:hidden p-2 text-primary">
+                <button id="mobileMenuBtn" class="block md:hidden p-2 text-white">
                     <svg class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
                 </button>
             </div>
@@ -100,44 +100,44 @@
     <div class="flex flex-1 pt-4 md:pt-24 max-w-container-max mx-auto w-full px-4 md:px-margin-desktop gap-gutter">
         <!-- SideNavBar -->
         <aside
-            class="hidden md:flex flex-col w-64 shrink-0 bg-surface-container/90 backdrop-blur-2xl text-primary font-label-caps text-label-caps border-l border-primary/10 shadow-2xl rounded-lg p-6 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto">
+            class="hidden md:flex flex-col w-64 shrink-0 bg-surface-container/90 backdrop-blur-2xl text-primary font-label-caps text-label-caps border-l border-primary/10 shadow-2xl rounded-lg p-6 sticky top-20 h-[calc(100vh-80px)] overflow-y-auto self-start">
             <div class="mb-8">
                 <h2 class="font-display-lg text-headline-md text-primary mb-1 text-2xl">الأقسام</h2>
                 <p class="text-on-surface-variant font-mono-data text-sm">تصفح الكتالوج</p>
             </div>
             <nav class="flex flex-col gap-2 flex-1" id="categoryFilters">
                 <button
-                    class="filter-btn active flex w-full items-center gap-3 p-3 rounded-lg bg-primary/10 text-primary border-r-4 border-primary hover:border-primary/40 transition-all duration-200 text-lg"
+                    class="filter-btn active flex w-full items-center gap-3 p-3 rounded-lg bg-primary/10 text-primary border-r-4 border-primary hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="all">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg> عرض الكل
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Laptops">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 18h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg> لابتوبات
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Desktops">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> تجميعات كمبيوتر
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Monitors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg> شاشات
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Accessories">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg> إكسسوارات
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Networking">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg> شبكات
                 </button>
                 <button
-                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200"
+                    class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 font-bold text-lg"
                     data-category="Surveillance">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg> أنظمة مراقبة
                 </button>
