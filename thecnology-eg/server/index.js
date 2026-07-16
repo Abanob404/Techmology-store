@@ -206,22 +206,18 @@ app.post('/api/restore', async (req, res) => {
 // 1. جلب كل المنتجات
 app.get('/api/products', async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
     const now = new Date();
-    let needsSave = false;
     
-    // مسح الخصم التلقائي إذا انتهى الوقت
-    for (let p of products) {
-      if (p.discountExpiresAt && p.discountExpiresAt < now) {
-        p.oldPrice = undefined;
-        p.discountExpiresAt = undefined;
-        await p.save();
-      }
-    }
-    
+    // تحديث المنتجات التي انتهت خصوماتها في خطوة واحدة سريعة وبدون تشغيل التحقق من الصحة (Validation) الذي قد يسبب أخطاء
+    await Product.updateMany(
+      { discountExpiresAt: { $lt: now } },
+      { $unset: { oldPrice: "", discountExpiresAt: "" } }
+    );
+
+    const products = await Product.find().sort({ createdAt: -1 });
     res.json(products);
   } catch (err) {
-    res.status(500).json({ message: 'خطأ في السيرفر أثناء جلب المنتجات', error: err.message });
+    res.status(500).json({ message: err.message });
   }
 });
 
