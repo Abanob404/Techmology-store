@@ -1216,7 +1216,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function exportBackup() {
     try {
         showToast('جاري تحضير النسخة الاحتياطية...');
-        const res = await fetch(`${API_URL}/backup`);
+        const res = await fetch(`${BASE_URL}/api/backup`);
         if (!res.ok) throw new Error('فشل تحميل النسخة الاحتياطية');
         
         const blob = await res.blob();
@@ -1254,7 +1254,7 @@ async function importBackup() {
         const formData = new FormData();
         formData.append('backupFile', file);
         
-        const res = await fetch(`${API_URL}/restore`, {
+        const res = await fetch(`${BASE_URL}/api/restore`, {
             method: 'POST',
             body: formData
         });
