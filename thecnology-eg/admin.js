@@ -1210,3 +1210,64 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
+
+// --- Backup & Restore ---
+async function exportBackup() {
+    try {
+        showToast('جاري تحضير النسخة الاحتياطية...');
+        const res = await fetch(`${API_URL}/backup`);
+        if (!res.ok) throw new Error('فشل تحميل النسخة الاحتياطية');
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `technology-store-backup-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showToast('تم تحميل النسخة الاحتياطية بنجاح');
+    } catch (err) {
+        console.error(err);
+        showToast(err.message);
+    }
+}
+
+async function importBackup() {
+    const fileInput = document.getElementById('backupFileInput');
+    const file = fileInput.files[0];
+    
+    if (!file) {
+        return showToast('الرجاء اختيار ملف النسخة الاحتياطية أولاً');
+    }
+    
+    if (!confirm('تحذير خطير: سيتم مسح كافة المنتجات والأقسام الحالية نهائياً واستبدالها ببيانات هذا الملف. هل أنت متأكد من المتابعة؟')) {
+        return;
+    }
+    
+    try {
+        showToast('جاري استعادة البيانات، الرجاء الانتظار وعدم إغلاق الصفحة...');
+        
+        const formData = new FormData();
+        formData.append('backupFile', file);
+        
+        const res = await fetch(`${API_URL}/restore`, {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+            showToast('تم استعادة النسخة الاحتياطية بنجاح! جاري إعادة تحميل الصفحة...');
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            showToast(data.message || 'فشل استعادة النسخة الاحتياطية');
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('حدث خطأ أثناء الاتصال بالخادم');
+    }
+}

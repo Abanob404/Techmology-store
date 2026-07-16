@@ -1,4 +1,5 @@
 const express = require('express');
+const fs = require('fs');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
@@ -141,7 +142,62 @@ app.put('/api/categories/rename', async (req, res) => {
       modifiedCount: result.modifiedCount 
     });
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث القسم جماعياً', error: err.message });
+    res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
+  }
+});
+
+// --- Backup & Restore ---
+
+// 1. Export Data (Backup)
+app.get('/api/backup', async (req, res) => {
+  try {
+    const categories = await Category.find();
+    const products = await Product.find();
+    const settings = await Settings.find();
+    
+    const backupData = {
+      categories,
+      products,
+      settings,
+      timestamp: new Date().toISOString()
+    };
+    
+    res.setHeader('Content-disposition', 'attachment; filename=technology-store-backup.json');
+    res.setHeader('Content-type', 'application/json');
+    res.send(JSON.stringify(backupData, null, 2));
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء إنشاء النسخة الاحتياطية', error: err.message });
+  }
+});
+
+// 2. Import Data (Restore)
+app.post('/api/restore', async (req, res) => {
+  try {
+    if (!req.files || !req.files.backupFile) {
+      return res.status(400).json({ message: 'الرجاء إرفاق ملف النسخة الاحتياطية' });
+    }
+    
+    const file = req.files.backupFile;
+    const fileContent = fs.readFileSync(file.tempFilePath, 'utf8');
+    const backupData = JSON.parse(fileContent);
+    
+    if (!backupData.categories || !backupData.products || !backupData.settings) {
+      return res.status(400).json({ message: 'ملف غير صالح أو تالف' });
+    }
+    
+    // Clear current database
+    await Category.deleteMany({});
+    await Product.deleteMany({});
+    await Settings.deleteMany({});
+    
+    // Insert backup data
+    if (backupData.categories.length > 0) await Category.insertMany(backupData.categories);
+    if (backupData.products.length > 0) await Product.insertMany(backupData.products);
+    if (backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
+    
+    res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message });
   }
 });
 
