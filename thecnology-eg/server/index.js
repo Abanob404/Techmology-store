@@ -190,10 +190,19 @@ app.post('/api/restore', async (req, res) => {
     await Product.deleteMany({});
     await Settings.deleteMany({});
     
+    // Sanitize products before insertion to avoid validation errors
+    if (backupData.products && backupData.products.length > 0) {
+      backupData.products = backupData.products.map(p => ({
+        ...p,
+        image: p.image || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image',
+        category: p.category || 'غير مصنف'
+      }));
+    }
+
     // Insert backup data
-    if (backupData.categories.length > 0) await Category.insertMany(backupData.categories);
-    if (backupData.products.length > 0) await Product.insertMany(backupData.products);
-    if (backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
+    if (backupData.categories && backupData.categories.length > 0) await Category.insertMany(backupData.categories);
+    if (backupData.products && backupData.products.length > 0) await Product.insertMany(backupData.products);
+    if (backupData.settings && backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
     
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) {
@@ -209,16 +218,21 @@ app.get('/api/products', async (req, res) => {
   try {
     const now = new Date();
     
-    // تحديث المنتجات التي انتهت خصوماتها في خطوة واحدة سريعة وبدون تشغيل التحقق من الصحة (Validation) الذي قد يسبب أخطاء
-    await Product.updateMany(
-      { discountExpiresAt: { $lt: now } },
-      { $unset: { oldPrice: "", discountExpiresAt: "" } }
-    );
+    // Check and update expired discounts safely
+    try {
+      await Product.updateMany(
+        { discountExpiresAt: { $lt: now, $type: 'date' } },
+        { $unset: { oldPrice: 1, discountExpiresAt: 1 } }
+      );
+    } catch (updateErr) {
+      console.error('Error updating expired discounts:', updateErr);
+    }
 
     const products = await Product.find().sort({ createdAt: -1 });
     res.json(products);
-  } catch (err) {
-    res.status(500).json({ message: err.message });
+  } catch (error) {
+    console.error('GET /api/products error:', error);
+    res.status(500).json({ message: error.message || 'Internal Server Error' });
   }
 });
 
