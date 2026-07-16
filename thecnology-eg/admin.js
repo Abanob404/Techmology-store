@@ -1265,7 +1265,7 @@ async function importBackup() {
             showToast('تم استعادة النسخة الاحتياطية بنجاح! جاري إعادة تحميل الصفحة...');
             setTimeout(() => window.location.reload(), 2000);
         } else {
-            showToast(data.message || 'فشل استعادة النسخة الاحتياطية');
+            showToast(`${data.message || 'فشل استعادة النسخة الاحتياطية'}: ${data.error || ''}`);
         }
     } catch (err) {
         console.error(err);

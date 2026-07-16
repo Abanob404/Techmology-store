@@ -197,6 +197,7 @@ app.post('/api/restore', async (req, res) => {
     
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) {
+    console.error('RESTORE ERROR:', err);
     res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message });
   }
 });
