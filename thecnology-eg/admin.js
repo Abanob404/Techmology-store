@@ -1,4 +1,5 @@
-const API_URL = '/api/products';
+const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : '';
+const API_URL = `${BASE_URL}/api/products`;
 const ITEMS_PER_PAGE = 20;
 
 // ==========================================
@@ -112,7 +113,7 @@ function showToast(message) {
 
 async function fetchCategoriesAPI() {
     try {
-        const response = await fetch('/api/categories');
+        const response = await fetch(`${BASE_URL}/api/categories`);
         const data = await response.json();
         return data.map(c => c.name);
     } catch (err) {
@@ -201,7 +202,7 @@ window.renameCategoryPrompt = async function(oldCat) {
 
     // تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم وتحديث جدول الأقسام
     try {
-        const response = await fetch('/api/categories/rename', {
+        const response = await fetch(`${BASE_URL}/api/categories/rename`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ oldCategory: oldCat, newCategory: trimmedNewCat })
@@ -811,7 +812,7 @@ let tempDefaultProductImageFile = null;
 
 async function loadStoreSettings() {
     try {
-        const response = await fetch('/api/settings');
+        const response = await fetch(`${BASE_URL}/api/settings`);
         const settings = await response.json();
         defaultProductImage = settings.defaultProductImage;
         const preview = document.getElementById('defaultProductImagePreview');
@@ -858,7 +859,7 @@ window.saveStoreSettings = async function() {
     formData.append('defaultProductImage', tempDefaultProductImageFile);
 
     try {
-        const response = await fetch('/api/settings', {
+        const response = await fetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             body: formData
         });

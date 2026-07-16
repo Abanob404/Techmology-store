@@ -1,4 +1,5 @@
-const API_URL = '/api/products';
+const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : '';
+const API_URL = `${BASE_URL}/api/products`;
 let globalProducts = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 50;
@@ -11,7 +12,7 @@ window.defaultProductImage = '';
 
 async function loadStoreSettings() {
     try {
-        const response = await fetch('/api/settings');
+        const response = await fetch(`${BASE_URL}/api/settings`);
         const settings = await response.json();
         if (settings && settings.defaultProductImage) {
             window.defaultProductImage = settings.defaultProductImage;
@@ -114,7 +115,7 @@ async function renderDynamicCategoryFilters() {
     let uniqueCategories = [];
     const productCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
     try {
-        const res = await fetch('/api/categories');
+        const res = await fetch(`${BASE_URL}/api/categories`);
         const data = await res.json();
         const apiCategories = Array.isArray(data) ? data.map(c => c.name) : [];
         uniqueCategories = [...new Set([...apiCategories, ...productCategories])];
