@@ -30,7 +30,7 @@ async function fetchProducts() {
         for(let i = 0; i < 8; i++) {
             skeletonHtml += `
                 <article class="glass-panel rounded-xl overflow-hidden flex flex-col h-full border border-outline-variant/30 animate-pulse">
-                    <div class="relative aspect-video bg-surface-variant/50 w-full"></div>
+                    <div class="relative aspect-square bg-surface-variant/50 w-full"></div>
                     <div class="p-3 md:p-5 flex flex-col flex-1 gap-3">
                         <div class="h-3 bg-surface-variant/50 rounded w-1/4"></div>
                         <div class="h-5 bg-surface-variant/50 rounded w-3/4 mb-2"></div>
@@ -489,6 +489,15 @@ function injectProductModal() {
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                             مشاركة رابط المنتج
                         </button>
+                        
+                        <!-- Related Products -->
+                        <div id="modalRelatedProducts" class="mt-8 pt-6 border-t border-outline-variant/30 hidden">
+                            <h4 class="text-sm font-bold text-on-surface mb-4 flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                                منتجات مشابهة قد تعجبك
+                            </h4>
+                            <div id="relatedProductsContainer" class="grid grid-cols-2 gap-3"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -647,6 +656,28 @@ window.openProductModal = function(id) {
 
     const shareBtn = document.getElementById('modalShareBtn');
     shareBtn.onclick = () => shareProduct(p.title, p.price, `${window.location.origin}/products.html?id=${p._id}`);
+    // Render Related Products
+    const relatedContainer = document.getElementById('relatedProductsContainer');
+    const relatedSection = document.getElementById('modalRelatedProducts');
+    if (relatedContainer && relatedSection) {
+        const related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id);
+        const shuffled = related.sort(() => 0.5 - Math.random()).slice(0, 4);
+        if (shuffled.length > 0) {
+            relatedContainer.innerHTML = shuffled.map(prod => {
+                const img = (prod.image && !prod.image.includes('placehold.co')) ? prod.image : fallbackImage;
+                return `
+                    <div class="bg-surface-variant/30 p-2 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-surface-variant/70 transition-colors border border-outline-variant/30" onclick="closeProductModal(); setTimeout(() => openProductModal('${prod._id}'), 300)">
+                        <img src="${img}" class="w-16 h-16 object-contain rounded-lg">
+                        <span class="text-[10px] text-center text-on-surface line-clamp-2">${prod.title}</span>
+                        <span class="text-primary font-bold text-xs">${prod.price} ج.م</span>
+                    </div>
+                `;
+            }).join('');
+            relatedSection.classList.remove('hidden');
+        } else {
+            relatedSection.classList.add('hidden');
+        }
+    }
 
     const modal = document.getElementById('productModal');
     const content = document.getElementById('productModalContent');
@@ -1046,4 +1077,26 @@ setInterval(() => {
         timerElement.innerHTML = `${daysStr}${hoursStr}<span class="text-red-500/50 mx-0.5">:</span>${minsStr}<span class="text-red-500/50 mx-0.5">:</span>${secsStr}`;
     });
 }, 1000);
+
+// PWA Registration
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
+    });
+}
+
+// Scroll to Top Button
+const scrollToTopBtn = document.createElement('button');
+scrollToTopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>';
+scrollToTopBtn.className = 'fixed bottom-6 right-6 z-40 bg-primary hover:bg-primary-dark text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center';
+scrollToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+document.body.appendChild(scrollToTopBtn);
+
+window.addEventListener('scroll', () => {
+    if (window.scrollY > 300) {
+        scrollToTopBtn.classList.remove('translate-y-16', 'opacity-0');
+    } else {
+        scrollToTopBtn.classList.add('translate-y-16', 'opacity-0');
+    }
+});
 
