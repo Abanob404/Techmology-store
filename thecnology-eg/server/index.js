@@ -66,6 +66,7 @@ const Product = mongoose.model('Product', productSchema);
 // تعريف موديل إعدادات المتجر (Settings Schema)
 const settingsSchema = new mongoose.Schema({
   defaultProductImage: { type: String, default: '' },
+  lightHeroImage: { type: String, default: 'main-banner.png' },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -74,7 +75,10 @@ const Settings = mongoose.model('Settings', settingsSchema);
 async function getOrCreateSettings() {
   let settings = await Settings.findOne();
   if (!settings) {
-    settings = new Settings({ defaultProductImage: 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image' });
+    settings = new Settings({ 
+      defaultProductImage: 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image',
+      lightHeroImage: 'main-banner.png'
+    });
     await settings.save();
   }
   return settings;
@@ -517,22 +521,33 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-// 2. تحديث الصورة الافتراضية
+// 2. تحديث الصورة الافتراضية أو صورة البانر الفاتح
 app.post('/api/settings', async (req, res) => {
   try {
-    if (!req.files || !req.files.defaultProductImage) {
+    const settings = await getOrCreateSettings();
+    let updated = false;
+
+    if (req.files && req.files.defaultProductImage) {
+      const result = await cloudinary.uploader.upload(req.files.defaultProductImage.tempFilePath, {
+        folder: 'technology_store_settings'
+      });
+      settings.defaultProductImage = result.secure_url;
+      updated = true;
+    }
+
+    if (req.files && req.files.lightHeroImage) {
+      const result = await cloudinary.uploader.upload(req.files.lightHeroImage.tempFilePath, {
+        folder: 'technology_store_settings'
+      });
+      settings.lightHeroImage = result.secure_url;
+      updated = true;
+    }
+
+    if (!updated) {
       return res.status(400).json({ message: 'يرجى رفع صورة أولاً' });
     }
 
-    const file = req.files.defaultProductImage;
-    const result = await cloudinary.uploader.upload(file.tempFilePath, {
-      folder: 'technology_store_settings'
-    });
-
-    const settings = await getOrCreateSettings();
-    settings.defaultProductImage = result.secure_url;
     await settings.save();
-
     res.json(settings);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });

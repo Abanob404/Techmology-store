@@ -22,6 +22,20 @@ async function loadStoreSettings() {
     }
 }
 
+function getFallbackImage(product) {
+    if (window.defaultProductImage && !window.defaultProductImage.includes('placehold')) return window.defaultProductImage;
+    const cat = (product.category || '').toLowerCase();
+    let text = 'Product';
+    if (cat.includes('laptop') || cat.includes('لاب')) text = 'Laptop';
+    else if (cat.includes('desktop') || cat.includes('تجميع')) text = 'PC';
+    else if (cat.includes('monitor') || cat.includes('شاش')) text = 'Monitor';
+    else if (cat.includes('network') || cat.includes('شبك')) text = 'Network';
+    else if (cat.includes('surveillance') || cat.includes('مراقبة') || cat.includes('كاميرا')) text = 'Camera';
+    else if (cat.includes('access') || cat.includes('اكسسوار')) text = 'Accessories';
+    
+    return `https://placehold.co/400x400/1e293b/82cfff?text=${text}`;
+}
+
 // جلب المنتجات وتفعيل البحث
 async function fetchProducts() {
     const grid = document.getElementById('productsGrid');
@@ -297,7 +311,9 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     }
 
     pageProducts.forEach((p, index) => {
-        const specsHtml = p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('');
+        const specsHtml = Array.isArray(p.description) 
+            ? p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('') 
+            : `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${p.description || ''}</span></li>`;
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
         const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
         const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
@@ -331,9 +347,9 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
 
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
-        const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
+        const fbImage = getFallbackImage(p);
         const hasValidImage = p.image && !p.image.includes('placehold.co');
-        const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fallbackImage;
+        const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fbImage;
         const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
         const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
         const decodeAttr = index < 4 && !append ? 'decoding="sync"' : 'decoding="async"';
@@ -673,7 +689,7 @@ window.openProductModal = function(id) {
         const shuffled = related.sort(() => 0.5 - Math.random()).slice(0, 4);
         if (shuffled.length > 0) {
             relatedContainer.innerHTML = shuffled.map(prod => {
-                const img = (prod.image && !prod.image.includes('placehold.co')) ? prod.image : fallbackImage;
+                const img = (prod.image && !prod.image.includes('placehold.co')) ? prod.image : getFallbackImage(prod);
                 return `
                     <div class="bg-surface-variant/30 p-2 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-surface-variant/70 transition-colors border border-outline-variant/30" onclick="closeProductModal(); setTimeout(() => openProductModal('${prod._id}'), 300)">
                         <img src="${img}" class="w-16 h-16 object-contain rounded-lg">
@@ -1007,11 +1023,17 @@ function loadStoreBranding() {
 
     const customBg = localStorage.getItem('tech_store_bg');
     if (customBg) {
-        const heroSection = document.querySelector('.hero-banner');
-        if (heroSection) {
-            heroSection.style.backgroundImage = `url('${customBg}')`;
-            heroSection.style.backgroundSize = 'cover';
-            heroSection.style.backgroundPosition = 'center';
+        const darkBannerImg = document.getElementById('dark-banner');
+        if (darkBannerImg) {
+            darkBannerImg.src = customBg;
+        }
+    }
+
+    const customLightBg = localStorage.getItem('tech_store_light_bg');
+    if (customLightBg) {
+        const lightBannerImg = document.getElementById('light-banner');
+        if (lightBannerImg) {
+            lightBannerImg.src = customLightBg;
         }
     }
 }
@@ -1097,7 +1119,7 @@ if ('serviceWorker' in navigator) {
 // Scroll to Top Button
 const scrollToTopBtn = document.createElement('button');
 scrollToTopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>';
-scrollToTopBtn.className = 'fixed bottom-24 right-6 z-40 bg-primary hover:bg-primary-dark text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center';
+scrollToTopBtn.className = 'fixed bottom-28 right-6 z-50 bg-primary hover:bg-primary/90 text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center hover:scale-110';
 scrollToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 document.body.appendChild(scrollToTopBtn);
 
@@ -1108,4 +1130,10 @@ window.addEventListener('scroll', () => {
         scrollToTopBtn.classList.add('translate-y-16', 'opacity-0');
     }
 });
+
+// Theme Toggle Functionality
+window.toggleTheme = function() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+};
 

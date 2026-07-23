@@ -24,11 +24,27 @@
             theme: {
                 extend: {
                     "colors": {
-                        "secondary": "#a6c8ff", "error": "#ffb4ab", "surface-variant": "#30353a", "surface-container-highest": "#30353a",
-                        "surface-container-high": "#252b2f", "surface-container": "#1b2024", "inverse-on-surface": "#2c3135", "secondary-container": "#2992ff",
-                        "tertiary": "#ffb876", "surface": "#0f1418", "outline-variant": "#3e4850", "primary": "#82cfff", "surface-dim": "#0f1418",
-                        "surface-container-lowest": "#090f13", "on-primary": "#00344b", "outline": "#87929b", "on-background": "#dee3e8",
-                        "background": "#0f1418", "surface-container-low": "#171c20", "on-surface": "#dee3e8", "on-surface-variant": "#bdc8d1"
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "secondary": "rgb(var(--color-secondary) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "tertiary": "rgb(var(--color-tertiary) / <alpha-value>)",
+                        "error": "rgb(var(--color-error) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "on-background": "rgb(var(--color-on-background) / <alpha-value>)",
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "surface-variant": "rgb(var(--color-surface-variant) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "outline": "rgb(var(--color-outline) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container": "rgb(var(--color-surface-container) / <alpha-value>)",
+                        "surface-container-high": "rgb(var(--color-surface-container-high) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "surface-dim": "rgb(var(--color-surface-dim) / <alpha-value>)",
+                        "inverse-on-surface": "rgb(var(--color-inverse-on-surface) / <alpha-value>)"
                     },
                     "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
                     "spacing": { "gutter": "24px", "unit": "8px", "container-max": "1440px", "margin-mobile": "20px", "margin-desktop": "64px" },
@@ -40,17 +56,42 @@
             }
         }
     </script>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">    <!-- Preconnect to Google Fonts -->
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    
+    <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Load Non-Essential Icons Asynchronously -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Main font blocking to prevent FOUT -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && !window.matchMedia('(prefers-color-scheme: dark)').matches)) { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
+    dir="rtl">
+
+    <!-- TopNavBar -->
     <header
-        class="bg-surface/80 backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20 shadow-[0_0_20px_rgba(0,174,239,0.15)]">
+        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
         <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
             <div class="flex items-center gap-4 md:gap-8">
                 <a class="flex items-center gap-2" href="index.html">
-                    <img src="logo.png" alt="Technology Store" 
-                        class="h-12 md:h-16 w-auto object-contain"
-                        onerror="this.onerror=null; this.outerHTML='<span class=\'font-display-lg text-xl md:text-headline-md font-extrabold tracking-tighter text-primary\'>TECHNOLOGY</span>';">
+                    <img src="logo.png" alt="Technology Store" class="h-10 w-auto object-contain"
+                        onerror="this.onerror=null; this.outerHTML='<span class=&quot;font-display-lg text-xl md:text-headline-md font-extrabold tracking-tighter text-primary&quot;>TECHNOLOGY</span>';">
                 </a>
                 <div class="hidden md:flex items-center relative w-64 lg:w-96">
                     <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
@@ -69,6 +110,13 @@
                     href="products.html">المنتجات</a>
             </nav>
             <div class="flex items-center gap-3">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
                 <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green"
                     aria-label="تواصل معنا عبر واتساب">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
@@ -104,11 +152,14 @@
     <main class="flex-1 pt-24 w-full">
         <!-- Hero Section -->
         <section class="relative pt-40 pb-20 overflow-hidden flex flex-col items-center justify-center min-h-[70vh]">
-            <div class="absolute inset-0 bg-surface-container-low/50"></div>
-            <div
-                class="hero-bg absolute inset-0 bg-[url('main-banner.png')] bg-cover bg-center opacity-30 mix-blend-screen">
+            <div class="absolute inset-0 bg-surface-container-low/50 dark:opacity-100 opacity-20"></div>
+            
+            <div class="absolute inset-0 z-0 flex items-center justify-center mix-blend-screen opacity-30 dark:opacity-30 opacity-70">
+                <img id="dark-banner" src="main-banner.png" class="hidden dark:block w-full h-full object-cover">
+                <img id="light-banner" src="main-banner.png" class="block dark:hidden w-full h-full object-cover">
             </div>
-            <div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background"></div>
+            
+            <div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background z-0"></div>
 
             <div class="relative z-10 max-w-container-max mx-auto px-gutter text-center flex flex-col items-center">
                 <span
@@ -143,7 +194,7 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <a href="products.html"
+                <a href="products.html?category=Desktops"
                     class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -152,17 +203,16 @@
                     <h3 class="font-headline-md text-2xl mb-3 text-on-surface">تجميعات احترافية</h3>
                     <p class="text-on-surface-variant text-base">أقوى أجهزة الجيمنج والمونتاج المجهزة بالكامل لك.</p>
                 </a>
-                <a href="products.html"
+                <a href="products.html?category=Networking"
                     class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg>
                     </div>
                     <h3 class="font-headline-md text-2xl mb-3 text-on-surface">أنظمة شبكات</h3>
-                    <p class="text-on-surface-variant text-base">راوترات وسويتشات وكابلات عالية الجودة جاهزة للتركيب.
-                    </p>
+                    <p class="text-on-surface-variant text-base">راوترات وسويتشات وكابلات عالية الجودة جاهزة للتركيب.</p>
                 </a>
-                <a href="products.html"
+                <a href="products.html?category=Surveillance"
                     class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -225,7 +275,3 @@
 </body>
 
 </html>
-
-
-
-

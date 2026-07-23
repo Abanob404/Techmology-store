@@ -13,30 +13,49 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="apple-touch-icon" href="logo.png">
     <link rel="manifest" href="manifest.json">
-    
+
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
     
     <!-- Load Non-Essential Icons Asynchronously -->
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <!-- Main font blocking to prevent FOUT -->
     <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
+
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
                     "colors": {
-                        "secondary": "#a6c8ff", "error": "#ffb4ab", "surface-variant": "#30353a", "surface-container-highest": "#30353a",
-                        "surface-container-high": "#252b2f", "surface-container": "#1b2024", "inverse-on-surface": "#2c3135", "secondary-container": "#2992ff",
-                        "tertiary": "#ffb876", "surface": "#0f1418", "outline-variant": "#3e4850", "primary": "#82cfff", "surface-dim": "#0f1418",
-                        "surface-container-lowest": "#090f13", "on-primary": "#00344b", "outline": "#87929b", "on-background": "#dee3e8",
-                        "background": "#0f1418", "surface-container-low": "#171c20", "on-surface": "#dee3e8", "on-surface-variant": "#bdc8d1"
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "secondary": "rgb(var(--color-secondary) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "tertiary": "rgb(var(--color-tertiary) / <alpha-value>)",
+                        "error": "rgb(var(--color-error) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "on-background": "rgb(var(--color-on-background) / <alpha-value>)",
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "surface-variant": "rgb(var(--color-surface-variant) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "outline": "rgb(var(--color-outline) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container": "rgb(var(--color-surface-container) / <alpha-value>)",
+                        "surface-container-high": "rgb(var(--color-surface-container-high) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "surface-dim": "rgb(var(--color-surface-dim) / <alpha-value>)",
+                        "inverse-on-surface": "rgb(var(--color-inverse-on-surface) / <alpha-value>)"
                     },
                     "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
                     "spacing": { "gutter": "24px", "unit": "8px", "container-max": "1440px", "margin-mobile": "20px", "margin-desktop": "64px" },
@@ -48,7 +67,15 @@
             }
         }
     </script>
-    <link rel="stylesheet" href="style.css">
+    
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && !window.matchMedia('(prefers-color-scheme: dark)').matches)) { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
 </head>
 <body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30" dir="rtl">
 
@@ -58,7 +85,14 @@
     </div>
 
     <!-- Login Container -->
-    <div id="loginContainer" class="flex flex-1 items-center justify-center p-6">
+    <div id="loginContainer" class="flex flex-1 items-center justify-center p-6 relative">
+        <!-- Theme Toggle on Login Page -->
+        <button onclick="toggleTheme()" class="absolute top-6 left-6 p-2.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+            <!-- Sun Icon (shown in dark mode) -->
+            <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            <!-- Moon Icon (shown in light mode) -->
+            <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
         <div class="glass-panel p-10 rounded-xl w-full max-w-md text-center">
             <span class="material-symbols-outlined text-primary text-5xl mb-4">admin_panel_settings</span>
             <h2 class="font-headline-md text-2xl text-on-surface mb-2">لوحة الإدارة</h2>
@@ -83,6 +117,13 @@
                 <p class="text-on-surface-variant mt-1 text-sm md:text-base">مرحباً <span id="currentUserBadge" class="text-primary font-bold">admin</span></p>
             </div>
             <div class="flex items-center gap-3 flex-wrap">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
                 <a href="index.html" target="_blank" class="px-4 py-2 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg hover:bg-surface-variant transition-colors flex items-center gap-2 font-bold text-sm">
                     عرض الموقع <span class="material-symbols-outlined text-[16px]">open_in_new</span>
                 </a>
@@ -279,9 +320,14 @@
                             <img id="currentLogoPreview" src="" alt="Logo" class="hidden h-14 object-contain mt-3 rounded bg-surface p-2 border border-outline-variant/30">
                         </div>
                         <div>
-                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة الخلفية (الهيرو)</label>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الغامق)</label>
                             <input type="file" id="storeBgInput" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
                             <img id="currentBgPreview" src="" alt="Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
+                        </div>
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الفاتح)</label>
+                            <input type="file" id="storeLightBgInput" accept="image/*" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
+                            <img id="currentLightBgPreview" src="" alt="Light Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
                         <button onclick="saveBrandingSettings()" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ مظهر الموقع
@@ -561,6 +607,15 @@
                 tab.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
                 tab.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
             }
+        }
+    </script>
+    <script>
+        // Inline toggleTheme so login page works even before admin.js loads
+        if (!window.toggleTheme) {
+            window.toggleTheme = function() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            };
         }
     </script>
     <script src="admin.js" defer></script>

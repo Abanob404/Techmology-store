@@ -728,6 +728,7 @@ window.deleteUser = function(id) {
 // ==========================================
 let tempLogo = null;
 let tempBg = null;
+let tempLightBg = null;
 
 function loadCurrentLogo() {
     const savedLogo = localStorage.getItem('tech_store_logo');
@@ -744,6 +745,13 @@ function loadCurrentBg() {
     if (savedBg && preview) {
         preview.src = savedBg;
         preview.classList.remove('hidden');
+    }
+    
+    const savedLightBg = localStorage.getItem('tech_store_light_bg');
+    const lightPreview = document.getElementById('currentLightBgPreview');
+    if (savedLightBg && lightPreview) {
+        lightPreview.src = savedLightBg;
+        lightPreview.classList.remove('hidden');
     }
 }
 
@@ -785,6 +793,25 @@ if (storeBgInput) {
     });
 }
 
+const storeLightBgInput = document.getElementById('storeLightBgInput');
+if (storeLightBgInput) {
+    storeLightBgInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                tempLightBg = event.target.result;
+                const preview = document.getElementById('currentLightBgPreview');
+                if (preview) {
+                    preview.src = tempLightBg;
+                    preview.classList.remove('hidden');
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
 window.saveBrandingSettings = function() {
     let saved = false;
     if (tempLogo) {
@@ -795,10 +822,15 @@ window.saveBrandingSettings = function() {
         localStorage.setItem('tech_store_bg', tempBg);
         saved = true;
     }
+    if (tempLightBg) {
+        localStorage.setItem('tech_store_light_bg', tempLightBg);
+        saved = true;
+    }
     if (saved) {
         showToast('✅ تم حفظ مظهر الموقع بنجاح!');
         tempLogo = null;
         tempBg = null;
+        tempLightBg = null;
     } else {
         showToast('⚠️ لم تقم باختيار صور جديدة لحفظها.');
     }
@@ -1272,3 +1304,9 @@ async function importBackup() {
         showToast('حدث خطأ أثناء الاتصال بالخادم');
     }
 }
+
+// Theme Toggle Functionality for Admin
+window.toggleTheme = function() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('theme', isDark ? 'dark' : 'light');
+};
