@@ -334,12 +334,14 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
         const hasValidImage = p.image && !p.image.includes('placehold.co');
         const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fallbackImage;
-        const loadingAttr = index < 4 ? 'eager' : 'lazy';
+        const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
+        const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
+        const decodeAttr = index < 4 && !append ? 'decoding="sync"' : 'decoding="async"';
 
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="lazy" decoding="async" width="400" height="400" class="w-full h-full object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="w-full h-full object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
