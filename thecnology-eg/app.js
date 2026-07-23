@@ -339,7 +339,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="lazy" decoding="async" width="400" height="400" class="w-full h-full object-contain p-3 group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="lazy" decoding="async" width="400" height="400" class="w-full h-full object-cover rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -587,7 +587,7 @@ window.openProductModal = function(id) {
     const extraDetailsContainer = document.getElementById('modalExtraDetails');
     let extraHtml = '';
     if (p.brand) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">العلامة التجارية</span><span class="font-bold text-on-surface">${p.brand}</span></div>`;
-    if (p.sku) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">رقم الموديل (SKU)</span><span class="font-bold text-on-surface font-mono-data">${p.sku}</span></div>`;
+    if (p.sku) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">السيريال كود (SKU)</span><span class="font-bold text-on-surface font-mono-data">${p.sku}</span></div>`;
     if (p.warranty) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">الضمان</span><span class="font-bold text-on-surface">${p.warranty}</span></div>`;
     
     if (extraHtml) {

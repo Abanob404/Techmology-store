@@ -244,25 +244,31 @@ app.post('/api/products', async (req, res) => {
       return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
 
-    if (!req.files || !req.files.images) {
-      return res.status(400).json({ message: 'يرجى اختيار صورة واحدة على الأقل' });
-    }
-
-    let uploadedFiles = req.files.images;
-    if (!Array.isArray(uploadedFiles)) {
-      uploadedFiles = [uploadedFiles];
-    }
-
-    const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
-      folder: 'technology_store'
-    });
-
+    let image = '';
+    let imagePublicId = '';
     const additionalImages = [];
-    for (let i = 1; i < uploadedFiles.length; i++) {
-      const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+
+    if (req.files && req.files.images) {
+      let uploadedFiles = req.files.images;
+      if (!Array.isArray(uploadedFiles)) {
+        uploadedFiles = [uploadedFiles];
+      }
+
+      const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
         folder: 'technology_store'
       });
-      additionalImages.push({ url: result.secure_url, publicId: result.public_id });
+      image = mainResult.secure_url;
+      imagePublicId = mainResult.public_id;
+
+      for (let i = 1; i < uploadedFiles.length; i++) {
+        const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
+          folder: 'technology_store'
+        });
+        additionalImages.push({ url: result.secure_url, publicId: result.public_id });
+      }
+    } else {
+      const settings = await getOrCreateSettings();
+      image = settings.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
     }
 
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
@@ -273,8 +279,8 @@ app.post('/api/products', async (req, res) => {
       price,
       oldPrice: oldPrice ? Number(oldPrice) : undefined,
       description: descArray,
-      image: mainResult.secure_url,
-      imagePublicId: mainResult.public_id,
+      image: image,
+      imagePublicId: imagePublicId,
       additionalImages: additionalImages,
       stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
       sku: sku || '',
@@ -415,9 +421,10 @@ app.put('/api/products/:id', async (req, res) => {
       }
 
       const currentProduct = await Product.findById(req.params.id);
+      const isPlaceholder = currentProduct && (!currentProduct.imagePublicId || currentProduct.image.includes('placehold.co'));
       const hasMainImage = updateData.image || (currentProduct && currentProduct.image);
 
-      if (!hasMainImage || req.body.replaceMain === 'true') {
+      if (!hasMainImage || isPlaceholder || req.body.replaceMain === 'true') {
         const oldMainUrl = updateData.image || currentProduct?.image;
         const oldMainPublicId = updateData.imagePublicId || currentProduct?.imagePublicId;
 
@@ -432,7 +439,7 @@ app.put('/api/products/:id', async (req, res) => {
         const newAdditional = updateData.additionalImages || currentProduct?.additionalImages || [];
         
         // إذا كنا نستبدل الصورة الأساسية القديمة، ننقلها للصور الإضافية (إلا إذا تم حذفها)
-        if (req.body.replaceMain === 'true' && oldMainUrl) {
+        if (req.body.replaceMain === 'true' && oldMainUrl && !isPlaceholder) {
             let idsToDelete = [];
             try { idsToDelete = JSON.parse(req.body.imagesToDelete); } catch(e) {}
             if (!idsToDelete.includes(oldMainPublicId) && !idsToDelete.includes('main')) {
