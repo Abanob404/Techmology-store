@@ -660,7 +660,14 @@ window.openProductModal = function(id) {
     const relatedContainer = document.getElementById('relatedProductsContainer');
     const relatedSection = document.getElementById('modalRelatedProducts');
     if (relatedContainer && relatedSection) {
-        const related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id);
+        let related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id);
+        
+        // ذكاء إضافي: إذا كان القسم "غير مصنف" أو فارغ، نبحث بأول كلمة من اسم المنتج كبديل
+        if (!p.category || p.category === 'غير مصنف' || p.category === 'Uncategorized') {
+            const firstWord = p.title.split(' ')[0].toLowerCase();
+            related = globalProducts.filter(prod => prod._id !== p._id && prod.title.toLowerCase().includes(firstWord));
+        }
+
         const shuffled = related.sort(() => 0.5 - Math.random()).slice(0, 4);
         if (shuffled.length > 0) {
             relatedContainer.innerHTML = shuffled.map(prod => {
@@ -1088,7 +1095,7 @@ if ('serviceWorker' in navigator) {
 // Scroll to Top Button
 const scrollToTopBtn = document.createElement('button');
 scrollToTopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>';
-scrollToTopBtn.className = 'fixed bottom-6 right-6 z-40 bg-primary hover:bg-primary-dark text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center';
+scrollToTopBtn.className = 'fixed bottom-24 right-6 z-40 bg-primary hover:bg-primary-dark text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center';
 scrollToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 document.body.appendChild(scrollToTopBtn);
 
