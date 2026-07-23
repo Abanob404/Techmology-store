@@ -2,7 +2,7 @@ const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' 
 const API_URL = `${BASE_URL}/api/products`;
 let globalProducts = [];
 let currentPage = 1;
-const ITEMS_PER_PAGE = 50;
+const ITEMS_PER_PAGE = 16;
 let activeCategory = "all";
 let activeSearchTerm = "";
 let currentSort = "newest";
