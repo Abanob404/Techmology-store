@@ -339,7 +339,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="lazy" decoding="async" width="400" height="400" class="w-full h-full object-cover rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="lazy" decoding="async" width="400" height="400" class="w-full h-full object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -454,7 +454,7 @@ function injectProductModal() {
                 <!-- Image Section -->
                 <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
                     <div class="w-full rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center aspect-square md:h-80">
-                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain w-full h-full p-4 drop-shadow-2xl transition-opacity duration-200">
+                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain w-full h-full p-2 rounded-2xl drop-shadow-2xl transition-opacity duration-200">
                     </div>
                     <div id="modalBadge" class="absolute top-7 right-7 z-10"></div>
                     <!-- Image Gallery -->
@@ -498,6 +498,7 @@ function injectProductModal() {
 }
 
 window.openProductModal = function(id) {
+    if (window.modalImageInterval) clearInterval(window.modalImageInterval);
     const p = globalProducts.find(prod => prod._id === id);
     if (!p) return;
 
@@ -578,6 +579,23 @@ window.openProductModal = function(id) {
             activeBtn.classList.remove('border-transparent', 'opacity-60');
             activeBtn.classList.add('border-primary', 'opacity-100');
         }
+
+        if (galleryContainer.children.length > 1) {
+            let currentIndex = 0;
+            window.modalImageInterval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % galleryContainer.children.length;
+                const nextBtn = galleryContainer.children[currentIndex];
+                if (nextBtn) {
+                    const mainImageEl = document.getElementById('modalImage');
+                    mainImageEl.style.opacity = 0;
+                    setTimeout(() => {
+                        mainImageEl.src = nextBtn.querySelector('img').src;
+                        mainImageEl.style.opacity = 1;
+                    }, 150);
+                    updateActiveGalleryImage(nextBtn);
+                }
+            }, 3000);
+        }
     }
     
     const specsHtml = p.description.map(spec => `<li class="flex gap-2"><span class="text-primary">•</span><span>${spec}</span></li>`).join('');
@@ -642,6 +660,7 @@ window.openProductModal = function(id) {
 };
 
 window.closeProductModal = function() {
+    if (window.modalImageInterval) clearInterval(window.modalImageInterval);
     const modal = document.getElementById('productModal');
     const content = document.getElementById('productModalContent');
     
