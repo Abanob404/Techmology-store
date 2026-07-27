@@ -70,7 +70,7 @@
     
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
-        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && !window.matchMedia('(prefers-color-scheme: dark)').matches)) { 
+        if (localStorage.getItem('theme') === 'light') { 
             document.documentElement.classList.remove('dark');
         } else { 
             document.documentElement.classList.add('dark');
@@ -146,6 +146,9 @@
             </button>
             <button onclick="switchTab('backup')" id="tab-backup" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
                 <span class="material-symbols-outlined text-[18px]">backup</span> النسخ الاحتياطي
+            </button>
+            <button onclick="switchTab('analytics')" id="tab-analytics" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
+                <span class="material-symbols-outlined text-[18px]">analytics</span> التقارير والإحصائيات
             </button>
         </div>
 
@@ -484,6 +487,105 @@
             </div>
         </div>
 
+        <!-- ========= TAB 5: Analytics ========= -->
+        <div id="panel-analytics" class="tab-panel hidden">
+            <!-- Top Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إجمالي الزيارات</p>
+                        <h3 id="stat-total-visits" class="font-headline-md text-3xl text-primary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <span class="material-symbols-outlined text-[28px]">visibility</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إجمالي المنتجات</p>
+                        <h3 id="stat-total-products" class="font-headline-md text-3xl text-secondary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                        <span class="material-symbols-outlined text-[28px]">inventory_2</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إضافة للسلة</p>
+                        <h3 id="stat-total-cart" class="font-headline-md text-3xl text-tertiary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary">
+                        <span class="material-symbols-outlined text-[28px]">shopping_cart</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">طلبات واتساب</p>
+                        <h3 id="stat-total-orders" class="font-headline-md text-3xl text-emerald-400 font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                        <span class="material-symbols-outlined text-[28px]">chat</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts & Tables Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Top Viewed Products -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">local_fire_department</span> أكثر 10 منتجات مشاهدة
+                    </h3>
+                    <div id="analytics-top-views" class="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+
+                <!-- Top Ordered Products (WhatsApp) -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-400">trending_up</span> أكثر المنتجات طلباً عبر واتساب
+                    </h3>
+                    <div id="analytics-top-orders" class="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Distribution and Page Views -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Category Distribution -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-secondary">pie_chart</span> توزيع المنتجات حسب القسم
+                    </h3>
+                    <div id="analytics-categories" class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">جاري التحميل...</p>
+                    </div>
+                </div>
+
+                <!-- Page Visits -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-tertiary">web</span> زيارات صفحات الموقع
+                    </h3>
+                    <div id="analytics-pages" class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions Footer -->
+            <div class="flex flex-wrap gap-4 justify-end border-t border-outline-variant/30 pt-6">
+                <button onclick="exportAnalyticsCSV()" class="px-6 py-3 bg-surface-container-high border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-all flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-[18px]">download</span> تصدير التقرير (CSV)
+                </button>
+                <button onclick="resetAnalytics()" class="px-6 py-3 bg-error/10 border border-error/30 text-error font-bold rounded-lg hover:bg-error hover:text-on-primary transition-all flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-[18px]">delete_sweep</span> تصفير الإحصائيات
+                </button>
+            </div>
+        </div>
+
     </div>
 
     <!-- Edit Product Modal -->
@@ -606,6 +708,9 @@
             if (tab) {
                 tab.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
                 tab.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+            }
+            if (tabName === 'analytics' && window.loadAnalytics) {
+                window.loadAnalytics();
             }
         }
     </script>

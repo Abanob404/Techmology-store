@@ -277,6 +277,7 @@ async function loadAdminProducts(preserveState = false) {
         }
 
         filterAdminProducts(preserveState);
+        if (window.loadAnalytics) window.loadAnalytics();
     } catch (error) {
         table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';
         console.error(error);
@@ -1309,4 +1310,149 @@ async function importBackup() {
 window.toggleTheme = function() {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+};
+
+// ==========================================
+// Analytics Dashboard Logic
+// ==========================================
+window.loadAnalytics = function() {
+    const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
+    
+    // Summary cards
+    const totalVisitsEl = document.getElementById('stat-total-visits');
+    const totalProductsEl = document.getElementById('stat-total-products');
+    const totalCartEl = document.getElementById('stat-total-cart');
+    const totalOrdersEl = document.getElementById('stat-total-orders');
+
+    if (totalVisitsEl) totalVisitsEl.textContent = analytics.total_visits || 0;
+    if (totalProductsEl) totalProductsEl.textContent = window.adminProducts ? window.adminProducts.length : 0;
+    
+    let totalCart = 0;
+    Object.values(analytics.cart_adds || {}).forEach(item => totalCart += (item.count || 0));
+    if (totalCartEl) totalCartEl.textContent = totalCart;
+
+    let totalOrders = 0;
+    Object.values(analytics.whatsapp_orders || {}).forEach(item => totalOrders += (item.count || 0));
+    if (totalOrdersEl) totalOrdersEl.textContent = totalOrders;
+
+    // Top views
+    const topViewsContainer = document.getElementById('analytics-top-views');
+    if (topViewsContainer) {
+        const viewsList = Object.values(analytics.views || {}).sort((a, b) => b.count - a.count).slice(0, 10);
+        if (viewsList.length === 0) {
+            topViewsContainer.innerHTML = '<p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>';
+        } else {
+            topViewsContainer.innerHTML = viewsList.map((item, idx) => `
+                <div class="flex items-center justify-between p-3 bg-surface-container rounded-lg border border-outline-variant/20">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-full bg-primary/20 text-primary text-xs font-bold flex items-center justify-center">${idx + 1}</span>
+                        <span class="text-on-surface font-semibold text-sm line-clamp-1">${item.title}</span>
+                    </div>
+                    <span class="text-primary font-mono-data font-bold text-sm shrink-0">${item.count} 👁</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    // Top orders
+    const topOrdersContainer = document.getElementById('analytics-top-orders');
+    if (topOrdersContainer) {
+        const ordersList = Object.values(analytics.whatsapp_orders || {}).sort((a, b) => b.count - a.count).slice(0, 10);
+        if (ordersList.length === 0) {
+            topOrdersContainer.innerHTML = '<p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>';
+        } else {
+            topOrdersContainer.innerHTML = ordersList.map((item, idx) => `
+                <div class="flex items-center justify-between p-3 bg-surface-container rounded-lg border border-outline-variant/20">
+                    <div class="flex items-center gap-3">
+                        <span class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-bold flex items-center justify-center">${idx + 1}</span>
+                        <span class="text-on-surface font-semibold text-sm line-clamp-1">${item.title}</span>
+                    </div>
+                    <span class="text-emerald-400 font-mono-data font-bold text-sm shrink-0">${item.count} 📦</span>
+                </div>
+            `).join('');
+        }
+    }
+
+    // Category distribution
+    const catContainer = document.getElementById('analytics-categories');
+    if (catContainer && window.adminProducts) {
+        const catCounts = {};
+        window.adminProducts.forEach(p => {
+            const c = p.category || 'غير مصنف';
+            catCounts[c] = (catCounts[c] || 0) + 1;
+        });
+        const totalP = window.adminProducts.length || 1;
+        const catList = Object.entries(catCounts).sort((a, b) => b[1] - a[1]);
+        if (catList.length === 0) {
+            catContainer.innerHTML = '<p class="text-on-surface-variant text-sm text-center py-4">لا توجد منتجات</p>';
+        } else {
+            catContainer.innerHTML = catList.map(([cat, count]) => {
+                const percent = Math.round((count / totalP) * 100);
+                return `
+                    <div class="p-3 bg-surface-container rounded-lg border border-outline-variant/20">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-on-surface font-semibold">${cat}</span>
+                            <span class="text-secondary font-mono-data font-bold">${count} منتج (${percent}%)</span>
+                        </div>
+                        <div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+                            <div class="bg-secondary h-full rounded-full transition-all duration-500" style="width: ${percent}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Page visits
+    const pagesContainer = document.getElementById('analytics-pages');
+    if (pagesContainer) {
+        const pagesList = Object.entries(analytics.page_visits || {}).sort((a, b) => b[1] - a[1]);
+        if (pagesList.length === 0) {
+            pagesContainer.innerHTML = '<p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>';
+        } else {
+            pagesContainer.innerHTML = pagesList.map(([page, count]) => `
+                <div class="flex items-center justify-between p-3 bg-surface-container rounded-lg border border-outline-variant/20">
+                    <span class="text-on-surface font-semibold text-sm dir-ltr text-right">${page}</span>
+                    <span class="text-tertiary font-mono-data font-bold text-sm shrink-0">${count} زيارة</span>
+                </div>
+            `).join('');
+        }
+    }
+};
+
+window.resetAnalytics = function() {
+    if (confirm('هل أنت متأكد من رغبتك في تصفير جميع الإحصائيات؟ لا يمكن التراجع عن هذا الإجراء.')) {
+        localStorage.setItem('tech_store_analytics', '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
+        window.loadAnalytics();
+        showToast('تم تصفير الإحصائيات بنجاح');
+    }
+};
+
+window.exportAnalyticsCSV = function() {
+    const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
+    let csv = '\uFEFF'; // BOM for Arabic support in Excel
+    csv += 'نوع الإحصائية,المنتج/الصفحة,العدد\n';
+    
+    Object.values(analytics.views || {}).forEach(item => {
+        csv += `"مشاهدة منتج","${item.title}",${item.count}\n`;
+    });
+    Object.values(analytics.cart_adds || {}).forEach(item => {
+        csv += `"إضافة للسلة","${item.title}",${item.count}\n`;
+    });
+    Object.values(analytics.whatsapp_orders || {}).forEach(item => {
+        csv += `"طلب واتساب","${item.title}",${item.count}\n`;
+    });
+    Object.entries(analytics.page_visits || {}).forEach(([page, count]) => {
+        csv += `"زيارة صفحة","${page}",${count}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `tech_store_analytics_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 };

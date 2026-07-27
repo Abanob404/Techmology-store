@@ -73,7 +73,7 @@
     
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
-        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && !window.matchMedia('(prefers-color-scheme: dark)').matches)) { 
+        if (localStorage.getItem('theme') === 'light') { 
             document.documentElement.classList.remove('dark');
         } else { 
             document.documentElement.classList.add('dark');
@@ -152,9 +152,9 @@
     <main class="flex-1 pt-24 w-full">
         <!-- Hero Section -->
         <section class="relative pt-40 pb-20 overflow-hidden flex flex-col items-center justify-center min-h-[70vh]">
-            <div class="absolute inset-0 bg-surface-container-low/50 dark:opacity-100 opacity-20"></div>
+            <div class="absolute inset-0 bg-surface-container-low/50 opacity-20 dark:opacity-100"></div>
             
-            <div class="absolute inset-0 z-0 flex items-center justify-center mix-blend-screen opacity-30 dark:opacity-30 opacity-70">
+            <div class="absolute inset-0 z-0 flex items-center justify-center opacity-40 dark:opacity-30 dark:mix-blend-screen">
                 <img id="dark-banner" src="main-banner.png" class="hidden dark:block w-full h-full object-cover">
                 <img id="light-banner" src="main-banner.png" class="block dark:hidden w-full h-full object-cover">
             </div>

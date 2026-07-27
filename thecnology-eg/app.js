@@ -8,6 +8,38 @@ let activeSearchTerm = "";
 let currentSort = "newest";
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 
+// ==========================================
+// Analytics Tracking System
+// ==========================================
+function getAnalytics() {
+    return JSON.parse(localStorage.getItem('tech_store_analytics') || '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
+}
+function saveAnalytics(data) {
+    localStorage.setItem('tech_store_analytics', JSON.stringify(data));
+}
+function trackEvent(type, productId, productTitle) {
+    const analytics = getAnalytics();
+    if (!analytics[type]) analytics[type] = {};
+    if (!analytics[type][productId]) {
+        analytics[type][productId] = { count: 0, title: productTitle || 'Unknown' };
+    }
+    analytics[type][productId].count++;
+    analytics[type][productId].title = productTitle || analytics[type][productId].title;
+    analytics[type][productId].lastDate = new Date().toISOString();
+    saveAnalytics(analytics);
+}
+function trackPageVisit() {
+    const analytics = getAnalytics();
+    const page = window.location.pathname.split('/').pop() || 'index.html';
+    if (!analytics.page_visits) analytics.page_visits = {};
+    analytics.page_visits[page] = (analytics.page_visits[page] || 0) + 1;
+    analytics.total_visits = (analytics.total_visits || 0) + 1;
+    const today = new Date().toISOString().split('T')[0];
+    if (!analytics.daily_visits) analytics.daily_visits = {};
+    analytics.daily_visits[today] = (analytics.daily_visits[today] || 0) + 1;
+    saveAnalytics(analytics);
+}
+
 window.defaultProductImage = '';
 
 async function loadStoreSettings() {
@@ -528,6 +560,8 @@ window.openProductModal = function(id) {
     if (window.modalImageInterval) clearInterval(window.modalImageInterval);
     const p = globalProducts.find(prod => prod._id === id);
     if (!p) return;
+    // Analytics: track product view
+    trackEvent('views', p._id, p.title);
 
     const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
     const hasValidImage = p.image && !p.image.includes('placehold.co');
@@ -835,6 +869,8 @@ function addToCart(productId) {
         return;
     }
 
+    // Analytics: track add to cart
+    trackEvent('cart_adds', product._id, product.title);
     const existingItem = cart.find(item => item._id === productId);
     if (existingItem) {
         if (existingItem.quantity < product.stockQuantity) {
@@ -1001,6 +1037,8 @@ function checkoutWhatsApp() {
     const encodedMessage = encodeURIComponent(message);
     const whatsappUrl = `https://api.whatsapp.com/send/?phone=201515664919&text=${encodedMessage}`;
 
+    // Analytics: track whatsapp orders
+    cart.forEach(item => trackEvent('whatsapp_orders', item._id, item.title));
     // إفراغ السلة بعد التوجيه
     cart = [];
     saveCart();
@@ -1039,6 +1077,7 @@ function loadStoreBranding() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    trackPageVisit();
     injectProductModal();
     injectCartUI();
     fetchProducts();

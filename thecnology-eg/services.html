@@ -69,7 +69,7 @@
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
-        if (localStorage.getItem('theme') === 'light' || (!('theme' in localStorage) && !window.matchMedia('(prefers-color-scheme: dark)').matches)) { 
+        if (localStorage.getItem('theme') === 'light') { 
             document.documentElement.classList.remove('dark');
         } else { 
             document.documentElement.classList.add('dark');
