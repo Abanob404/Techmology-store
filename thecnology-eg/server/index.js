@@ -71,6 +71,27 @@ const settingsSchema = new mongoose.Schema({
 });
 const Settings = mongoose.model('Settings', settingsSchema);
 
+// تعريف موديل الإحصائيات (Analytics Schema)
+const analyticsSchema = new mongoose.Schema({
+  key: { type: String, default: 'main' },
+  views: { type: Object, default: {} },
+  cart_adds: { type: Object, default: {} },
+  whatsapp_orders: { type: Object, default: {} },
+  page_visits: { type: Object, default: {} },
+  total_visits: { type: Number, default: 0 },
+  daily_visits: { type: Object, default: {} }
+});
+const Analytics = mongoose.model('Analytics', analyticsSchema);
+
+async function getOrCreateAnalytics() {
+  let doc = await Analytics.findOne({ key: 'main' });
+  if (!doc) {
+    doc = new Analytics({ key: 'main', views: {}, cart_adds: {}, whatsapp_orders: {}, page_visits: {}, total_visits: 0, daily_visits: {} });
+    await doc.save();
+  }
+  return doc;
+}
+
 // دالة لجلب أو إنشاء وثيقة الإعدادات الافتراضية
 async function getOrCreateSettings() {
   let settings = await Settings.findOne();
@@ -551,6 +572,79 @@ app.post('/api/settings', async (req, res) => {
     res.json(settings);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
+  }
+});
+
+// --- الـ API Routes الخاصة بالإحصائيات (Centralized Analytics) ---
+app.get('/api/analytics', async (req, res) => {
+  try {
+    const doc = await getOrCreateAnalytics();
+    res.json(doc);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في جلب الإحصائيات', error: err.message });
+  }
+});
+
+app.post('/api/analytics/track', async (req, res) => {
+  try {
+    const { type, productId, productTitle, page } = req.body;
+    const doc = await getOrCreateAnalytics();
+    
+    if (type === 'page_visit') {
+      doc.total_visits = (doc.total_visits || 0) + 1;
+      const pName = page || 'index.html';
+      const pVisits = { ...doc.page_visits };
+      pVisits[pName] = (pVisits[pName] || 0) + 1;
+      doc.page_visits = pVisits;
+
+      const today = new Date().toISOString().split('T')[0];
+      const dVisits = { ...doc.daily_visits };
+      dVisits[today] = (dVisits[today] || 0) + 1;
+      doc.daily_visits = dVisits;
+    } else if (type && productId) {
+      const currentMap = { ...(doc[type] || {}) };
+      if (!currentMap[productId]) {
+        currentMap[productId] = { count: 0, title: productTitle || 'Unknown' };
+      }
+      currentMap[productId].count++;
+      currentMap[productId].title = productTitle || currentMap[productId].title;
+      currentMap[productId].lastDate = new Date().toISOString();
+      doc[type] = currentMap;
+    }
+    
+    doc.markModified('views');
+    doc.markModified('cart_adds');
+    doc.markModified('whatsapp_orders');
+    doc.markModified('page_visits');
+    doc.markModified('daily_visits');
+    
+    await doc.save();
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في تسجيل الإحصائية', error: err.message });
+  }
+});
+
+app.post('/api/analytics/reset', async (req, res) => {
+  try {
+    let doc = await Analytics.findOne({ key: 'main' });
+    if (doc) {
+      doc.views = {};
+      doc.cart_adds = {};
+      doc.whatsapp_orders = {};
+      doc.page_visits = {};
+      doc.total_visits = 0;
+      doc.daily_visits = {};
+      doc.markModified('views');
+      doc.markModified('cart_adds');
+      doc.markModified('whatsapp_orders');
+      doc.markModified('page_visits');
+      doc.markModified('daily_visits');
+      await doc.save();
+    }
+    res.json({ success: true, message: 'تم تصفير الإحصائيات' });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في تصفير الإحصائيات', error: err.message });
   }
 });
 

@@ -27,6 +27,13 @@ function trackEvent(type, productId, productTitle) {
     analytics[type][productId].title = productTitle || analytics[type][productId].title;
     analytics[type][productId].lastDate = new Date().toISOString();
     saveAnalytics(analytics);
+    
+    // إرسال الإحصائية للسيرفر المركزي (لتعمل من الهاتف أو أي جهاز)
+    fetch(`${BASE_URL}/api/analytics/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, productId, productTitle })
+    }).catch(() => {});
 }
 function trackPageVisit() {
     const analytics = getAnalytics();
@@ -38,6 +45,13 @@ function trackPageVisit() {
     if (!analytics.daily_visits) analytics.daily_visits = {};
     analytics.daily_visits[today] = (analytics.daily_visits[today] || 0) + 1;
     saveAnalytics(analytics);
+    
+    // إرسال الإحصائية للسيرفر المركزي (لتعمل من الهاتف أو أي جهاز)
+    fetch(`${BASE_URL}/api/analytics/track`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'page_visit', page })
+    }).catch(() => {});
 }
 
 window.defaultProductImage = '';

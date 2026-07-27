@@ -1315,9 +1315,7 @@ window.toggleTheme = function() {
 // ==========================================
 // Analytics Dashboard Logic
 // ==========================================
-window.loadAnalytics = function() {
-    const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
-    
+window.renderAnalyticsData = function(analytics) {
     // Summary cards
     const totalVisitsEl = document.getElementById('stat-total-visits');
     const totalProductsEl = document.getElementById('stat-total-products');
@@ -1420,9 +1418,29 @@ window.loadAnalytics = function() {
     }
 };
 
-window.resetAnalytics = function() {
+window.loadAnalytics = async function() {
+    const localAnalytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
+    window.renderAnalyticsData(localAnalytics);
+
+    // جلب الإحصائيات المركزية من السيرفر (لتشمل زيارات وطلبات الهواتف والأجهزة الأخرى)
+    try {
+        const res = await fetch(`${BASE_URL}/api/analytics`);
+        if (res.ok) {
+            const serverAnalytics = await res.json();
+            localStorage.setItem('tech_store_analytics', JSON.stringify(serverAnalytics));
+            window.renderAnalyticsData(serverAnalytics);
+        }
+    } catch (err) {
+        console.log('يعمل بالنظام المحلي مؤقتاً لحين الاتصال بالسيرفر');
+    }
+};
+
+window.resetAnalytics = async function() {
     if (confirm('هل أنت متأكد من رغبتك في تصفير جميع الإحصائيات؟ لا يمكن التراجع عن هذا الإجراء.')) {
         localStorage.setItem('tech_store_analytics', '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
+        try {
+            await fetch(`${BASE_URL}/api/analytics/reset`, { method: 'POST' });
+        } catch (err) {}
         window.loadAnalytics();
         showToast('تم تصفير الإحصائيات بنجاح');
     }
