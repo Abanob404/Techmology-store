@@ -254,6 +254,8 @@ async function loadAdminProducts(preserveState = false) {
     const table = document.getElementById('adminProductsTable');
     if (!table) return;
 
+    const savedPage = window.currentPage || 1;
+
     // شحن الأقسام الافتراضية فوراً دون انتظار السيرفر
     populateCategoriesDatalist([]);
 
@@ -277,6 +279,10 @@ async function loadAdminProducts(preserveState = false) {
         }
 
         filterAdminProducts(preserveState);
+        if (preserveState) {
+            window.currentPage = savedPage;
+            renderProductsPage();
+        }
         if (window.loadAnalytics) window.loadAnalytics();
     } catch (error) {
         table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';

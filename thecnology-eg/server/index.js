@@ -280,14 +280,18 @@ app.post('/api/products', async (req, res) => {
       }
 
       const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
-        folder: 'technology_store'
+        folder: 'technology_store',
+        format: 'webp',
+        quality: 'auto'
       });
       image = mainResult.secure_url;
       imagePublicId = mainResult.public_id;
 
       for (let i = 1; i < uploadedFiles.length; i++) {
         const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
-          folder: 'technology_store'
+          folder: 'technology_store',
+          format: 'webp',
+          quality: 'auto'
         });
         additionalImages.push({ url: result.secure_url, publicId: result.public_id });
       }
@@ -455,7 +459,9 @@ app.put('/api/products/:id', async (req, res) => {
 
         // لا توجد صورة أساسية أو طلب المستخدم استبدالها → أول صورة جديدة تصبح الأساسية
         const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
-          folder: 'technology_store'
+          folder: 'technology_store',
+          format: 'webp',
+          quality: 'auto'
         });
         updateData.image = mainResult.secure_url;
         updateData.imagePublicId = mainResult.public_id;
@@ -474,7 +480,9 @@ app.put('/api/products/:id', async (req, res) => {
 
         for (let i = 1; i < uploadedFiles.length; i++) {
           const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
-            folder: 'technology_store'
+            folder: 'technology_store',
+            format: 'webp',
+            quality: 'auto'
           });
           newAdditional.push({ url: result.secure_url, publicId: result.public_id });
         }
@@ -484,7 +492,9 @@ app.put('/api/products/:id', async (req, res) => {
         const existingAdditional = updateData.additionalImages || currentProduct?.additionalImages || [];
         for (let i = 0; i < uploadedFiles.length; i++) {
           const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
-            folder: 'technology_store'
+            folder: 'technology_store',
+            format: 'webp',
+            quality: 'auto'
           });
           existingAdditional.push({ url: result.secure_url, publicId: result.public_id });
         }
@@ -550,7 +560,9 @@ app.post('/api/settings', async (req, res) => {
 
     if (req.files && req.files.defaultProductImage) {
       const result = await cloudinary.uploader.upload(req.files.defaultProductImage.tempFilePath, {
-        folder: 'technology_store_settings'
+        folder: 'technology_store_settings',
+        format: 'webp',
+        quality: 'auto'
       });
       settings.defaultProductImage = result.secure_url;
       updated = true;
@@ -558,7 +570,9 @@ app.post('/api/settings', async (req, res) => {
 
     if (req.files && req.files.lightHeroImage) {
       const result = await cloudinary.uploader.upload(req.files.lightHeroImage.tempFilePath, {
-        folder: 'technology_store_settings'
+        folder: 'technology_store_settings',
+        format: 'webp',
+        quality: 'auto'
       });
       settings.lightHeroImage = result.secure_url;
       updated = true;
