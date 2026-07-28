@@ -403,7 +403,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="w-full h-full object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -516,9 +516,9 @@ function injectProductModal() {
                 </button>
 
                 <!-- Image Section -->
-                <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center min-h-[300px] border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <div class="w-full rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center aspect-square md:h-80">
-                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain w-full h-full p-2 rounded-2xl drop-shadow-2xl transition-opacity duration-200">
+                <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center shrink-0 border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
+                    <div class="w-full h-72 sm:h-80 md:h-96 rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center shrink-0 relative">
+                        <img id="modalImage" src="" alt="Product Image" class="mx-auto block object-contain max-w-full max-h-full w-auto h-auto p-2 rounded-2xl drop-shadow-2xl transition-opacity duration-200">
                     </div>
                     <div id="modalBadge" class="absolute top-7 right-7 z-10"></div>
                     <!-- Image Gallery -->
@@ -614,8 +614,8 @@ window.openProductModal = function(id) {
         
         // Add main image to gallery
         const mainImgBtn = document.createElement('button');
-        mainImgBtn.className = 'w-16 h-16 rounded-xl border-2 border-primary overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0';
-        mainImgBtn.innerHTML = `<img src="${finalImage}" class="w-full h-full object-cover p-1">`;
+        mainImgBtn.className = 'w-16 h-16 rounded-xl border-2 border-primary overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0 flex items-center justify-center';
+        mainImgBtn.innerHTML = `<img src="${finalImage}" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
         mainImgBtn.onclick = () => {
             const mainImageEl = document.getElementById('modalImage');
             mainImageEl.style.opacity = 0;
@@ -631,8 +631,8 @@ window.openProductModal = function(id) {
         if (p.additionalImages && p.additionalImages.length > 0) {
             p.additionalImages.forEach(img => {
                 const btn = document.createElement('button');
-                btn.className = 'w-16 h-16 rounded-xl border-2 border-transparent hover:border-primary/50 overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0';
-                btn.innerHTML = `<img src="${img.url}" class="w-full h-full object-cover p-1">`;
+                btn.className = 'w-16 h-16 rounded-xl border-2 border-transparent hover:border-primary/50 overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0 flex items-center justify-center';
+                btn.innerHTML = `<img src="${img.url}" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
                 btn.onclick = () => {
                     const mainImageEl = document.getElementById('modalImage');
                     mainImageEl.style.opacity = 0;

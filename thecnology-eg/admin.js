@@ -331,7 +331,7 @@ function renderProductsPage() {
         tr.innerHTML = `
                 <td class="py-4 pr-2 font-semibold text-on-surface">
                     <div class="flex items-center gap-3">
-                        <img src="${p.image || fallbackImage}" class="w-10 h-10 rounded object-cover border border-outline-variant/50">
+                        <img src="${p.image || fallbackImage}" class="w-10 h-10 rounded object-contain bg-surface/50 p-0.5 border border-outline-variant/50">
                         <span>${p.title}</span>
                     </div>
                 </td>
@@ -474,7 +474,7 @@ if (pImage) {
                     reader.onload = function(event) {
                         const img = document.createElement('img');
                         img.src = event.target.result;
-                        img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
+                        img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
                         imgPreviewContainer.appendChild(img);
                     };
                     reader.readAsDataURL(file);
@@ -502,7 +502,7 @@ if (editPImage) {
                     reader.onload = function(event) {
                         const img = document.createElement('img');
                         img.src = event.target.result;
-                        img.className = 'w-20 h-20 object-cover rounded border border-outline-variant/30';
+                        img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
                         editImgPreviewContainer.appendChild(img);
                     };
                     reader.readAsDataURL(file);
@@ -1029,7 +1029,7 @@ window.renderEditCurrentImages = function() {
 
         const imgEl = document.createElement('img');
         imgEl.src = img.url;
-        imgEl.className = 'w-24 h-24 object-cover rounded-md mb-2 border border-outline-variant/30';
+        imgEl.className = 'w-24 h-24 object-contain bg-surface/50 p-1 rounded-md mb-2 border border-outline-variant/30';
         wrapper.appendChild(imgEl);
 
         if (isDeleted) {
