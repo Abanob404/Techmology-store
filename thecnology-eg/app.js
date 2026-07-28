@@ -118,11 +118,19 @@ async function fetchProducts() {
         // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
         await renderDynamicCategoryFilters();
 
-        // تفعيل فلتر الترتيب
+        // تفعيل فلتر الترتيب وإخفاء المنتجات النافدة
         const sortSelect = document.getElementById('sortSelect');
         if (sortSelect) {
             sortSelect.addEventListener('change', (e) => {
                 currentSort = e.target.value;
+                renderProducts(activeCategory, activeSearchTerm);
+            });
+        }
+
+        const hideOutOfStockCb = document.getElementById('hideOutOfStockCb');
+        if (hideOutOfStockCb) {
+            hideOutOfStockCb.addEventListener('change', (e) => {
+                window.hideOutOfStock = e.target.checked;
                 renderProducts(activeCategory, activeSearchTerm);
             });
         }
@@ -325,6 +333,10 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         });
     }
 
+    if (window.hideOutOfStock) {
+        filtered = filtered.filter(p => p.stockQuantity !== 0);
+    }
+
     // الترتيب
     if (currentSort === 'price_asc') {
         filtered.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
@@ -339,6 +351,13 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
             return 0; // الحفاظ على الترتيب الأصلي (وهو الأحدث من السيرفر)
         });
     }
+
+    // دفع المنتجات النافدة إلى نهاية القائمة تلقائياً ليكون المتجر حيوياً بالمنتجات المتاحة
+    filtered.sort((a, b) => {
+        const aOut = (a.stockQuantity === 0) ? 1 : 0;
+        const bOut = (b.stockQuantity === 0) ? 1 : 0;
+        return aOut - bOut;
+    });
 
     // حساب الصفحات
     const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -707,12 +726,21 @@ window.openProductModal = function(id) {
     const addToCartBtn = document.getElementById('modalAddToCartBtn');
     
     if (isOutOfStock) {
-        whatsappBtn.classList.add('opacity-50', 'pointer-events-none');
+        whatsappBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+        whatsappBtn.classList.add('bg-amber-600', 'hover:bg-amber-700', 'text-white');
+        whatsappBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">notifications_active</span> أعلمني عند توفره (طلب توفير)`;
+        whatsappBtn.href = `https://wa.me/201515664919?text=مرحباً، أود معرفة موعد توفر هذا المنتج من جديد أو طلب حجز نسخة عند توفره: ${encodeURIComponent(p.title)}`;
+        whatsappBtn.classList.remove('opacity-50', 'pointer-events-none');
+
         addToCartBtn.classList.add('opacity-50', 'pointer-events-none');
         addToCartBtn.classList.replace('bg-primary/20', 'bg-primary/10');
         addToCartBtn.classList.replace('text-primary', 'text-primary/40');
         addToCartBtn.onclick = null;
     } else {
+        whatsappBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700', 'opacity-50', 'pointer-events-none');
+        whatsappBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+        whatsappBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg> استفسر الآن`;
+        whatsappBtn.href = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
         whatsappBtn.classList.remove('opacity-50', 'pointer-events-none');
         addToCartBtn.classList.remove('opacity-50', 'pointer-events-none');
         addToCartBtn.classList.replace('bg-primary/10', 'bg-primary/20');
@@ -726,15 +754,24 @@ window.openProductModal = function(id) {
     const relatedContainer = document.getElementById('relatedProductsContainer');
     const relatedSection = document.getElementById('modalRelatedProducts');
     if (relatedContainer && relatedSection) {
-        let related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id);
+        // استبعاد المنتجات النافدة من الاقتراحات بحيث لا تظهر أبداً إلا بعد توفيرها مجدداً
+        let related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id && prod.stockQuantity !== 0);
         
         // ذكاء إضافي: إذا كان القسم "غير مصنف" أو فارغ، نبحث بأول كلمة من اسم المنتج كبديل
         if (!p.category || p.category === 'غير مصنف' || p.category === 'Uncategorized') {
             const firstWord = p.title.split(' ')[0].toLowerCase();
-            related = globalProducts.filter(prod => prod._id !== p._id && prod.title.toLowerCase().includes(firstWord));
+            related = globalProducts.filter(prod => prod._id !== p._id && prod.stockQuantity !== 0 && prod.title.toLowerCase().includes(firstWord));
         }
 
-        const shuffled = related.sort(() => 0.5 - Math.random()).slice(0, 4);
+        // إعطاء أولوية في الظهور للمنتجات التي عليها خصومات
+        related.sort((a, b) => {
+            const aDiscount = (a.oldPrice && Number(a.oldPrice) > Number(a.price)) ? 1 : 0;
+            const bDiscount = (b.oldPrice && Number(b.oldPrice) > Number(b.price)) ? 1 : 0;
+            if (bDiscount !== aDiscount) return bDiscount - aDiscount;
+            return 0.5 - Math.random();
+        });
+
+        const shuffled = related.slice(0, 4);
         if (shuffled.length > 0) {
             relatedContainer.innerHTML = shuffled.map(prod => {
                 const img = (prod.image && !prod.image.includes('placehold.co')) ? prod.image : getFallbackImage(prod);

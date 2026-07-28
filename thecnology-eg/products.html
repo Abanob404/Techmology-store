@@ -240,9 +240,14 @@
         <!-- Main Content Canvas -->
         <main class="flex-1 pb-24 w-full">
             <div
-                class="hidden md:flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 glass-panel p-4 rounded-xl">
-                <div class="flex items-center gap-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-hide"></div>
-                <div class="flex items-center gap-3 shrink-0">
+                class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-6 gap-3 glass-panel p-3 sm:p-4 rounded-xl w-full">
+                <div class="flex items-center gap-2">
+                    <label class="flex items-center gap-2 cursor-pointer bg-surface/80 border border-outline-variant/50 px-3 py-1.5 rounded-lg text-xs font-mono-data text-on-surface-variant hover:text-primary transition-colors select-none">
+                        <input type="checkbox" id="hideOutOfStockCb" class="rounded text-primary focus:ring-primary focus:ring-offset-background">
+                        <span>⚡ إخفاء المنتجات النافدة</span>
+                    </label>
+                </div>
+                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                     <span class="text-xs font-mono-data text-on-surface-variant">ترتيب حسب:</span>
                     <select id="sortSelect"
                         class="bg-surface border border-outline-variant rounded text-xs font-mono-data text-on-surface py-1.5 pl-8 pr-3 focus:ring-primary focus:border-primary outline-none"
