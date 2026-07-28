@@ -237,7 +237,7 @@
                             <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
                                 <span class="material-symbols-outlined text-primary text-[20px]">edit_note</span> المنتجات والمخزون
                             </h3>
-                            <div class="flex gap-2">
+                            <div class="flex gap-2" id="csvActionsWrapper">
                                 <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="importCSV(this)">
                                 <button onclick="document.getElementById('csvFileInput').click()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-3 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-1 border border-outline-variant/30">
                                     <span class="material-symbols-outlined text-[16px]">upload_file</span> استيراد CSV
@@ -397,12 +397,15 @@
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصلاحيات بدقة</label>
                                 <div class="flex flex-col gap-2 bg-surface-container border border-outline-variant rounded p-3">
-                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="add_product" class="accent-primary w-4 h-4 rounded"> إضافة منتجات</label>
-                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="edit_product" class="accent-primary w-4 h-4 rounded"> تعديل وحذف منتجات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="add_product" class="accent-primary w-4 h-4 rounded"> إضافة منتجات جديدة</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="edit_product" class="accent-primary w-4 h-4 rounded"> تعديل المنتجات والكميات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="delete_product" class="accent-primary w-4 h-4 rounded"> حذف المنتجات</label>
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_categories" class="accent-primary w-4 h-4 rounded"> إدارة الأقسام</label>
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_settings" class="accent-primary w-4 h-4 rounded"> إعدادات وتصميم المتجر</label>
-                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> إدارة المستخدمين</label>
-                                    <label class="flex items-center gap-2 text-sm font-bold text-primary cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="all" class="accent-primary w-4 h-4 rounded" onchange="document.querySelectorAll('input[name=permissions]').forEach(c => c.checked = this.checked)"> كل الصلاحيات (مدير)</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_backup" class="accent-primary w-4 h-4 rounded"> النسخ الاحتياطي واسترجاع البيانات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="view_reports" class="accent-primary w-4 h-4 rounded"> التقارير والإحصائيات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> إدارة المستخدمين والصلاحيات</label>
+                                    <label class="flex items-center gap-2 text-sm font-bold text-primary cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors border-t border-outline-variant/30 pt-2 mt-1"><input type="checkbox" name="permissions" value="all" class="accent-primary w-4 h-4 rounded" onchange="document.querySelectorAll('input[name=permissions]').forEach(c => c.checked = this.checked)"> كل الصلاحيات (مدير عام)</label>
                                 </div>
                             </div>
                             <button onclick="addNewUser()" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">

@@ -40,10 +40,19 @@ async function checkAuth() {
         if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
         
         const userMgmt = document.getElementById('tab-users');
-        if (userMgmt) userMgmt.style.display = hasPermission('manage_users') ? 'block' : 'none';
+        if (userMgmt) userMgmt.style.display = hasPermission('manage_users') ? 'flex' : 'none';
 
         const settingsTab = document.getElementById('tab-settings');
-        if (settingsTab) settingsTab.style.display = hasPermission('manage_settings') ? 'block' : 'none';
+        if (settingsTab) settingsTab.style.display = hasPermission('manage_settings') ? 'flex' : 'none';
+
+        const backupTab = document.getElementById('tab-backup');
+        if (backupTab) backupTab.style.display = hasPermission('manage_backup') ? 'flex' : 'none';
+
+        const analyticsTab = document.getElementById('tab-analytics');
+        if (analyticsTab) analyticsTab.style.display = hasPermission('view_reports') ? 'flex' : 'none';
+
+        const csvActionsWrapper = document.getElementById('csvActionsWrapper');
+        if (csvActionsWrapper) csvActionsWrapper.style.display = hasPermission('manage_backup') ? 'flex' : 'none';
 
         const addProductWrapper = document.getElementById('addProductWrapper');
         if (addProductWrapper) addProductWrapper.style.display = hasPermission('add_product') ? 'block' : 'none';
@@ -341,8 +350,11 @@ function renderProductsPage() {
                 <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
                     ${hasPermission('edit_product') ? `
                     <button onclick="openEditModal('${p._id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
+                    ` : ''}
+                    ${hasPermission('delete_product') ? `
                     <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
-                    ` : '<span class="text-xs text-on-surface-variant">لا تملك صلاحية</span>'}
+                    ` : ''}
+                    ${!hasPermission('edit_product') && !hasPermission('delete_product') ? '<span class="text-xs text-on-surface-variant">لا تملك صلاحية</span>' : ''}
                 </td>
             `;
         table.appendChild(tr);
@@ -625,11 +637,15 @@ function loadUsersTable() {
         tr.className = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors';
         const isSelf = currentUser && user.id === currentUser.id;
         const permLabels = {
-            'add_product': 'إضافة',
-            'edit_product': 'تعديل/حذف',
+            'add_product': 'إضافة منتجات',
+            'edit_product': 'تعديل منتجات',
+            'delete_product': 'حذف منتجات',
             'manage_categories': 'أقسام',
-            'manage_settings': 'إعدادات',
-            'manage_users': 'مستخدمين'
+            'manage_settings': 'إعدادات وتصميم',
+            'manage_backup': 'نسخ احتياطي واسترجاع',
+            'view_reports': 'تقارير وإحصائيات',
+            'manage_users': 'مستخدمين',
+            'all': 'كل الصلاحيات (مدير)'
         };
         const permsText = user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.map(p => permLabels[p] || p).join('، ');
         tr.innerHTML = `
@@ -962,32 +978,17 @@ window.openEditModal = function(id) {
         document.getElementById('editPDiscountValueContainer').style.display = 'none';
     }
 
-    // عرض الصور الحالية مع أزرار حذف فردية
-    const currentImagesContainer = document.getElementById('editCurrentImages');
-    if (currentImagesContainer) {
-        currentImagesContainer.innerHTML = '';
-        let hasImages = false;
-
-        // الصورة الأساسية
-        if (product.image) {
-            hasImages = true;
-            const wrapper = createImageDeleteCard(product.image, product.imagePublicId || 'main', true);
-            currentImagesContainer.appendChild(wrapper);
-        }
-
-        // الصور الإضافية
-        if (product.additionalImages && product.additionalImages.length > 0) {
-            product.additionalImages.forEach(imgData => {
-                hasImages = true;
-                const wrapper = createImageDeleteCard(imgData.url, imgData.publicId, false);
-                currentImagesContainer.appendChild(wrapper);
-            });
-        }
-
-        if (!hasImages) {
-            currentImagesContainer.innerHTML = '<span class="text-on-surface-variant/50 text-xs self-center">لا توجد صور لهذا المنتج</span>';
-        }
+    // عرض الصور الحالية مع أزرار التحكم والترتيب والحذف
+    window.currentEditingImages = [];
+    if (product.image) {
+        window.currentEditingImages.push({ url: product.image, publicId: product.imagePublicId || 'main', isMain: true });
     }
+    if (product.additionalImages && product.additionalImages.length > 0) {
+        product.additionalImages.forEach(imgData => {
+            window.currentEditingImages.push({ url: imgData.url, publicId: imgData.publicId, isMain: false });
+        });
+    }
+    renderEditCurrentImages();
 
     // Reset file input and preview
     const editFileInput = document.getElementById('editPImage');
@@ -1007,54 +1008,123 @@ window.openEditModal = function(id) {
     }, 10);
 };
 
-// إنشاء كارت صورة مع زر حذف
-function createImageDeleteCard(imageUrl, publicId, isMain) {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'relative group';
-    wrapper.dataset.publicId = publicId;
+// رسم قائمة الصور الحالية مع أزرار الترتيب والتعيين كأساسية والحذف
+window.renderEditCurrentImages = function() {
+    const container = document.getElementById('editCurrentImages');
+    if (!container) return;
+    container.innerHTML = '';
 
-    const img = document.createElement('img');
-    img.src = imageUrl;
-    img.className = 'w-20 h-20 object-cover rounded-lg border-2 transition-all ' + (isMain ? 'border-primary' : 'border-outline-variant/30');
+    const visibleImages = window.currentEditingImages.filter(img => !imagesToDelete.includes(img.publicId));
+    if (visibleImages.length === 0) {
+        container.innerHTML = '<span class="text-on-surface-variant/50 text-xs self-center py-4">لا توجد صور حالية لهذا المنتج</span>';
+        return;
+    }
 
-    const badge = document.createElement('span');
-    badge.className = 'absolute -bottom-1 left-1/2 -translate-x-1/2 text-[8px] font-bold px-1.5 py-0.5 rounded-full ' + (isMain ? 'bg-primary text-on-primary' : 'bg-surface-variant text-on-surface-variant');
-    badge.textContent = isMain ? 'أساسية' : 'إضافية';
+    window.currentEditingImages.forEach((img, index) => {
+        const isDeleted = imagesToDelete.includes(img.publicId);
+        
+        const wrapper = document.createElement('div');
+        wrapper.className = 'relative group flex flex-col items-center bg-surface-container p-2 rounded-lg border transition-all ' + (img.isMain ? 'border-primary bg-primary/5 shadow-md' : 'border-outline-variant/30') + (isDeleted ? ' opacity-30 scale-95' : '');
+        wrapper.dataset.publicId = img.publicId;
 
-    const deleteBtn = document.createElement('button');
-    deleteBtn.type = 'button';
-    deleteBtn.className = 'absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer';
-    deleteBtn.innerHTML = '✕';
-    deleteBtn.onclick = () => {
-        imagesToDelete.push(publicId);
-        wrapper.style.opacity = '0.3';
-        wrapper.style.transform = 'scale(0.9)';
-        wrapper.style.pointerEvents = 'none';
-        deleteBtn.style.display = 'none';
+        const imgEl = document.createElement('img');
+        imgEl.src = img.url;
+        imgEl.className = 'w-24 h-24 object-cover rounded-md mb-2 border border-outline-variant/30';
+        wrapper.appendChild(imgEl);
 
-        // إضافة زر استعادة
-        const undoBtn = document.createElement('button');
-        undoBtn.type = 'button';
-        undoBtn.className = 'absolute inset-0 w-full h-full flex items-center justify-center bg-red-500/20 rounded-lg cursor-pointer';
-        undoBtn.innerHTML = '<span class="material-symbols-outlined text-[16px] text-red-400">undo</span>';
-        undoBtn.onclick = (e) => {
-            e.stopPropagation();
-            imagesToDelete = imagesToDelete.filter(pid => pid !== publicId);
-            wrapper.style.opacity = '1';
-            wrapper.style.transform = 'scale(1)';
-            wrapper.style.pointerEvents = 'auto';
-            deleteBtn.style.display = '';
-            undoBtn.remove();
+        if (isDeleted) {
+            const undoBtn = document.createElement('button');
+            undoBtn.type = 'button';
+            undoBtn.className = 'absolute inset-0 w-full h-full flex flex-col items-center justify-center bg-red-900/80 text-white rounded-lg cursor-pointer font-bold text-xs gap-1 z-20 transition-all';
+            undoBtn.innerHTML = '<span class="material-symbols-outlined text-[20px]">undo</span> استعادة';
+            undoBtn.onclick = (e) => {
+                e.stopPropagation();
+                imagesToDelete = imagesToDelete.filter(pid => pid !== img.publicId);
+                renderEditCurrentImages();
+            };
+            wrapper.appendChild(undoBtn);
+            container.appendChild(wrapper);
+            return;
+        }
+
+        // Delete Button (Top Right)
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg hover:bg-red-600 transition-colors z-10';
+        deleteBtn.innerHTML = '✕';
+        deleteBtn.title = 'حذف الصورة';
+        deleteBtn.onclick = () => {
+            imagesToDelete.push(img.publicId);
+            renderEditCurrentImages();
         };
-        wrapper.style.pointerEvents = 'auto';
-        wrapper.appendChild(undoBtn);
-    };
+        wrapper.appendChild(deleteBtn);
 
-    wrapper.appendChild(img);
-    wrapper.appendChild(badge);
-    wrapper.appendChild(deleteBtn);
-    return wrapper;
-}
+        // Badge / Promote Button
+        if (img.isMain) {
+            const badge = document.createElement('span');
+            badge.className = 'text-[10px] font-bold px-2 py-1 rounded bg-primary text-on-primary w-full text-center shadow-sm';
+            badge.innerHTML = '⭐ الأساسية';
+            wrapper.appendChild(badge);
+        } else {
+            const promoteBtn = document.createElement('button');
+            promoteBtn.type = 'button';
+            promoteBtn.className = 'text-[10px] font-bold px-2 py-1 rounded bg-surface-variant hover:bg-primary hover:text-on-primary text-on-surface-variant transition-all w-full text-center cursor-pointer';
+            promoteBtn.innerHTML = 'جعلها أساسية';
+            promoteBtn.title = 'تعيين كصورة رئيسية للمنتج';
+            promoteBtn.onclick = () => {
+                window.currentEditingImages.forEach(i => i.isMain = false);
+                img.isMain = true;
+                const idx = window.currentEditingImages.indexOf(img);
+                if (idx > 0) {
+                    window.currentEditingImages.splice(idx, 1);
+                    window.currentEditingImages.unshift(img);
+                }
+                renderEditCurrentImages();
+            };
+            wrapper.appendChild(promoteBtn);
+        }
+
+        // Shift Left / Right Arrows
+        const arrowsDiv = document.createElement('div');
+        arrowsDiv.className = 'flex justify-between w-full mt-1.5 pt-1 border-t border-outline-variant/20 gap-1';
+        
+        const moveRightBtn = document.createElement('button');
+        moveRightBtn.type = 'button';
+        moveRightBtn.className = 'flex-1 py-0.5 bg-surface-container-high hover:bg-surface-variant rounded text-on-surface text-xs disabled:opacity-20 cursor-pointer text-center';
+        moveRightBtn.innerHTML = '➡️';
+        moveRightBtn.title = 'نقل لليمين';
+        moveRightBtn.disabled = index === 0;
+        moveRightBtn.onclick = () => {
+            if (index > 0) {
+                const temp = window.currentEditingImages[index - 1];
+                window.currentEditingImages[index - 1] = window.currentEditingImages[index];
+                window.currentEditingImages[index] = temp;
+                renderEditCurrentImages();
+            }
+        };
+
+        const moveLeftBtn = document.createElement('button');
+        moveLeftBtn.type = 'button';
+        moveLeftBtn.className = 'flex-1 py-0.5 bg-surface-container-high hover:bg-surface-variant rounded text-on-surface text-xs disabled:opacity-20 cursor-pointer text-center';
+        moveLeftBtn.innerHTML = '⬅️';
+        moveLeftBtn.title = 'نقل لليسار';
+        moveLeftBtn.disabled = index === window.currentEditingImages.length - 1;
+        moveLeftBtn.onclick = () => {
+            if (index < window.currentEditingImages.length - 1) {
+                const temp = window.currentEditingImages[index + 1];
+                window.currentEditingImages[index + 1] = window.currentEditingImages[index];
+                window.currentEditingImages[index] = temp;
+                renderEditCurrentImages();
+            }
+        };
+
+        arrowsDiv.appendChild(moveRightBtn);
+        arrowsDiv.appendChild(moveLeftBtn);
+        wrapper.appendChild(arrowsDiv);
+
+        container.appendChild(wrapper);
+    });
+};
 
 window.closeEditModal = function() {
     const modal = document.getElementById('editProductModal');
@@ -1116,6 +1186,22 @@ if (editForm) {
         // إرسال مصفوفة الصور المراد حذفها
         if (imagesToDelete.length > 0) {
             formData.append('imagesToDelete', JSON.stringify(imagesToDelete));
+        }
+
+        // إرسال الترتيب الجديد والصورة الأساسية المعدلة
+        if (window.currentEditingImages && window.currentEditingImages.length > 0) {
+            const activeImages = window.currentEditingImages.filter(img => !imagesToDelete.includes(img.publicId));
+            const mainImg = activeImages.find(img => img.isMain) || activeImages[0];
+            const additionalImgs = activeImages.filter(img => img !== mainImg).map(img => ({ url: img.url, publicId: img.publicId }));
+
+            if (mainImg) {
+                formData.append('updatedImage', mainImg.url);
+                formData.append('updatedImagePublicId', mainImg.publicId || '');
+            } else {
+                formData.append('updatedImage', '');
+                formData.append('updatedImagePublicId', '');
+            }
+            formData.append('updatedAdditionalImages', JSON.stringify(additionalImgs));
         }
 
         const submitBtn = editForm.querySelector('button[type="submit"]');

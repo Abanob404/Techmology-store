@@ -442,6 +442,20 @@ app.put('/api/products/:id', async (req, res) => {
       }
     }
 
+    // تطبيق الترتيب وتغيير الصورة الأساسية من الواجهة
+    if (req.body.updatedImage !== undefined && req.body.updatedImage !== '') {
+      updateData.image = req.body.updatedImage;
+      updateData.imagePublicId = req.body.updatedImagePublicId || '';
+    }
+    if (req.body.updatedAdditionalImages !== undefined) {
+      try {
+        let addImgs = JSON.parse(req.body.updatedAdditionalImages);
+        if (Array.isArray(addImgs)) {
+          updateData.additionalImages = addImgs;
+        }
+      } catch(e) {}
+    }
+
     // إذا تم رفع صور جديدة (إضافتها للصور الحالية)
     if (req.files && (req.files.image || req.files.images)) {
       let uploadedFiles = req.files.images || req.files.image;
