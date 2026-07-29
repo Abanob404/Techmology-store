@@ -1753,3 +1753,292 @@ window.closeAnalyticsDetailsModal = function() {
         }, 300);
     }
 };
+
+// ==========================================
+// Inventory Reporting (Excel & PDF via Print)
+// ==========================================
+window.updateInventoryReportUI = function() {
+    if (!window.adminProducts) return;
+    
+    let inStock = 0;
+    let lowStock = 0;
+    let outStock = 0;
+
+    window.adminProducts.forEach(p => {
+        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
+        if (qty === 0) outStock++;
+        else if (qty <= 3) lowStock++;
+        else inStock++;
+    });
+
+    const inEl = document.getElementById('inv-in-stock');
+    const lowEl = document.getElementById('inv-low-stock');
+    const outEl = document.getElementById('inv-out-stock');
+
+    if (inEl) inEl.textContent = inStock;
+    if (lowEl) lowEl.textContent = lowStock;
+    if (outEl) outEl.textContent = outStock;
+};
+
+// Call it when products are loaded
+const originalLoadAdminProducts = window.loadAdminProducts;
+window.loadAdminProducts = async function(preserveState = false) {
+    await originalLoadAdminProducts(preserveState);
+    if (window.updateInventoryReportUI) window.updateInventoryReportUI();
+};
+
+window.exportInventoryExcel = async function() {
+    if (!window.adminProducts || window.adminProducts.length === 0) {
+        showToast('لا توجد منتجات لتصديرها');
+        return;
+    }
+
+    try {
+        showToast('جاري تجهيز ملف Excel...');
+        const workbook = new ExcelJS.Workbook();
+        workbook.creator = 'Technology Store';
+        workbook.created = new Date();
+        
+        const worksheet = workbook.addWorksheet('تقرير المخزون', {
+            views: [{ rightToLeft: true }]
+        });
+
+        // Add headers
+        worksheet.columns = [
+            { header: 'الرقم', key: 'index', width: 8 },
+            { header: 'اسم المنتج', key: 'title', width: 40 },
+            { header: 'القسم', key: 'category', width: 20 },
+            { header: 'الكمية المتاحة', key: 'qty', width: 15 },
+            { header: 'حالة المخزون', key: 'status', width: 20 },
+            { header: 'السعر (ج.م)', key: 'price', width: 15 },
+            { header: 'سيريال (SKU)', key: 'sku', width: 20 },
+        ];
+
+        // Style the header row
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { name: 'Arial', family: 4, size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1D4ED8' } };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        headerRow.height = 30;
+
+        // Add data
+        window.adminProducts.forEach((p, idx) => {
+            const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
+            let status = '';
+            let color = ''; // ARGB
+
+            if (qty === 0) {
+                status = 'غير متوفر (0)';
+                color = 'FFFFE4E6'; // Light red bg
+            } else if (qty <= 3) {
+                status = 'نواقص (' + qty + ')';
+                color = 'FFFFEDD5'; // Light orange bg
+            } else {
+                status = 'متوفر';
+                color = 'FFDCFCE7'; // Light green bg
+            }
+
+            const row = worksheet.addRow({
+                index: idx + 1,
+                title: p.title,
+                category: p.category || '',
+                qty: qty,
+                status: status,
+                price: p.price,
+                sku: p.sku || ''
+            });
+
+            row.font = { name: 'Arial', size: 11 };
+            row.alignment = { vertical: 'middle', horizontal: 'center' };
+            row.getCell('title').alignment = { vertical: 'middle', horizontal: 'right' };
+            
+            // Colorize based on stock
+            row.eachCell((cell) => {
+                cell.fill = {
+                    type: 'pattern',
+                    pattern: 'solid',
+                    fgColor: { argb: color }
+                };
+                cell.border = {
+                    top: {style:'thin', color: {argb:'FFCCCCCC'}},
+                    left: {style:'thin', color: {argb:'FFCCCCCC'}},
+                    bottom: {style:'thin', color: {argb:'FFCCCCCC'}},
+                    right: {style:'thin', color: {argb:'FFCCCCCC'}}
+                };
+            });
+            
+            // Specific text colors for the status column
+            const statusCell = row.getCell('status');
+            statusCell.font = { 
+                name: 'Arial', 
+                size: 11, 
+                bold: true,
+                color: { argb: qty === 0 ? 'FFE11D48' : (qty <= 3 ? 'FFEA580C' : 'FF16A34A') } 
+            };
+        });
+
+        // Generate and save file
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `تقرير_مخزون_تكنولوجي_${new Date().toISOString().split('T')[0]}.xlsx`);
+        
+        showToast('✅ تم التصدير بنجاح!');
+    } catch (err) {
+        console.error('Excel export error:', err);
+        alert('حدث خطأ أثناء تصدير Excel');
+    }
+};
+
+window.printInventoryReport = function() {
+    if (!window.adminProducts || window.adminProducts.length === 0) {
+        showToast('لا توجد بيانات لطباعتها');
+        return;
+    }
+
+    // Sort: Out of stock first, then low stock, then available
+    const sortedProducts = [...window.adminProducts].sort((a, b) => {
+        const qtyA = a.stockQuantity !== undefined ? a.stockQuantity : 1;
+        const qtyB = b.stockQuantity !== undefined ? b.stockQuantity : 1;
+        return qtyA - qtyB; // Ascending order
+    });
+
+    let totalQty = 0;
+    let totalValue = 0;
+    
+    let rowsHtml = '';
+    sortedProducts.forEach((p, idx) => {
+        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
+        const priceNum = parseFloat(p.price.toString().replace(/[^0-9.]/g, '')) || 0;
+        
+        totalQty += qty;
+        totalValue += (qty * priceNum);
+
+        let bgClass = '';
+        let statusText = '';
+        if (qty === 0) {
+            bgClass = 'background-color: #fee2e2; color: #991b1b;';
+            statusText = 'نفذت الكمية';
+        } else if (qty <= 3) {
+            bgClass = 'background-color: #ffedd5; color: #9a3412;';
+            statusText = 'نواقص';
+        } else {
+            bgClass = 'background-color: #dcfce7; color: #166534;';
+            statusText = 'متوفر';
+        }
+
+        rowsHtml += `
+            <tr style="border-bottom: 1px solid #e5e7eb;">
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb; text-align: center;">${idx + 1}</td>
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb; font-weight: bold;">${p.title}</td>
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb;">${p.category || '-'}</td>
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb; text-align: center; font-family: monospace;">${p.sku || '-'}</td>
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb; text-align: center; font-weight: bold; ${bgClass}">${qty}</td>
+                <td style="padding: 10px; border-left: 1px solid #e5e7eb; text-align: center; font-weight: bold; ${bgClass}">${statusText}</td>
+            </tr>
+        `;
+    });
+
+    const printWindow = window.open('', '_blank');
+    const html = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="utf-8">
+            <title>تقرير المخزون - Technology Store</title>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    color: #1f2937;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #3b82f6;
+                    padding-bottom: 10px;
+                }
+                .header h1 { margin: 0; color: #1e3a8a; }
+                .header p { margin: 5px 0 0; color: #6b7280; font-size: 14px; }
+                
+                .summary {
+                    display: flex;
+                    justify-content: space-between;
+                    margin-bottom: 20px;
+                    background: #f3f4f6;
+                    padding: 15px;
+                    border-radius: 8px;
+                }
+                .summary-item { text-align: center; }
+                .summary-item h3 { margin: 0 0 5px; font-size: 14px; color: #4b5563; }
+                .summary-item p { margin: 0; font-size: 18px; font-weight: bold; color: #2563eb; direction: ltr;}
+                
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                }
+                th {
+                    background-color: #3b82f6;
+                    color: white;
+                    padding: 12px 10px;
+                    border: 1px solid #2563eb;
+                }
+                td { border: 1px solid #e5e7eb; }
+                
+                @media print {
+                    body { padding: 0; }
+                    .header { margin-top: 0; }
+                    @page { size: A4 portrait; margin: 10mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>تقرير حالة المخزون</h1>
+                <p>Technology Store | تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+            </div>
+            
+            <div class="summary">
+                <div class="summary-item">
+                    <h3>إجمالي عدد المنتجات</h3>
+                    <p>${sortedProducts.length}</p>
+                </div>
+                <div class="summary-item">
+                    <h3>إجمالي القطع المتاحة</h3>
+                    <p>${totalQty}</p>
+                </div>
+                <div class="summary-item">
+                    <h3>نواقص وغير متوفر</h3>
+                    <p style="color: #dc2626;">${sortedProducts.filter(p => (p.stockQuantity !== undefined ? p.stockQuantity : 1) <= 3).length}</p>
+                </div>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 5%">#</th>
+                        <th style="width: 40%">اسم المنتج</th>
+                        <th style="width: 15%">القسم</th>
+                        <th style="width: 15%">SKU</th>
+                        <th style="width: 10%">الكمية</th>
+                        <th style="width: 15%">الحالة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+
+            <script>
+                window.onload = function() {
+                    window.print();
+                }
+            </script>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+};
