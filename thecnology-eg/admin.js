@@ -1628,28 +1628,81 @@ window.resetAnalytics = async function() {
 
 window.exportAnalyticsExcel = async function() {
     const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
-    const wb = XLSX.utils.book_new();
+    
+    showToast('جاري تجهيز ملف Excel للإحصائيات...');
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'Technology Store';
+    workbook.created = new Date();
+
+    // Helper to style header
+    const styleHeader = (worksheet) => {
+        const headerRow = worksheet.getRow(1);
+        headerRow.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FFFFFFFF' } };
+        headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF3B82F6' } };
+        headerRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        headerRow.height = 30;
+    };
+
+    // Helper to format cells
+    const styleDataRows = (worksheet) => {
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) {
+                row.font = { name: 'Arial', size: 11 };
+                row.alignment = { vertical: 'middle', horizontal: 'center' };
+                row.eachCell(cell => {
+                    cell.border = {
+                        top: {style:'thin', color: {argb:'FFCCCCCC'}},
+                        left: {style:'thin', color: {argb:'FFCCCCCC'}},
+                        bottom: {style:'thin', color: {argb:'FFCCCCCC'}},
+                        right: {style:'thin', color: {argb:'FFCCCCCC'}}
+                    };
+                });
+            }
+        });
+    };
 
     // 1. General Stats
-    const generalData = [
-        { "المقياس": "إجمالي الزيارات", "القيمة": analytics.total_visits || 0 },
-        { "المقياس": "إجمالي المنتجات", "القيمة": window.adminProducts ? window.adminProducts.length : 0 },
-        { "المقياس": "مرات الإضافة للسلة", "القيمة": Object.values(analytics.cart_adds || {}).reduce((sum, item) => sum + item.count, 0) },
-        { "المقياس": "إجمالي طلبات واتساب", "القيمة": Object.values(analytics.whatsapp_orders || {}).reduce((sum, item) => sum + item.count, 0) }
+    const ws1 = workbook.addWorksheet('نظرة عامة', { views: [{ rightToLeft: true }] });
+    ws1.columns = [
+        { header: 'المقياس', key: 'metric', width: 40 },
+        { header: 'القيمة', key: 'value', width: 20 }
     ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(generalData), "نظرة عامة");
+    styleHeader(ws1);
+    ws1.addRow({ metric: 'إجمالي الزيارات', value: analytics.total_visits || 0 });
+    ws1.addRow({ metric: 'إجمالي المنتجات', value: window.adminProducts ? window.adminProducts.length : 0 });
+    ws1.addRow({ metric: 'مرات الإضافة للسلة', value: Object.values(analytics.cart_adds || {}).reduce((sum, item) => sum + item.count, 0) });
+    ws1.addRow({ metric: 'إجمالي طلبات واتساب', value: Object.values(analytics.whatsapp_orders || {}).reduce((sum, item) => sum + item.count, 0) });
+    styleDataRows(ws1);
 
     // 2. Top Products (Views)
-    const viewsData = Object.values(analytics.views || {}).map(item => ({ "المنتج": item.title, "المشاهدات": item.count }));
-    if (viewsData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(viewsData), "مشاهدات المنتجات");
+    const viewsData = Object.values(analytics.views || {}).map(item => ({ title: item.title, count: item.count }));
+    if (viewsData.length > 0) {
+        const ws2 = workbook.addWorksheet('مشاهدات المنتجات', { views: [{ rightToLeft: true }] });
+        ws2.columns = [ { header: 'المنتج', key: 'title', width: 50 }, { header: 'المشاهدات', key: 'count', width: 20 } ];
+        styleHeader(ws2);
+        viewsData.sort((a,b) => b.count - a.count).forEach(row => ws2.addRow(row));
+        styleDataRows(ws2);
+    }
 
     // 3. Cart Adds
-    const cartData = Object.values(analytics.cart_adds || {}).map(item => ({ "المنتج": item.title, "مرات الإضافة": item.count }));
-    if (cartData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cartData), "إضافات السلة");
+    const cartData = Object.values(analytics.cart_adds || {}).map(item => ({ title: item.title, count: item.count }));
+    if (cartData.length > 0) {
+        const ws3 = workbook.addWorksheet('إضافات السلة', { views: [{ rightToLeft: true }] });
+        ws3.columns = [ { header: 'المنتج', key: 'title', width: 50 }, { header: 'مرات الإضافة', key: 'count', width: 20 } ];
+        styleHeader(ws3);
+        cartData.sort((a,b) => b.count - a.count).forEach(row => ws3.addRow(row));
+        styleDataRows(ws3);
+    }
 
     // 4. WhatsApp Orders
-    const whatsappData = Object.values(analytics.whatsapp_orders || {}).map(item => ({ "المنتج": item.title, "الطلبات": item.count }));
-    if (whatsappData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(whatsappData), "طلبات واتساب");
+    const whatsappData = Object.values(analytics.whatsapp_orders || {}).map(item => ({ title: item.title, count: item.count }));
+    if (whatsappData.length > 0) {
+        const ws4 = workbook.addWorksheet('طلبات واتساب', { views: [{ rightToLeft: true }] });
+        ws4.columns = [ { header: 'المنتج', key: 'title', width: 50 }, { header: 'الطلبات', key: 'count', width: 20 } ];
+        styleHeader(ws4);
+        whatsappData.sort((a,b) => b.count - a.count).forEach(row => ws4.addRow(row));
+        styleDataRows(ws4);
+    }
 
     // 5. Unique Visitors
     try {
@@ -1657,47 +1710,237 @@ window.exportAnalyticsExcel = async function() {
         if (res.ok) {
             const data = await res.json();
             if (data.visitors && data.visitors.length > 0) {
-                const visitorsData = data.visitors.map(v => ({
-                    "التاريخ والوقت": new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
-                    "الموقع": v.location || 'غير معروف',
-                    "الجهاز": v.device || 'غير معروف',
-                    "المصدر (Referrer)": v.referrer || 'مباشر',
-                    "حملة (UTM)": v.utmSource || 'عضوي'
-                }));
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(visitorsData), "سجل الزوار");
+                const ws5 = workbook.addWorksheet('سجل الزوار', { views: [{ rightToLeft: true }] });
+                ws5.columns = [
+                    { header: 'التاريخ والوقت', key: 'date', width: 25 },
+                    { header: 'الموقع', key: 'location', width: 30 },
+                    { header: 'الجهاز', key: 'device', width: 25 },
+                    { header: 'المصدر (Referrer)', key: 'referrer', width: 40 },
+                    { header: 'حملة (UTM)', key: 'utm', width: 20 }
+                ];
+                styleHeader(ws5);
+                data.visitors.forEach(v => {
+                    ws5.addRow({
+                        date: new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+                        location: v.location || 'غير معروف',
+                        device: v.device || 'غير معروف',
+                        referrer: v.referrer || 'مباشر',
+                        utm: v.utmSource || 'عضوي'
+                    });
+                });
+                styleDataRows(ws5);
             }
         }
     } catch(e) {}
 
-    XLSX.writeFile(wb, `tech_store_analytics_${new Date().toISOString().split('T')[0]}.xlsx`);
+    try {
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        saveAs(blob, `إحصائيات_تكنولوجي_${new Date().toISOString().split('T')[0]}.xlsx`);
+        showToast('✅ تم تصدير بيانات الإحصائيات بنجاح!');
+    } catch (err) {
+        console.error('Excel export error:', err);
+        alert('حدث خطأ أثناء التصدير');
+    }
 };
 
-window.exportAnalyticsPDF = function() {
-    const element = document.getElementById('panel-analytics');
-    if (!element) return;
+window.exportAnalyticsPDF = async function() {
+    const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
     
-    // إخفاء أزرار التصدير من الـ PDF
-    const actionFooters = element.querySelectorAll('.flex.flex-wrap.gap-4.justify-end');
-    actionFooters.forEach(el => el.style.display = 'none');
-    
-    // ضبط اتجاه الصفحة والخطوط
-    const opt = {
-        margin:       10,
-        filename:     `tech_store_report_${new Date().toISOString().split('T')[0]}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    // إعداد البيانات
+    const totalVisits = analytics.total_visits || 0;
+    const totalProducts = window.adminProducts ? window.adminProducts.length : 0;
+    const totalCart = Object.values(analytics.cart_adds || {}).reduce((sum, item) => sum + item.count, 0);
+    const totalWhatsapp = Object.values(analytics.whatsapp_orders || {}).reduce((sum, item) => sum + item.count, 0);
 
-    html2pdf().set(opt).from(element).save().then(() => {
-        // إعادة إظهار الأزرار بعد التصدير
-        actionFooters.forEach(el => el.style.display = 'flex');
-        showToast('✅ تم تصدير التقرير كملف PDF بنجاح!');
-    }).catch(err => {
-        console.error('PDF Export Error:', err);
-        actionFooters.forEach(el => el.style.display = 'flex');
-        alert('حدث خطأ أثناء التصدير');
-    });
+    const viewsData = Object.values(analytics.views || {}).sort((a,b) => b.count - a.count).slice(0, 20);
+    const whatsappData = Object.values(analytics.whatsapp_orders || {}).sort((a,b) => b.count - a.count).slice(0, 20);
+
+    // زوار فريدين
+    let visitorsHtml = '';
+    try {
+        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.visitors && data.visitors.length > 0) {
+                const latestVisitors = data.visitors.slice(0, 50); // أول 50 زائر في التقرير
+                latestVisitors.forEach(v => {
+                    visitorsHtml += `
+                        <tr style="border-bottom: 1px solid #e5e7eb;">
+                            <td style="padding: 8px; border-left: 1px solid #e5e7eb; direction: ltr; text-align: right;">${new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' })}</td>
+                            <td style="padding: 8px; border-left: 1px solid #e5e7eb;">${v.location || 'غير معروف'}</td>
+                            <td style="padding: 8px; border-left: 1px solid #e5e7eb; direction: ltr; text-align: right;">${v.device || 'غير معروف'}</td>
+                            <td style="padding: 8px; border-left: 1px solid #e5e7eb; direction: ltr; text-align: right;">${v.referrer || 'مباشر'}</td>
+                        </tr>
+                    `;
+                });
+            }
+        }
+    } catch(e) {}
+
+    const printWindow = window.open('', '_blank');
+    const html = `
+        <!DOCTYPE html>
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="utf-8">
+            <title>تقرير الإحصائيات - Technology Store</title>
+            <style>
+                body {
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    margin: 0;
+                    padding: 20px;
+                    color: #1f2937;
+                    font-size: 13px;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #3b82f6;
+                    padding-bottom: 10px;
+                }
+                .header h1 { margin: 0; color: #1e3a8a; }
+                .header p { margin: 5px 0 0; color: #6b7280; font-size: 14px; }
+                
+                .summary-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 1fr);
+                    gap: 15px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    background: #f3f4f6;
+                    padding: 15px;
+                    border-radius: 8px;
+                    text-align: center;
+                    border: 1px solid #e5e7eb;
+                }
+                .summary-card h3 { margin: 0 0 5px; font-size: 13px; color: #4b5563; }
+                .summary-card p { margin: 0; font-size: 20px; font-weight: bold; color: #2563eb; direction: ltr; }
+                
+                .section-title {
+                    background-color: #1e3a8a;
+                    color: white;
+                    padding: 8px 12px;
+                    margin-top: 30px;
+                    margin-bottom: 15px;
+                    border-radius: 4px;
+                    font-size: 15px;
+                }
+
+                table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                th { background-color: #3b82f6; color: white; padding: 10px; border: 1px solid #2563eb; }
+                td { border: 1px solid #e5e7eb; }
+                
+                .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+                @media print {
+                    body { padding: 0; }
+                    .header { margin-top: 0; }
+                    .section-title { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    .summary-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                    @page { size: A4 portrait; margin: 10mm; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>التقرير الشامل للإحصائيات</h1>
+                <p>Technology Store | تاريخ التقرير: ${new Date().toLocaleDateString('ar-EG')}</p>
+            </div>
+            
+            <div class="summary-grid">
+                <div class="summary-card">
+                    <h3>إجمالي الزيارات</h3>
+                    <p>${totalVisits}</p>
+                </div>
+                <div class="summary-card">
+                    <h3>إجمالي المنتجات</h3>
+                    <p>${totalProducts}</p>
+                </div>
+                <div class="summary-card" style="border-bottom: 3px solid #8b5cf6;">
+                    <h3>إضافات السلة</h3>
+                    <p style="color: #8b5cf6;">${totalCart}</p>
+                </div>
+                <div class="summary-card" style="border-bottom: 3px solid #10b981;">
+                    <h3>طلبات واتساب</h3>
+                    <p style="color: #10b981;">${totalWhatsapp}</p>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div>
+                    <div class="section-title">أكثر المنتجات مشاهدة</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>اسم المنتج</th>
+                                <th style="width: 25%">المشاهدات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${viewsData.map(item => `
+                                <tr>
+                                    <td style="padding: 8px;">${item.title}</td>
+                                    <td style="padding: 8px; text-align: center; font-weight: bold;">${item.count}</td>
+                                </tr>
+                            `).join('') || '<tr><td colspan="2" style="text-align:center; padding: 10px;">لا توجد بيانات</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div>
+                    <div class="section-title" style="background-color: #065f46;">أكثر المنتجات طلباً (واتساب)</div>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="background-color: #10b981;">اسم المنتج</th>
+                                <th style="background-color: #10b981; width: 25%">الطلبات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${whatsappData.map(item => `
+                                <tr>
+                                    <td style="padding: 8px;">${item.title}</td>
+                                    <td style="padding: 8px; text-align: center; font-weight: bold; color: #047857;">${item.count}</td>
+                                </tr>
+                            `).join('') || '<tr><td colspan="2" style="text-align:center; padding: 10px;">لا توجد بيانات</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="page-break-before: always;"></div>
+            
+            <div class="section-title" style="background-color: #1f2937;">أحدث الزوار الفريدين</div>
+            ${visitorsHtml ? `
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="background-color: #374151;">التاريخ والوقت</th>
+                            <th style="background-color: #374151;">الموقع</th>
+                            <th style="background-color: #374151;">الجهاز المتصل</th>
+                            <th style="background-color: #374151;">مصدر الزيارة</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${visitorsHtml}
+                    </tbody>
+                </table>
+            ` : '<p style="text-align:center;">لا توجد بيانات للزوار حالياً</p>'}
+
+            <script>
+                window.onload = function() {
+                    window.print();
+                }
+            </script>
+        </body>
+        </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
 };
 
 window.openAnalyticsDetails = function(type) {
