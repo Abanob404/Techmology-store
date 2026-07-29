@@ -127,14 +127,6 @@ async function fetchProducts() {
             });
         }
 
-        const hideOutOfStockCb = document.getElementById('hideOutOfStockCb');
-        if (hideOutOfStockCb) {
-            hideOutOfStockCb.addEventListener('change', (e) => {
-                window.hideOutOfStock = e.target.checked;
-                renderProducts(activeCategory, activeSearchTerm);
-            });
-        }
-
         const urlParams = new URLSearchParams(window.location.search);
         const initialSearch = urlParams.get('q');
         const initialId = urlParams.get('id');
@@ -333,9 +325,8 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         });
     }
 
-    if (window.hideOutOfStock) {
-        filtered = filtered.filter(p => p.stockQuantity !== 0);
-    }
+    // إخفاء المنتجات المنتهية أو الصفرية (السعر = 0 أو المخزون = 0) بشكل دائم
+    filtered = filtered.filter(p => Number(p.price) > 0 && Number(p.stockQuantity) > 0);
 
     // الترتيب
     if (currentSort === 'price_asc') {
@@ -1226,4 +1217,47 @@ window.toggleTheme = function() {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
 };
+
+// Analytics Tracking - Unique Visitors
+async function trackVisitor() {
+    try {
+        let visitorId = localStorage.getItem('tech_store_vid');
+        if (!visitorId) {
+            visitorId = 'vid_' + Math.random().toString(36).substr(2, 9) + Date.now();
+            localStorage.setItem('tech_store_vid', visitorId);
+            
+            let location = 'غير معروف';
+            try {
+                const locRes = await fetch('https://ipapi.co/json/');
+                if (locRes.ok) {
+                    const locData = await locRes.json();
+                    if (locData && locData.city) {
+                        location = `${locData.city}, ${locData.country_name || ''}`;
+                    }
+                }
+            } catch(e) {
+                console.log('Location API skipped/failed due to adblock or limits');
+            }
+            
+            const urlParams = new URLSearchParams(window.location.search);
+            const utmSource = urlParams.get('utm_source') || '';
+            
+            await fetch(`${BASE_URL}/api/analytics/visitor`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    visitorId,
+                    referrer: document.referrer || '',
+                    utmSource,
+                    location
+                })
+            });
+        }
+    } catch (error) {
+        console.error('Analytics error:', error);
+    }
+}
+// Execute on load
+document.addEventListener('DOMContentLoaded', trackVisitor);
+
 

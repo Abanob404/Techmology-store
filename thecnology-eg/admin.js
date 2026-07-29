@@ -10,23 +10,18 @@ window.filteredProducts = [];
 window.currentPage = 1;
 
 // ==========================================
-// Multi-User Authentication System
+// Centralized Backend Authentication System
 // ==========================================
-function getUsers() {
-    const defaultUsers = [
-        { id: '1', username: 'admin', password: '1234', role: 'مدير', permissions: ['all'] }
-    ];
-    return JSON.parse(localStorage.getItem('tech_users') || JSON.stringify(defaultUsers));
-}
-
-function saveUsers(users) {
-    localStorage.setItem('tech_users', JSON.stringify(users));
-}
+let allUsersCache = [];
 
 function getCurrentUser() {
-    const userId = sessionStorage.getItem('tech_current_user_id');
-    if (!userId) return null;
-    return getUsers().find(u => u.id === userId) || null;
+    const userStr = sessionStorage.getItem('tech_current_user');
+    if (!userStr) return null;
+    try {
+        return JSON.parse(userStr);
+    } catch(e) {
+        return null;
+    }
 }
 
 async function checkAuth() {
@@ -79,24 +74,39 @@ function hasPermission(perm) {
     return user.permissions.includes('all') || user.permissions.includes(perm);
 }
 
-function login() {
+async function login() {
     const username = document.getElementById('adminUsername').value.trim();
     const password = document.getElementById('adminPassword').value.trim();
-    const users = getUsers();
-    const user = users.find(u => u.username === username && u.password === password);
 
-    if (user) {
-        sessionStorage.setItem('tech_current_user_id', user.id);
-        checkAuth();
-        showToast(`مرحباً ${user.username}!`);
-    } else {
-        alert('اسم المستخدم أو كلمة المرور غير صحيحة!');
+    if (!username || !password) {
+        alert('يرجى إدخال اسم المستخدم وكلمة المرور');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            sessionStorage.setItem('tech_current_user', JSON.stringify(data.user));
+            checkAuth();
+            showToast(`مرحباً ${data.user.username}!`);
+        } else {
+            alert(data.message || 'بيانات الدخول غير صحيحة!');
+        }
+    } catch (err) {
+        console.error(err);
+        alert('فشل الاتصال بالسيرفر');
     }
 }
 window.login = login;
 
 function logout() {
-    sessionStorage.removeItem('tech_current_user_id');
+    sessionStorage.removeItem('tech_current_user');
     checkAuth();
 }
 window.logout = logout;
@@ -596,7 +606,7 @@ if (addForm) {
 // ==========================================
 const settingsForm = document.getElementById('settingsForm');
 if (settingsForm) {
-    settingsForm.addEventListener('submit', function(e) {
+    settingsForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         const newUser = document.getElementById('newUsername').value.trim();
         const newPass = document.getElementById('newPassword').value.trim();
@@ -608,27 +618,52 @@ if (settingsForm) {
 
         const currentUser = getCurrentUser();
         if (!currentUser) return;
-        const users = getUsers();
-        const userIndex = users.findIndex(u => u.id === currentUser.id);
-        if (userIndex === -1) return;
-
-        if (newUser) users[userIndex].username = newUser;
-        if (newPass) users[userIndex].password = newPass;
-
-        saveUsers(users);
-        settingsForm.reset();
-        showToast('✅ تم تحديث بيانات الدخول بنجاح!');
-        checkAuth();
+        
+        try {
+            const updateData = { username: newUser || currentUser.username };
+            if (newPass) updateData.password = newPass;
+            
+            const response = await fetch(`${BASE_URL}/api/admin/users/${currentUser.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updateData)
+            });
+            
+            if (response.ok) {
+                const updatedUser = await response.json();
+                sessionStorage.setItem('tech_current_user', JSON.stringify(updatedUser));
+                settingsForm.reset();
+                showToast('✅ تم تحديث بيانات الدخول بنجاح!');
+                checkAuth();
+            } else {
+                const errData = await response.json();
+                alert(`خطأ: ${errData.message}`);
+            }
+        } catch (err) {
+            console.error(err);
+            alert('فشل الاتصال بالسيرفر لتحديث البيانات');
+        }
     });
 }
 
 // ==========================================
 // Users Management
 // ==========================================
-function loadUsersTable() {
+async function fetchAllUsers() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/admin/users`);
+        if (res.ok) {
+            allUsersCache = await res.json();
+            return allUsersCache;
+        }
+    } catch(e) { console.error('Error fetching users:', e); }
+    return [];
+}
+
+async function loadUsersTable() {
     const tbody = document.getElementById('usersTableBody');
     if (!tbody) return;
-    const users = getUsers();
+    const users = await fetchAllUsers();
     const currentUser = getCurrentUser();
 
     tbody.innerHTML = '';
@@ -669,10 +704,11 @@ function loadUsersTable() {
 }
 
 window.editUser = function(id) {
-    const user = getUsers().find(u => u.id === id);
+    const user = allUsersCache.find(u => u.id === id);
     if (!user) return;
     document.getElementById('newUserUsername').value = user.username;
-    document.getElementById('newUserPassword').value = user.password;
+    document.getElementById('newUserPassword').value = '';
+    document.getElementById('newUserPassword').placeholder = 'اترك فارغاً لعدم التغيير';
     document.querySelectorAll('input[name="permissions"]').forEach(cb => {
         cb.checked = user.permissions.includes('all') || user.permissions.includes(cb.value);
     });
@@ -684,66 +720,82 @@ window.editUser = function(id) {
     }
 };
 
-window.addNewUser = function() {
+window.addNewUser = async function() {
     const username = document.getElementById('newUserUsername').value.trim();
     const password = document.getElementById('newUserPassword').value.trim();
-    
     const checkedBoxes = Array.from(document.querySelectorAll('input[name="permissions"]:checked')).map(cb => cb.value);
 
-    if (!username || !password) {
-        alert('يرجى إدخال اسم المستخدم وكلمة المرور.');
-        return;
-    }
-
-    if (checkedBoxes.length === 0) {
-        alert('يرجى اختيار صلاحية واحدة على الأقل.');
-        return;
-    }
-
-    const users = getUsers();
     const submitBtn = document.querySelector('#panel-users button[onclick="addNewUser()"]');
     const editingId = submitBtn ? submitBtn.dataset.editingId : null;
 
-    if (!editingId && users.find(u => u.username === username)) {
-        alert('اسم المستخدم موجود بالفعل!');
+    if (!username) {
+        alert('يرجى إدخال اسم المستخدم.');
+        return;
+    }
+    if (!editingId && !password) {
+        alert('يرجى إدخال كلمة المرور.');
+        return;
+    }
+    if (checkedBoxes.length === 0) {
+        alert('يرجى اختيار صلاحية واحدة على الأقل.');
         return;
     }
 
     const permissions = checkedBoxes.includes('all') ? ['all'] : checkedBoxes;
     const role = permissions.includes('all') ? 'مدير' : 'محرر';
     
-    if (editingId) {
-        const userIndex = users.findIndex(u => u.id === editingId);
-        if (userIndex !== -1) {
-            users[userIndex].username = username;
-            users[userIndex].password = password;
-            users[userIndex].role = role;
-            users[userIndex].permissions = permissions;
+    try {
+        let response;
+        if (editingId) {
+            response = await fetch(`${BASE_URL}/api/admin/users/${editingId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role, permissions })
+            });
+        } else {
+            response = await fetch(`${BASE_URL}/api/admin/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password, role, permissions })
+            });
         }
-        if (submitBtn) {
-            delete submitBtn.dataset.editingId;
-            submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">person_add</span> إضافة مستخدم';
-        }
-        showToast('✅ تم تعديل المستخدم بنجاح!');
-    } else {
-        users.push({ id: Date.now().toString(), username, password, role, permissions });
-        showToast('✅ تم إضافة المستخدم بنجاح!');
-    }
-    
-    saveUsers(users);
 
-    document.getElementById('newUserUsername').value = '';
-    document.getElementById('newUserPassword').value = '';
-    document.querySelectorAll('input[name="permissions"]').forEach(cb => cb.checked = false);
-    loadUsersTable();
+        if (response.ok) {
+            if (submitBtn) {
+                delete submitBtn.dataset.editingId;
+                submitBtn.innerHTML = '<span class="material-symbols-outlined text-[18px]">person_add</span> إضافة مستخدم';
+            }
+            showToast(editingId ? '✅ تم تعديل المستخدم بنجاح!' : '✅ تم إضافة المستخدم بنجاح!');
+            document.getElementById('newUserUsername').value = '';
+            document.getElementById('newUserPassword').value = '';
+            document.getElementById('newUserPassword').placeholder = 'كلمة المرور';
+            document.querySelectorAll('input[name="permissions"]').forEach(cb => cb.checked = false);
+            loadUsersTable();
+        } else {
+            const err = await response.json();
+            alert(`خطأ: ${err.message}`);
+        }
+    } catch(err) {
+        console.error(err);
+        alert('فشل الاتصال بالسيرفر');
+    }
 };
 
-window.deleteUser = function(id) {
+window.deleteUser = async function(id) {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
-    const users = getUsers().filter(u => u.id !== id);
-    saveUsers(users);
-    showToast('🗑️ تم حذف المستخدم!');
-    loadUsersTable();
+    try {
+        const response = await fetch(`${BASE_URL}/api/admin/users/${id}`, { method: 'DELETE' });
+        if (response.ok) {
+            showToast('🗑️ تم حذف المستخدم!');
+            loadUsersTable();
+        } else {
+            const err = await response.json();
+            alert(`خطأ: ${err.message}`);
+        }
+    } catch(err) {
+        console.error(err);
+        alert('فشل الاتصال بالسيرفر');
+    }
 };
 
 // ==========================================
@@ -1522,8 +1574,43 @@ window.loadAnalytics = async function() {
             localStorage.setItem('tech_store_analytics', JSON.stringify(serverAnalytics));
             window.renderAnalyticsData(serverAnalytics);
         }
+        
+        // جلب سجل الزوار الفريدين
+        await window.loadUniqueVisitors();
     } catch (err) {
         console.log('يعمل بالنظام المحلي مؤقتاً لحين الاتصال بالسيرفر');
+    }
+};
+
+window.loadUniqueVisitors = async function() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        if (res.ok) {
+            const data = await res.json();
+            document.getElementById('stat-unique-visitors').textContent = data.uniqueCount || 0;
+            
+            const tbody = document.getElementById('analytics-visitors-table');
+            if (tbody) {
+                if (!data.visitors || data.visitors.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-on-surface-variant text-sm">لا يوجد زوار بعد</td></tr>';
+                    return;
+                }
+                
+                tbody.innerHTML = data.visitors.map(v => {
+                    const date = new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
+                    return `
+                        <tr class="border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors">
+                            <td class="py-3 pr-2 font-mono-data dir-ltr text-right">${date}</td>
+                            <td class="py-3 text-secondary font-semibold">${v.location || 'غير معروف'}</td>
+                            <td class="py-3 text-on-surface-variant max-w-[150px] truncate dir-ltr text-right" title="${v.referrer || 'مباشر'}">${v.referrer || 'مباشر'}</td>
+                            <td class="py-3"><span class="px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">${v.utmSource || 'عضوي'}</span></td>
+                        </tr>
+                    `;
+                }).join('');
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching visitors:', error);
     }
 };
 
@@ -1565,4 +1652,32 @@ window.exportAnalyticsCSV = function() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+};
+
+window.exportAnalyticsPDF = function() {
+    const element = document.getElementById('panel-reports');
+    if (!element) return;
+    
+    // إخفاء أزرار التصدير من الـ PDF
+    const actionFooters = element.querySelectorAll('.flex.flex-wrap.gap-4.justify-end');
+    actionFooters.forEach(el => el.style.display = 'none');
+    
+    // ضبط اتجاه الصفحة والخطوط
+    const opt = {
+        margin:       10,
+        filename:     `tech_store_report_${new Date().toISOString().split('T')[0]}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        // إعادة إظهار الأزرار بعد التصدير
+        actionFooters.forEach(el => el.style.display = 'flex');
+        showToast('✅ تم تصدير التقرير كملف PDF بنجاح!');
+    }).catch(err => {
+        console.error('PDF Export Error:', err);
+        actionFooters.forEach(el => el.style.display = 'flex');
+        alert('حدث خطأ أثناء التصدير');
+    });
 };

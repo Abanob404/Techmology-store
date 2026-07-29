@@ -30,8 +30,39 @@ cloudinary.config({
 
 // الاتصال بقاعدة بيانات MongoDB
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB'))
+  .then(async () => {
+    console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB');
+    await initDefaultAdmin();
+  })
   .catch(err => console.error('❌ خطأ في الاتصال بقاعدة البيانات:', err));
+
+// تعريف موديل مديري النظام (AdminUser Schema)
+const adminUserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'محرر' },
+  permissions: { type: [String], default: [] },
+  createdAt: { type: Date, default: Date.now }
+});
+const AdminUser = mongoose.model('AdminUser', adminUserSchema);
+
+async function initDefaultAdmin() {
+  try {
+    const count = await AdminUser.countDocuments();
+    if (count === 0) {
+      const admin = new AdminUser({
+        username: 'admin',
+        password: '1234',
+        role: 'مدير',
+        permissions: ['all']
+      });
+      await admin.save();
+      console.log('✅ تم إنشاء المدير الافتراضي: admin / 1234');
+    }
+  } catch (err) {
+    console.error('Error initializing default admin:', err);
+  }
+}
 
 // تعريف موديل القسم (Category Schema)
 const categorySchema = new mongoose.Schema({
@@ -82,6 +113,17 @@ const analyticsSchema = new mongoose.Schema({
   daily_visits: { type: Object, default: {} }
 });
 const Analytics = mongoose.model('Analytics', analyticsSchema);
+
+// تعريف موديل تتبع الزوار (Visitor Schema)
+const visitorSchema = new mongoose.Schema({
+  visitorId: { type: String, required: true, unique: true },
+  ip: { type: String, default: '' },
+  location: { type: String, default: '' },
+  referrer: { type: String, default: '' },
+  utmSource: { type: String, default: '' },
+  timestamp: { type: Date, default: Date.now }
+});
+const Visitor = mongoose.model('Visitor', visitorSchema);
 
 async function getOrCreateAnalytics() {
   let doc = await Analytics.findOne({ key: 'main' });
@@ -673,6 +715,101 @@ app.post('/api/analytics/reset', async (req, res) => {
     res.json({ success: true, message: 'تم تصفير الإحصائيات' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في تصفير الإحصائيات', error: err.message });
+  }
+});
+
+app.post('/api/analytics/visitor', async (req, res) => {
+  try {
+    const { visitorId, referrer, utmSource, location } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (!visitorId) return res.status(400).json({ message: 'visitorId required' });
+    
+    await Visitor.findOneAndUpdate(
+      { visitorId },
+      { ip, location, referrer, utmSource, timestamp: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error tracking visitor', error: err.message });
+  }
+});
+
+app.get('/api/analytics/visitors', async (req, res) => {
+  try {
+    const visitors = await Visitor.find().sort({ timestamp: -1 }).limit(100);
+    const uniqueCount = await Visitor.countDocuments();
+    res.json({ visitors, uniqueCount });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching visitors', error: err.message });
+  }
+});
+
+// --- الـ API Routes الخاصة بمديري النظام (Admin Auth) ---
+
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const user = await AdminUser.findOne({ username, password });
+    if (!user) {
+      return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
+    }
+    res.json({ message: 'تم تسجيل الدخول بنجاح', user: { id: user._id, username: user.username, role: user.role, permissions: user.permissions } });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء تسجيل الدخول', error: err.message });
+  }
+});
+
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const users = await AdminUser.find().select('-password');
+    const mappedUsers = users.map(u => ({
+      id: u._id.toString(),
+      username: u.username,
+      role: u.role,
+      permissions: u.permissions
+    }));
+    res.json(mappedUsers);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في جلب المستخدمين', error: err.message });
+  }
+});
+
+app.post('/api/admin/users', async (req, res) => {
+  try {
+    const { username, password, role, permissions } = req.body;
+    const existing = await AdminUser.findOne({ username });
+    if (existing) return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
+    
+    const newUser = new AdminUser({ username, password, role, permissions });
+    await newUser.save();
+    res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, permissions: newUser.permissions });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في إضافة المستخدم', error: err.message });
+  }
+});
+
+app.put('/api/admin/users/:id', async (req, res) => {
+  try {
+    const { username, password, role, permissions } = req.body;
+    const updateData = { username, role, permissions };
+    if (password && password.trim() !== '') {
+      updateData.password = password;
+    }
+    const updated = await AdminUser.findByIdAndUpdate(req.params.id, updateData, { new: true });
+    if (!updated) return res.status(404).json({ message: 'المستخدم غير موجود' });
+    res.json({ id: updated._id, username: updated.username, role: updated.role, permissions: updated.permissions });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في تعديل المستخدم', error: err.message });
+  }
+});
+
+app.delete('/api/admin/users/:id', async (req, res) => {
+  try {
+    await AdminUser.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في حذف المستخدم', error: err.message });
   }
 });
 
