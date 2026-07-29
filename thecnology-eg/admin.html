@@ -513,21 +513,21 @@
                         <span class="material-symbols-outlined text-[28px]">inventory_2</span>
                     </div>
                 </div>
-                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between cursor-pointer hover:bg-surface-variant/20 transition-colors group" onclick="openAnalyticsDetails('cart')">
                     <div>
-                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إضافة للسلة</p>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1 group-hover:text-tertiary transition-colors">إضافة للسلة</p>
                         <h3 id="stat-total-cart" class="font-headline-md text-3xl text-tertiary font-bold">0</h3>
                     </div>
-                    <div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary">
+                    <div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-[28px]">shopping_cart</span>
                     </div>
                 </div>
-                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between cursor-pointer hover:bg-surface-variant/20 transition-colors group" onclick="openAnalyticsDetails('whatsapp')">
                     <div>
-                        <p class="text-on-surface-variant text-sm font-semibold mb-1">طلبات واتساب</p>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1 group-hover:text-emerald-400 transition-colors">طلبات واتساب</p>
                         <h3 id="stat-total-orders" class="font-headline-md text-3xl text-emerald-400 font-bold">0</h3>
                     </div>
-                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
                         <span class="material-symbols-outlined text-[28px]">chat</span>
                     </div>
                 </div>
@@ -590,12 +590,13 @@
                             <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
                                 <th class="py-3 pr-2">تاريخ الزيارة</th>
                                 <th class="py-3">الموقع</th>
+                                <th class="py-3">الجهاز</th>
                                 <th class="py-3">المصدر (Referrer)</th>
                                 <th class="py-3">حملة (UTM)</th>
                             </tr>
                         </thead>
                         <tbody id="analytics-visitors-table">
-                            <tr><td colspan="4" class="text-center py-4 text-on-surface-variant text-sm">جاري التحميل...</td></tr>
+                            <tr><td colspan="5" class="text-center py-4 text-on-surface-variant text-sm">جاري التحميل...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -615,6 +616,23 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- Analytics Details Modal -->
+    <div id="analyticsDetailsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-surface border border-outline-variant rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300">
+            <div class="p-6 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+                <h2 id="analyticsDetailsTitle" class="font-headline-md text-xl text-on-surface flex items-center gap-2">تفاصيل الإحصائية</h2>
+                <button onclick="closeAnalyticsDetailsModal()" class="text-on-surface-variant hover:text-error transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-error/10">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-6 max-h-[60vh] overflow-y-auto">
+                <ul id="analyticsDetailsList" class="flex flex-col gap-3">
+                    <!-- Populated by JS -->
+                </ul>
+            </div>
+        </div>
     </div>
 
     <!-- Edit Product Modal -->

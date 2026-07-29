@@ -1592,7 +1592,7 @@ window.loadUniqueVisitors = async function() {
             const tbody = document.getElementById('analytics-visitors-table');
             if (tbody) {
                 if (!data.visitors || data.visitors.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-4 text-on-surface-variant text-sm">لا يوجد زوار بعد</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-4 text-on-surface-variant text-sm">لا يوجد زوار بعد</td></tr>';
                     return;
                 }
                 
@@ -1602,6 +1602,7 @@ window.loadUniqueVisitors = async function() {
                         <tr class="border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors">
                             <td class="py-3 pr-2 font-mono-data dir-ltr text-right">${date}</td>
                             <td class="py-3 text-secondary font-semibold">${v.location || 'غير معروف'}</td>
+                            <td class="py-3 text-on-surface-variant font-mono-data text-xs dir-ltr">${v.device || 'غير معروف'}</td>
                             <td class="py-3 text-on-surface-variant max-w-[150px] truncate dir-ltr text-right" title="${v.referrer || 'مباشر'}">${v.referrer || 'مباشر'}</td>
                             <td class="py-3"><span class="px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">${v.utmSource || 'عضوي'}</span></td>
                         </tr>
@@ -1680,4 +1681,58 @@ window.exportAnalyticsPDF = function() {
         actionFooters.forEach(el => el.style.display = 'flex');
         alert('حدث خطأ أثناء التصدير');
     });
+};
+
+window.openAnalyticsDetails = function(type) {
+    const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
+    const modal = document.getElementById('analyticsDetailsModal');
+    const title = document.getElementById('analyticsDetailsTitle');
+    const list = document.getElementById('analyticsDetailsList');
+    
+    if (!modal || !title || !list) return;
+    
+    list.innerHTML = '';
+    
+    let dataObj = {};
+    let icon = '';
+    
+    if (type === 'cart') {
+        title.innerHTML = '<span class="material-symbols-outlined text-tertiary">shopping_cart</span> تفاصيل المنتجات المضافة للسلة';
+        dataObj = analytics.cart_adds || {};
+        icon = '<span class="material-symbols-outlined text-tertiary text-sm">add_shopping_cart</span>';
+    } else if (type === 'whatsapp') {
+        title.innerHTML = '<span class="material-symbols-outlined text-emerald-400">chat</span> تفاصيل طلبات الواتساب';
+        dataObj = analytics.whatsapp_orders || {};
+        icon = '<span class="material-symbols-outlined text-emerald-400 text-sm">check_circle</span>';
+    }
+    
+    const items = Object.values(dataObj).sort((a, b) => b.count - a.count);
+    
+    if (items.length === 0) {
+        list.innerHTML = '<li class="text-center text-on-surface-variant py-4">لا توجد بيانات متاحة</li>';
+    } else {
+        list.innerHTML = items.map(item => `
+            <li class="flex items-center justify-between p-3 bg-surface-container rounded-lg border border-outline-variant/20 hover:bg-surface-variant/30 transition-colors">
+                <span class="text-on-surface font-semibold text-sm flex items-center gap-2">${icon} ${item.title}</span>
+                <span class="text-on-surface-variant font-mono-data font-bold text-sm bg-surface-container-high px-2 py-1 rounded-md shrink-0">${item.count} مرات</span>
+            </li>
+        `).join('');
+    }
+    
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.querySelector('div').classList.remove('scale-95');
+    }, 10);
+};
+
+window.closeAnalyticsDetailsModal = function() {
+    const modal = document.getElementById('analyticsDetailsModal');
+    if (modal) {
+        modal.classList.add('opacity-0');
+        modal.querySelector('div').classList.add('scale-95');
+        setTimeout(() => {
+            modal.classList.add('hidden');
+        }, 300);
+    }
 };

@@ -1242,6 +1242,19 @@ async function trackVisitor() {
             const urlParams = new URLSearchParams(window.location.search);
             const utmSource = urlParams.get('utm_source') || '';
             
+            let device = "مجهول";
+            const ua = navigator.userAgent;
+            if (/windows/i.test(ua)) device = "Windows";
+            else if (/macintosh|mac os/i.test(ua)) device = "Mac";
+            else if (/iphone|ipad/i.test(ua)) device = "iOS";
+            else if (/android/i.test(ua)) device = "Android";
+            else if (/linux/i.test(ua)) device = "Linux";
+            
+            if (/chrome/i.test(ua) && !/edge|edg/i.test(ua)) device += " - Chrome";
+            else if (/safari/i.test(ua) && !/chrome/i.test(ua)) device += " - Safari";
+            else if (/firefox/i.test(ua)) device += " - Firefox";
+            else if (/edge|edg/i.test(ua)) device += " - Edge";
+            
             await fetch(`${BASE_URL}/api/analytics/visitor`, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
@@ -1249,7 +1262,8 @@ async function trackVisitor() {
                     visitorId,
                     referrer: document.referrer || '',
                     utmSource,
-                    location
+                    location,
+                    device
                 })
             });
         }

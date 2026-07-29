@@ -119,6 +119,7 @@ const visitorSchema = new mongoose.Schema({
   visitorId: { type: String, required: true, unique: true },
   ip: { type: String, default: '' },
   location: { type: String, default: '' },
+  device: { type: String, default: '' },
   referrer: { type: String, default: '' },
   utmSource: { type: String, default: '' },
   timestamp: { type: Date, default: Date.now }
@@ -720,13 +721,13 @@ app.post('/api/analytics/reset', async (req, res) => {
 
 app.post('/api/analytics/visitor', async (req, res) => {
   try {
-    const { visitorId, referrer, utmSource, location } = req.body;
+    const { visitorId, referrer, utmSource, location, device } = req.body;
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
     if (!visitorId) return res.status(400).json({ message: 'visitorId required' });
     
     await Visitor.findOneAndUpdate(
       { visitorId },
-      { ip, location, referrer, utmSource, timestamp: new Date() },
+      { ip, location, device, referrer, utmSource, timestamp: new Date() },
       { upsert: true, new: true }
     );
     res.json({ success: true });
