@@ -1626,37 +1626,54 @@ window.resetAnalytics = async function() {
     }
 };
 
-window.exportAnalyticsCSV = function() {
+window.exportAnalyticsExcel = async function() {
     const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
-    let csv = '\uFEFF'; // BOM for Arabic support in Excel
-    csv += 'نوع الإحصائية,المنتج/الصفحة,العدد\n';
-    
-    Object.values(analytics.views || {}).forEach(item => {
-        csv += `"مشاهدة منتج","${item.title}",${item.count}\n`;
-    });
-    Object.values(analytics.cart_adds || {}).forEach(item => {
-        csv += `"إضافة للسلة","${item.title}",${item.count}\n`;
-    });
-    Object.values(analytics.whatsapp_orders || {}).forEach(item => {
-        csv += `"طلب واتساب","${item.title}",${item.count}\n`;
-    });
-    Object.entries(analytics.page_visits || {}).forEach(([page, count]) => {
-        csv += `"زيارة صفحة","${page}",${count}\n`;
-    });
+    const wb = XLSX.utils.book_new();
 
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `tech_store_analytics_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 1. General Stats
+    const generalData = [
+        { "المقياس": "إجمالي الزيارات", "القيمة": analytics.total_visits || 0 },
+        { "المقياس": "إجمالي المنتجات", "القيمة": window.adminProducts ? window.adminProducts.length : 0 },
+        { "المقياس": "مرات الإضافة للسلة", "القيمة": Object.values(analytics.cart_adds || {}).reduce((sum, item) => sum + item.count, 0) },
+        { "المقياس": "إجمالي طلبات واتساب", "القيمة": Object.values(analytics.whatsapp_orders || {}).reduce((sum, item) => sum + item.count, 0) }
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(generalData), "نظرة عامة");
+
+    // 2. Top Products (Views)
+    const viewsData = Object.values(analytics.views || {}).map(item => ({ "المنتج": item.title, "المشاهدات": item.count }));
+    if (viewsData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(viewsData), "مشاهدات المنتجات");
+
+    // 3. Cart Adds
+    const cartData = Object.values(analytics.cart_adds || {}).map(item => ({ "المنتج": item.title, "مرات الإضافة": item.count }));
+    if (cartData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(cartData), "إضافات السلة");
+
+    // 4. WhatsApp Orders
+    const whatsappData = Object.values(analytics.whatsapp_orders || {}).map(item => ({ "المنتج": item.title, "الطلبات": item.count }));
+    if (whatsappData.length > 0) XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(whatsappData), "طلبات واتساب");
+
+    // 5. Unique Visitors
+    try {
+        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        if (res.ok) {
+            const data = await res.json();
+            if (data.visitors && data.visitors.length > 0) {
+                const visitorsData = data.visitors.map(v => ({
+                    "التاريخ والوقت": new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }),
+                    "الموقع": v.location || 'غير معروف',
+                    "الجهاز": v.device || 'غير معروف',
+                    "المصدر (Referrer)": v.referrer || 'مباشر',
+                    "حملة (UTM)": v.utmSource || 'عضوي'
+                }));
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(visitorsData), "سجل الزوار");
+            }
+        }
+    } catch(e) {}
+
+    XLSX.writeFile(wb, `tech_store_analytics_${new Date().toISOString().split('T')[0]}.xlsx`);
 };
 
 window.exportAnalyticsPDF = function() {
-    const element = document.getElementById('panel-reports');
+    const element = document.getElementById('panel-analytics');
     if (!element) return;
     
     // إخفاء أزرار التصدير من الـ PDF
