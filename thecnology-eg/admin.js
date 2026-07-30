@@ -29,7 +29,7 @@ async function checkAuth() {
     if (user) {
         document.getElementById('loginContainer').style.display = 'none';
         document.getElementById('adminContainer').classList.remove('hidden');
-        document.getElementById('adminContainer').style.display = 'block';
+        document.getElementById('adminContainer').style.display = 'flex';
         
         const userBadge = document.getElementById('currentUserBadge');
         if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
@@ -65,6 +65,9 @@ async function checkAuth() {
         loadUsersTable();
         renderCategoriesAdminList();
         loadStoreSettings();
+        
+        // Initialize the first tab
+        switchTab('products');
     } else {
         document.getElementById('loginContainer').style.display = 'flex';
         document.getElementById('adminContainer').style.display = 'none';
