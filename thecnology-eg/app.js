@@ -115,6 +115,14 @@ async function fetchProducts() {
         const response = await fetch(API_URL);
         globalProducts = await response.json();
 
+        // جلب إحصائيات المنتجات لترتيبها بناءً على الأكثر طلباً ومشاهدة
+        try {
+            const analyticsRes = await fetch(`${BASE_URL}/api/analytics`);
+            window.globalAnalytics = await analyticsRes.json();
+        } catch(e) {
+            window.globalAnalytics = {};
+        }
+
         // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
         await renderDynamicCategoryFilters();
 
@@ -333,13 +341,30 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         filtered.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     } else if (currentSort === 'price_desc') {
         filtered.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
-    } else { // newest
-        // افتراضياً السيرفر يرسل الأحدث أولاً، لكن يمكن الترتيب بناءً على تاريخ الإنشاء إذا وجد
+    } else { 
+        // الترتيب الافتراضي (newest): يتم دمج "الأكثر طلباً ومشاهدة" مع "الأحدث"
+        // إعطاء وزن لكل عملية (طلب واتساب = 10 نقاط، إضافة للسلة = 5 نقاط، مشاهدة = نقطة واحدة)
+        const getPopularityScore = (id) => {
+            if (!window.globalAnalytics) return 0;
+            const views = window.globalAnalytics.views?.[id]?.count || 0;
+            const cartAdds = window.globalAnalytics.cart_adds?.[id]?.count || 0;
+            const whatsapp = window.globalAnalytics.whatsapp_orders?.[id]?.count || 0;
+            return (whatsapp * 10) + (cartAdds * 5) + views;
+        };
+
         filtered.sort((a, b) => {
+            const scoreA = getPopularityScore(a._id);
+            const scoreB = getPopularityScore(b._id);
+            
+            if (scoreA !== scoreB) {
+                return scoreB - scoreA; // الأعلى نقاطاً أولاً
+            }
+            
+            // في حالة التساوي، يتم ترتيبهم كـ الأحدث أولاً
             if (a.createdAt && b.createdAt) {
                 return new Date(b.createdAt) - new Date(a.createdAt);
             }
-            return 0; // الحفاظ على الترتيب الأصلي (وهو الأحدث من السيرفر)
+            return 0;
         });
     }
 
@@ -1095,7 +1120,8 @@ function checkoutWhatsApp() {
 function loadStoreBranding() {
     const customLogo = localStorage.getItem('tech_store_logo');
     if (customLogo) {
-        document.querySelectorAll('a[href="index.html"] img[alt="Technology Store"]').forEach(logoImg => {
+        // تحديث كل صور اللوجو في الهيدر والفوتر
+        document.querySelectorAll('img[alt="Technology Store"]').forEach(logoImg => {
             logoImg.src = customLogo;
             logoImg.removeAttribute('onerror'); // Prevent fallback text if custom logo fails
         });
