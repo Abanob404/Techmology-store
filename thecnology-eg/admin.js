@@ -2343,7 +2343,9 @@ async function fetchAdminLogs() {
         const tbody = document.getElementById('adminLogsTableBody');
         if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant"><span class="material-symbols-outlined animate-spin inline-block text-[24px]">sync</span> جاري تحميل السجل...</td></tr>`;
 
-        const response = await fetch(`${BASE_URL}/api/admin/logs?limit=100`);
+        const response = await fetch(`${BASE_URL}/api/admin/logs?limit=100&_t=${Date.now()}`, {
+            cache: 'no-store'
+        });
         const logs = await response.json();
         
         if (response.ok) {
