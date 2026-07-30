@@ -46,6 +46,9 @@ async function checkAuth() {
         const analyticsTab = document.getElementById('tab-analytics');
         if (analyticsTab) analyticsTab.style.display = hasPermission('view_reports') ? 'flex' : 'none';
 
+        const logsTab = document.getElementById('tab-logs');
+        if (logsTab) logsTab.style.display = hasPermission('view_reports') ? 'flex' : 'none';
+
         const csvActionsWrapper = document.getElementById('csvActionsWrapper');
         if (csvActionsWrapper) csvActionsWrapper.style.display = hasPermission('manage_backup') ? 'flex' : 'none';
 
@@ -2285,3 +2288,73 @@ window.printInventoryReport = function() {
     printWindow.document.write(html);
     printWindow.document.close();
 };
+
+// ==========================================
+// Activity Logs System
+// ==========================================
+async function fetchAdminLogs() {
+    try {
+        const tbody = document.getElementById('adminLogsTableBody');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant"><span class="material-symbols-outlined animate-spin inline-block text-[24px]">sync</span> جاري تحميل السجل...</td></tr>`;
+
+        const response = await fetch(`${BASE_URL}/api/admin/logs?limit=100`);
+        const logs = await response.json();
+        
+        if (response.ok) {
+            renderAdminLogs(logs);
+        } else {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-error">خطأ في تحميل السجل</td></tr>`;
+        }
+    } catch (err) {
+        console.error('Error fetching logs:', err);
+        const tbody = document.getElementById('adminLogsTableBody');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-error">فشل الاتصال بالسيرفر</td></tr>`;
+    }
+}
+
+function renderAdminLogs(logs) {
+    const tbody = document.getElementById('adminLogsTableBody');
+    if (!tbody) return;
+
+    if (!logs || logs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant">لا توجد أي نشاطات مسجلة حتى الآن</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = logs.map(log => {
+        const date = new Date(log.timestamp);
+        const dateString = date.toLocaleDateString('ar-EG');
+        const timeString = date.toLocaleTimeString('ar-EG');
+        
+        let actionIcon = 'info';
+        let actionColor = 'text-primary';
+        
+        if (log.action.includes('إضافة')) { actionIcon = 'add_circle'; actionColor = 'text-green-500'; }
+        else if (log.action.includes('تعديل')) { actionIcon = 'edit'; actionColor = 'text-blue-500'; }
+        else if (log.action.includes('حذف')) { actionIcon = 'delete'; actionColor = 'text-red-500'; }
+        else if (log.action.includes('استيراد') || log.action.includes('استعادة')) { actionIcon = 'publish'; actionColor = 'text-purple-500'; }
+
+        return `
+            <tr class="border-b border-outline-variant/30 hover:bg-surface-variant/30 transition-colors">
+                <td class="py-3 px-4 whitespace-nowrap">
+                    <div class="flex flex-col">
+                        <span class="font-bold">${dateString}</span>
+                        <span class="text-xs text-on-surface-variant">${timeString}</span>
+                    </div>
+                </td>
+                <td class="py-3 px-4 font-bold text-on-surface">${log.user}</td>
+                <td class="py-3 px-4">
+                    <div class="flex items-center gap-2">
+                        <span class="material-symbols-outlined ${actionColor} text-[18px]">${actionIcon}</span>
+                        <span class="font-semibold">${log.action}</span>
+                    </div>
+                </td>
+                <td class="py-3 px-4 text-on-surface-variant text-xs leading-relaxed max-w-sm truncate" title="${log.details}">
+                    ${log.details}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+window.fetchAdminLogs = fetchAdminLogs;

@@ -126,6 +126,25 @@ const visitorSchema = new mongoose.Schema({
 });
 const Visitor = mongoose.model('Visitor', visitorSchema);
 
+// تعريف موديل سجل النشاطات (Activity Log Schema)
+const activityLogSchema = new mongoose.Schema({
+  action: { type: String, required: true },
+  details: { type: String, default: '' },
+  user: { type: String, default: 'نظام' },
+  timestamp: { type: Date, default: Date.now }
+});
+const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
+
+// دالة مساعدة لتسجيل حدث
+async function logActivity(action, details, user = 'نظام') {
+  try {
+    const log = new ActivityLog({ action, details, user });
+    await log.save();
+  } catch (err) {
+    console.error('Error saving activity log:', err);
+  }
+}
+
 async function getOrCreateAnalytics() {
   let doc = await Analytics.findOne({ key: 'main' });
   if (!doc) {
@@ -171,6 +190,7 @@ app.post('/api/categories', async (req, res) => {
     
     const newCategory = new Category({ name });
     await newCategory.save();
+    await logActivity('إضافة قسم', `تم إضافة قسم جديد باسم: ${name}`);
     res.status(201).json(newCategory);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إضافة القسم', error: err.message });
@@ -182,6 +202,7 @@ app.delete('/api/categories/:name', async (req, res) => {
   try {
     const { name } = req.params;
     await Category.findOneAndDelete({ name });
+    await logActivity('حذف قسم', `تم حذف القسم: ${name}`);
     res.json({ message: 'تم حذف القسم بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف القسم', error: err.message });
@@ -204,7 +225,7 @@ app.put('/api/categories/rename', async (req, res) => {
       { category: oldCategory },
       { $set: { category: newCategory } }
     );
-
+    await logActivity('تعديل قسم', `تم تغيير اسم القسم من "${oldCategory}" إلى "${newCategory}"`);
     res.json({ 
       message: `تم تحديث اسم القسم بنجاح من "${oldCategory}" إلى "${newCategory}"`,
       modifiedCount: result.modifiedCount 
@@ -271,7 +292,7 @@ app.post('/api/restore', async (req, res) => {
     if (backupData.categories && backupData.categories.length > 0) await Category.insertMany(backupData.categories);
     if (backupData.products && backupData.products.length > 0) await Product.insertMany(backupData.products);
     if (backupData.settings && backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
-    
+    await logActivity('استعادة نسخة احتياطية', 'تم استعادة كافة بيانات الموقع من نسخة احتياطية');
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) {
     console.error('RESTORE ERROR:', err);
@@ -362,6 +383,7 @@ app.post('/api/products', async (req, res) => {
     });
 
     await newProduct.save();
+    await logActivity('إضافة منتج', `تم إضافة منتج جديد: ${title}`);
     res.status(201).json(newProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إضافة المنتج', error: err.message });
@@ -401,6 +423,7 @@ app.post('/api/products/bulk', async (req, res) => {
 
     const result = await Product.bulkWrite(operations);
     const count = (result.upsertedCount || 0) + (result.modifiedCount || 0);
+    await logActivity('استيراد منتجات', `تم استيراد/تحديث ${count} منتج من ملف CSV`);
     res.status(201).json({ message: 'تم استيراد/تحديث المنتجات بنجاح', count, upserted: result.upsertedCount || 0, modified: result.modifiedCount || 0 });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء استيراد المنتجات', error: err.message });
@@ -417,6 +440,7 @@ app.put('/api/products/:id/quantity', async (req, res) => {
       { new: true }
     );
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
+    await logActivity('تعديل كمية', `تم تحديث مخزون المنتج "${updatedProduct.title}" ليصبح ${stockQuantity}`);
     res.json(updatedProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الكمية', error: err.message });
@@ -566,6 +590,7 @@ app.put('/api/products/:id', async (req, res) => {
     );
     
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
+    await logActivity('تعديل منتج', `تم تعديل بيانات المنتج: ${updatedProduct.title}`);
     res.json(updatedProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث المنتج', error: err.message });
@@ -591,6 +616,7 @@ app.delete('/api/products/:id', async (req, res) => {
     }
 
     await Product.findByIdAndDelete(req.params.id);
+    await logActivity('حذف منتج', `تم حذف المنتج: ${product.title}`);
     res.json({ message: 'تم حذف المنتج وصوره بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف المنتج', error: err.message });
@@ -640,6 +666,7 @@ app.post('/api/settings', async (req, res) => {
     }
 
     await settings.save();
+    await logActivity('تعديل إعدادات', 'تم تحديث الهوية البصرية (اللوجو/الخلفية) للمتجر');
     res.json(settings);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
@@ -776,6 +803,16 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
+app.get('/api/admin/logs', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const logs = await ActivityLog.find().sort({ timestamp: -1 }).limit(limit);
+    res.json(logs);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ في جلب السجل', error: err.message });
+  }
+});
+
 app.post('/api/admin/users', async (req, res) => {
   try {
     const { username, password, role, permissions } = req.body;
@@ -784,6 +821,7 @@ app.post('/api/admin/users', async (req, res) => {
     
     const newUser = new AdminUser({ username, password, role, permissions });
     await newUser.save();
+    await logActivity('إضافة مستخدم', `تم إضافة مستخدم جديد بصلاحيات الإدارة: ${username}`);
     res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, permissions: newUser.permissions });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في إضافة المستخدم', error: err.message });
@@ -799,6 +837,7 @@ app.put('/api/admin/users/:id', async (req, res) => {
     }
     const updated = await AdminUser.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'المستخدم غير موجود' });
+    await logActivity('تعديل مستخدم', `تم تعديل بيانات أو صلاحيات المستخدم: ${updated.username}`);
     res.json({ id: updated._id, username: updated.username, role: updated.role, permissions: updated.permissions });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في تعديل المستخدم', error: err.message });
@@ -807,6 +846,8 @@ app.put('/api/admin/users/:id', async (req, res) => {
 
 app.delete('/api/admin/users/:id', async (req, res) => {
   try {
+    const user = await AdminUser.findById(req.params.id);
+    if(user) await logActivity('حذف مستخدم', `تم حذف المستخدم: ${user.username}`);
     await AdminUser.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });
   } catch (err) {

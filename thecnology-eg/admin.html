@@ -109,52 +109,77 @@
     </div>
 
     <!-- Admin Dashboard Container -->
-    <div id="adminContainer" class="hidden flex-1 w-full max-w-container-max mx-auto px-4 md:px-margin-desktop py-6 md:py-10">
+    <div id="adminContainer" class="hidden h-[100dvh] w-full bg-background overflow-hidden flex relative">
         
-        <!-- Header -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 pb-6 border-b border-outline-variant/30 gap-4">
-            <div>
-            <div class="flex items-center gap-4">
-                <img src="logo.png" alt="Technology Store" class="h-10 md:h-14 w-auto object-contain">
-                <h1 class="font-display-lg text-2xl md:text-3xl text-primary text-glow">لوحة التحكم</h1>
-            </div>
-                <p class="text-on-surface-variant mt-1 text-sm md:text-base">مرحباً <span id="currentUserBadge" class="text-primary font-bold">admin</span></p>
-            </div>
-            <div class="flex items-center gap-3 flex-wrap">
-                <!-- Theme Toggle Button -->
-                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
-                    <!-- Sun Icon (shown in dark mode) -->
-                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                    <!-- Moon Icon (shown in light mode) -->
-                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                </button>
-                <a href="index.html" target="_blank" class="px-4 py-2 bg-surface-container-high border border-outline-variant text-on-surface rounded-lg hover:bg-surface-variant transition-colors flex items-center gap-2 font-bold text-sm">
-                    عرض الموقع <span class="material-symbols-outlined text-[16px]">open_in_new</span>
-                </a>
-                <button onclick="logout()" class="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500 hover:text-white transition-all font-bold flex items-center gap-2 text-sm">
-                    خروج <span class="material-symbols-outlined text-[16px]">logout</span>
-                </button>
-            </div>
-        </div>
+        <!-- Mobile Overlay -->
+        <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden backdrop-blur-sm" onclick="toggleSidebar()"></div>
 
-        <!-- Tab Navigation -->
-        <div class="flex gap-2 mb-8 overflow-x-auto pb-2">
-            <button onclick="switchTab('products')" id="tab-products" class="admin-tab active shrink-0 px-5 py-2.5 rounded-lg bg-primary/20 text-primary border border-primary/30 font-bold text-sm transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">inventory_2</span> المنتجات
-            </button>
-            <button onclick="switchTab('settings')" id="tab-settings" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">settings</span> الإعدادات
-            </button>
-            <button onclick="switchTab('users')" id="tab-users" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">group</span> المستخدمين
-            </button>
-            <button onclick="switchTab('backup')" id="tab-backup" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">backup</span> النسخ الاحتياطي
-            </button>
-            <button onclick="switchTab('analytics')" id="tab-analytics" class="admin-tab shrink-0 px-5 py-2.5 rounded-lg bg-surface-container text-on-surface-variant border border-outline-variant font-bold text-sm transition-all flex items-center gap-2">
-                <span class="material-symbols-outlined text-[18px]">analytics</span> التقارير والإحصائيات
-            </button>
-        </div>
+        <!-- Sidebar Navigation -->
+        <aside id="adminSidebar" class="w-64 lg:w-72 flex-shrink-0 bg-surface-container-low border-l border-outline-variant/30 flex flex-col h-full absolute lg:relative right-0 translate-x-full lg:translate-x-0 transition-transform duration-300 z-40">
+            <!-- Sidebar Header -->
+            <div class="h-20 flex items-center justify-between px-6 border-b border-outline-variant/30 shrink-0">
+                <img src="logo.png" alt="Technology Store" class="h-10 w-auto object-contain">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 text-on-surface-variant hover:text-primary rounded-lg bg-surface-variant/30 transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            
+            <!-- Sidebar Links -->
+            <nav class="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2 sidebar-nav">
+                <button onclick="switchTab('products')" id="tab-products" class="admin-tab active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-primary bg-primary/10 border border-primary/20 font-bold text-sm transition-all hover:bg-primary/20">
+                    <span class="material-symbols-outlined text-[20px]">inventory_2</span> المنتجات والمخزون
+                </button>
+                <button onclick="switchTab('settings')" id="tab-settings" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">settings</span> إعدادات المتجر
+                </button>
+                <button onclick="switchTab('users')" id="tab-users" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">group</span> إدارة المستخدمين
+                </button>
+                <button onclick="switchTab('backup')" id="tab-backup" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">backup</span> النسخ الاحتياطي
+                </button>
+                <button onclick="switchTab('analytics')" id="tab-analytics" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">analytics</span> التقارير والإحصائيات
+                </button>
+                <button onclick="switchTab('logs')" id="tab-logs" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">manage_search</span> سجل النشاطات (Logs)
+                </button>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-outline-variant/30 bg-surface-container shrink-0">
+                <p class="text-on-surface-variant text-xs mb-3 text-center">مرحباً <span id="currentUserBadge" class="text-primary font-bold">admin</span></p>
+                <button onclick="logout()" class="w-full px-4 py-2.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center gap-2 text-sm">
+                    تسجيل الخروج <span class="material-symbols-outlined text-[18px]">logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-surface-container-lowest">
+            
+            <!-- Top Header -->
+            <header class="h-20 flex items-center justify-between px-4 lg:px-8 bg-surface-container/50 backdrop-blur-md border-b border-outline-variant/30 shrink-0 z-20">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2 text-on-surface rounded-lg bg-surface-variant/50 hover:text-primary transition-colors flex items-center">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <h2 id="currentTabTitle" class="font-display-lg text-xl md:text-2xl text-primary font-bold">المنتجات والمخزون</h2>
+                </div>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <button onclick="toggleTheme()" class="p-2.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm flex items-center justify-center" aria-label="Toggle Theme">
+                        <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
+                    <a href="index.html" target="_blank" class="px-3 md:px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 font-bold text-xs md:text-sm shadow-md shadow-primary/20">
+                        <span class="hidden md:inline">عرض الموقع</span> <span class="material-symbols-outlined text-[16px] md:text-[18px]">open_in_new</span>
+                    </a>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Panels -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth w-full">
+                <div class="max-w-container-max mx-auto h-full">
 
         <!-- ========= TAB 1: Products ========= -->
         <div id="panel-products" class="tab-panel">
@@ -772,27 +797,88 @@
                     </button>
                 </div>
             </form>
+        <!-- ========= TAB 6: Logs ========= -->
+        <div id="panel-logs" class="tab-panel hidden h-full flex flex-col">
+            <div class="glass-panel p-5 md:p-6 rounded-xl border border-primary/20 flex-1 flex flex-col h-full min-h-[500px]">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-outline-variant/30 pb-4 mb-5 gap-4">
+                    <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[24px]">manage_search</span> سجل النشاطات
+                    </h3>
+                    <button onclick="fetchAdminLogs()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-4 py-2 rounded-lg transition-colors text-sm font-bold flex items-center gap-2 border border-outline-variant/30 shadow-sm">
+                        <span class="material-symbols-outlined text-[18px]">refresh</span> تحديث السجل
+                    </button>
+                </div>
+                
+                <div class="overflow-y-auto overflow-x-auto flex-1 bg-surface-container-lowest rounded-lg border border-outline-variant/30 relative">
+                    <table class="w-full text-right border-collapse min-w-[600px]">
+                        <thead class="bg-surface-container sticky top-0 z-10 shadow-sm">
+                            <tr class="text-on-surface-variant text-sm font-bold border-b border-outline-variant/50">
+                                <th class="py-3 px-4 w-[180px]">التاريخ والوقت</th>
+                                <th class="py-3 px-4 w-[150px]">المستخدم</th>
+                                <th class="py-3 px-4 w-[180px]">الإجراء</th>
+                                <th class="py-3 px-4">التفاصيل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminLogsTableBody" class="text-sm">
+                            <tr><td colspan="4" class="text-center py-8 text-on-surface-variant">جاري تحميل السجل...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-    </div>
+
+                </div> <!-- End Panels Wrapper -->
+            </main>
+        </div>
+    </div> <!-- End adminContainer -->
 
     <script>
+        // Sidebar Toggle for Mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('adminSidebar');
+            const overlay = document.getElementById('mobileSidebarOverlay');
+            if (sidebar.classList.contains('translate-x-full')) {
+                sidebar.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
         // Tab Switching
         function switchTab(tabName) {
             document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
             document.querySelectorAll('.admin-tab').forEach(t => {
-                t.classList.remove('bg-primary/20', 'text-primary', 'border-primary/30');
-                t.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                t.classList.remove('text-primary', 'bg-primary/10', 'border', 'border-primary/20', 'active');
+                t.classList.add('text-on-surface-variant');
             });
             
             const panel = document.getElementById(`panel-${tabName}`);
             const tab = document.getElementById(`tab-${tabName}`);
             if (panel) panel.classList.remove('hidden');
             if (tab) {
-                tab.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
-                tab.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                tab.classList.add('text-primary', 'bg-primary/10', 'border', 'border-primary/20', 'active');
+                tab.classList.remove('text-on-surface-variant');
+                // Update Top Header Title
+                const titleEl = document.getElementById('currentTabTitle');
+                if(titleEl) {
+                    titleEl.innerText = tab.innerText;
+                }
             }
             if (tabName === 'analytics' && window.loadAnalytics) {
                 window.loadAnalytics();
+            }
+            if (tabName === 'logs' && window.fetchAdminLogs) {
+                window.fetchAdminLogs();
+            }
+
+            // Close mobile sidebar if open
+            if(window.innerWidth < 1024) {
+                const sidebar = document.getElementById('adminSidebar');
+                if(sidebar && !sidebar.classList.contains('translate-x-full')) {
+                    toggleSidebar();
+                }
             }
         }
     </script>
