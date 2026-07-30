@@ -383,6 +383,16 @@
                             <input type="file" id="defaultProductImageInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
                             <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل الشحن</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">طلب تفاصيل العنوان وإضافة مصاريف شحن</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="shippingToggleInput" onchange="saveShippingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
                         <button onclick="saveStoreSettings()" id="saveSettingsBtn" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
                         </button>

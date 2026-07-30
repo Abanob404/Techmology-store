@@ -976,10 +976,42 @@ async function loadStoreSettings() {
             preview.src = defaultProductImage;
             preview.classList.remove('hidden');
         }
+        
+        const shippingToggle = document.getElementById('shippingToggleInput');
+        if (shippingToggle) {
+            shippingToggle.checked = settings.isShippingEnabled || false;
+        }
     } catch (err) {
         console.error('Error loading store settings:', err);
     }
 }
+
+window.saveShippingSettings = async function() {
+    const isEnabled = document.getElementById('shippingToggleInput').checked;
+    
+    try {
+        const formData = new URLSearchParams();
+        formData.append('isShippingEnabled', isEnabled);
+        
+        const response = await fetch(`${BASE_URL}/api/settings`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData.toString()
+        });
+
+        if (response.ok) {
+            showToast(`✅ تم ${isEnabled ? 'تفعيل' : 'إيقاف'} الشحن بنجاح!`);
+        } else {
+            const errData = await response.json();
+            alert(`خطأ: ${errData.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ فشل الاتصال بالسيرفر.');
+    }
+};
 
 const defaultProductImageInput = document.getElementById('defaultProductImageInput');
 if (defaultProductImageInput) {

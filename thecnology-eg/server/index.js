@@ -99,6 +99,7 @@ const Product = mongoose.model('Product', productSchema);
 const settingsSchema = new mongoose.Schema({
   defaultProductImage: { type: String, default: '' },
   lightHeroImage: { type: String, default: 'main-banner.png' },
+  isShippingEnabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -654,11 +655,12 @@ app.get('/api/settings', async (req, res) => {
   }
 });
 
-// 2. تحديث الصورة الافتراضية أو صورة البانر الفاتح
+// 2. تحديث الإعدادات العامة (الصور، تفعيل الشحن، الخ)
 app.post('/api/settings', async (req, res) => {
   try {
     const settings = await getOrCreateSettings();
     let updated = false;
+    let logMessage = '';
 
     if (req.files && req.files.defaultProductImage) {
       const result = await cloudinary.uploader.upload(req.files.defaultProductImage.tempFilePath, {
@@ -668,6 +670,7 @@ app.post('/api/settings', async (req, res) => {
       });
       settings.defaultProductImage = result.secure_url;
       updated = true;
+      logMessage = 'تحديث اللوجو الافتراضي';
     }
 
     if (req.files && req.files.lightHeroImage) {
@@ -678,14 +681,21 @@ app.post('/api/settings', async (req, res) => {
       });
       settings.lightHeroImage = result.secure_url;
       updated = true;
+      logMessage = logMessage ? logMessage + ' وخلفية الموقع' : 'تحديث خلفية الموقع';
+    }
+
+    if (req.body && req.body.isShippingEnabled !== undefined) {
+      settings.isShippingEnabled = req.body.isShippingEnabled === 'true' || req.body.isShippingEnabled === true;
+      updated = true;
+      logMessage = logMessage ? logMessage + ' وإعدادات الشحن' : `تم ${settings.isShippingEnabled ? 'تفعيل' : 'إيقاف'} الشحن`;
     }
 
     if (!updated) {
-      return res.status(400).json({ message: 'يرجى رفع صورة أولاً' });
+      return res.status(400).json({ message: 'لم يتم إرسال أي بيانات لتحديثها' });
     }
 
     await settings.save();
-    await logActivity('تعديل إعدادات', 'تم تحديث الهوية البصرية (اللوجو/الخلفية) للمتجر');
+    await logActivity('تعديل إعدادات', logMessage || 'تم تحديث إعدادات المتجر');
     res.json(settings);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });

@@ -60,8 +60,9 @@ async function loadStoreSettings() {
     try {
         const response = await fetch(`${BASE_URL}/api/settings`);
         const settings = await response.json();
-        if (settings && settings.defaultProductImage) {
-            window.defaultProductImage = settings.defaultProductImage;
+        if (settings) {
+            if (settings.defaultProductImage) window.defaultProductImage = settings.defaultProductImage;
+            window.isShippingEnabled = settings.isShippingEnabled || false;
         }
     } catch (err) {
         console.error('Error loading settings:', err);
@@ -887,11 +888,27 @@ function injectCartUI() {
                     <span class="text-on-surface-variant text-lg">الإجمالي:</span>
                     <span id="cartTotalPrice" class="font-display-lg text-2xl text-primary text-glow font-bold">0 ج.م</span>
                 </div>
-                <button onclick="checkoutWhatsApp()" class="w-full btn-modern-green animate-pulse hover:animate-none !py-4 flex items-center justify-center gap-2 text-lg !rounded-xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
-                    إرسال الطلب عبر واتساب
-                </button>
-                <p class="text-center text-on-surface-variant/60 text-xs mt-3">سيتم توجيهك لواتساب لإتمام الطلب</p>
+                
+                <!-- Customer Details Form -->
+                <div id="cartCustomerForm" class="flex flex-col gap-3 mb-4 hidden">
+                    <input type="text" id="customerName" placeholder="الاسم" class="w-full bg-surface-variant/50 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary">
+                    <input type="tel" id="customerPhone" placeholder="رقم الهاتف" class="w-full bg-surface-variant/50 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary text-right" dir="ltr">
+                    <div id="addressFieldContainer" class="hidden">
+                        <textarea id="customerAddress" placeholder="العنوان بالتفصيل" class="w-full bg-surface-variant/50 border border-outline-variant/30 rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary min-h-[80px] resize-y"></textarea>
+                        <p class="text-error text-xs mt-1">لا يشمل مصاريف الشحن</p>
+                    </div>
+                    <p id="pickupOnlyNote" class="text-error text-xs text-center font-bold">الاستلام من المعرض فقط</p>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button onclick="checkoutWhatsApp()" class="w-full btn-modern-green hover:scale-[1.02] transition-transform !py-3 flex items-center justify-center gap-2 text-base font-bold !rounded-xl shadow-lg shadow-green-500/20">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
+                        إرسال الطلب عبر واتساب
+                    </button>
+                    <button onclick="closeCartSidebar()" class="w-full py-3 rounded-xl border-2 border-primary/30 text-primary font-bold hover:bg-primary/10 transition-colors text-base flex items-center justify-center gap-2">
+                        متابعة التسوق
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -914,6 +931,26 @@ function openCartSidebar() {
     sidebar.classList.remove('cart-sidebar-closed');
     sidebar.classList.add('cart-sidebar-open');
     document.body.style.overflow = 'hidden';
+
+    // إظهار حقول العميل بناءً على تفعيل الشحن
+    const customerForm = document.getElementById('cartCustomerForm');
+    const addressContainer = document.getElementById('addressFieldContainer');
+    const pickupNote = document.getElementById('pickupOnlyNote');
+    
+    if (customerForm) {
+        if (cart.length > 0) {
+            customerForm.classList.remove('hidden');
+            if (window.isShippingEnabled) {
+                addressContainer.classList.remove('hidden');
+                pickupNote.classList.add('hidden');
+            } else {
+                addressContainer.classList.add('hidden');
+                pickupNote.classList.remove('hidden');
+            }
+        } else {
+            customerForm.classList.add('hidden');
+        }
+    }
 }
 
 function closeCartSidebar() {
@@ -1041,6 +1078,8 @@ function renderCart() {
             </div>
         `;
         priceEl.textContent = '0 ج.م';
+        const customerForm = document.getElementById('cartCustomerForm');
+        if (customerForm) customerForm.classList.add('hidden');
         return;
     }
 
@@ -1054,7 +1093,7 @@ function renderCart() {
             <div class="flex items-center gap-4 bg-surface/50 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/20 transition-colors">
                 <img src="${item.image}" alt="${item.title}" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
                 <div class="flex-1 min-w-0">
-                    <h4 class="text-sm font-bold text-on-surface truncate">${item.title}</h4>
+                    <h4 class="text-sm font-bold text-on-surface line-clamp-2">${item.title}</h4>
                     <span class="text-xs font-bold text-primary font-mono-data">${item.price} ج.م</span>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
@@ -1083,7 +1122,36 @@ function checkoutWhatsApp() {
         return;
     }
 
+    const nameInput = document.getElementById('customerName');
+    const phoneInput = document.getElementById('customerPhone');
+    const addressInput = document.getElementById('customerAddress');
+
+    const name = nameInput ? nameInput.value.trim() : '';
+    const phone = phoneInput ? phoneInput.value.trim() : '';
+    const address = addressInput ? addressInput.value.trim() : '';
+
+    if (!name || !phone) {
+        alert("يرجى إدخال الاسم ورقم الهاتف لإتمام الطلب.");
+        return;
+    }
+
+    if (window.isShippingEnabled && !address) {
+        alert("يرجى إدخال العنوان بالتفصيل لإتمام الطلب.");
+        return;
+    }
+
     let message = "مرحباً، أريد إتمام طلب الشراء التالي: 🛍️\n\n";
+    
+    // بيانات العميل
+    message += `👤 *الاسم:* ${name}\n`;
+    message += `📞 *الهاتف:* ${phone}\n`;
+    if (window.isShippingEnabled) {
+        message += `📍 *العنوان:* ${address}\n`;
+    } else {
+        message += `📍 *الاستلام:* من المعرض\n`;
+    }
+    message += `\n➖ ➖ ➖ ➖ ➖ ➖\n\n`;
+
     let grandTotal = 0;
     let totalItemsCount = 0;
 
@@ -1100,6 +1168,9 @@ function checkoutWhatsApp() {
     if (totalItemsCount > 1) {
         message += `➖ ➖ ➖ ➖ ➖ ➖\n`;
         message += `💰 *إجمالي الطلب: ${grandTotal} ج.م*\n`;
+        if (window.isShippingEnabled) {
+            message += `*(لا يشمل مصاريف الشحن)*\n`;
+        }
     }
 
     const encodedMessage = encodeURIComponent(message);
