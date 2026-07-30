@@ -340,15 +340,26 @@ function renderProductsPage() {
         const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
         const isLowStock = qty <= 3 && qty > 0;
         const isOutOfStock = qty === 0;
+        const isHidden = p.isHidden === true;
 
         const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
         const tr = document.createElement('tr');
-        tr.className = `border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ${isOutOfStock ? 'bg-red-900/10' : isLowStock ? 'bg-orange-900/10' : ''}`;
+        
+        // Row styling based on stock and visibility
+        let rowClass = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ';
+        if (isHidden) rowClass += 'opacity-50 grayscale ';
+        else if (isOutOfStock) rowClass += 'bg-red-900/10 ';
+        else if (isLowStock) rowClass += 'bg-orange-900/10 ';
+
+        tr.className = rowClass;
         tr.innerHTML = `
                 <td class="py-4 pr-2 font-semibold text-on-surface">
                     <div class="flex items-center gap-3">
                         <img src="${p.image || fallbackImage}" class="w-10 h-10 rounded object-contain bg-surface/50 p-0.5 border border-outline-variant/50">
-                        <span>${p.title}</span>
+                        <span class="flex items-center gap-2">
+                            ${p.title} 
+                            ${isHidden ? '<span class="text-[10px] bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded">مخفي</span>' : ''}
+                        </span>
                     </div>
                 </td>
                 <td class="py-4 text-on-surface-variant">${p.category}</td>
@@ -365,6 +376,9 @@ function renderProductsPage() {
                 </td>
                 <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
                     ${hasPermission('edit_product') ? `
+                    <button onclick="toggleVisibility('${p._id}', ${!isHidden})" class="px-2 py-1.5 ${isHidden ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500' : 'bg-surface-variant text-on-surface-variant border-outline-variant/30 hover:bg-surface'} hover:text-white border rounded text-xs transition-all font-bold flex items-center gap-1" title="${isHidden ? 'إظهار المنتج' : 'إخفاء المنتج'}">
+                        <span class="material-symbols-outlined text-[16px]">${isHidden ? 'visibility' : 'visibility_off'}</span>
+                    </button>
                     <button onclick="openEditModal('${p._id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
                     ` : ''}
                     ${hasPermission('delete_product') ? `
@@ -406,16 +420,21 @@ window.goToPage = function(page) {
 window.filterAdminProducts = function(preservePage = false) {
     const query = (document.getElementById('adminSearchInput')?.value || '').trim().toLowerCase();
     const categoryFilter = document.getElementById('adminCategoryFilter')?.value || '';
+    const stockFilter = document.getElementById('adminStockFilter')?.value || '';
     
     window.filteredProducts = window.adminProducts.filter(p => {
         const titleMatch = p.title.toLowerCase().includes(query);
         const skuMatch = (p.sku || '').toLowerCase().includes(query);
         const catMatch = categoryFilter ? p.category === categoryFilter : true;
         
+        let stockMatch = true;
+        if (stockFilter === 'low_stock') stockMatch = p.quantity === 0;
+        else if (stockFilter === 'hidden') stockMatch = p.isHidden === true;
+
         if (query) {
-            return (titleMatch || skuMatch) && catMatch;
+            return (titleMatch || skuMatch) && catMatch && stockMatch;
         }
-        return catMatch;
+        return catMatch && stockMatch;
     });
 
     if (!preservePage) {
@@ -469,6 +488,30 @@ window.deleteProduct = async function(id) {
             console.error(error);
             alert('حدث خطأ أثناء حذف المنتج.');
         }
+    }
+};
+
+// ==========================================
+// Toggle Visibility
+// ==========================================
+window.toggleVisibility = async function(id, shouldHide) {
+    try {
+        const response = await fetch(`${API_URL}/${id}/toggle-visibility`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ isHidden: shouldHide })
+        });
+        
+        if (response.ok) {
+            showToast(shouldHide ? '👁️‍🗨️ تم إخفاء المنتج بنجاح' : '👁️ تم إظهار المنتج بنجاح');
+            loadAdminProducts(true);
+        } else {
+            const data = await response.json();
+            alert(`خطأ: ${data.message}`);
+        }
+    } catch (error) {
+        console.error(error);
+        alert('حدث خطأ أثناء الاتصال بالسيرفر.');
     }
 };
 
@@ -2361,3 +2404,104 @@ function renderAdminLogs(logs) {
 }
 
 window.fetchAdminLogs = fetchAdminLogs;
+
+// ==========================================
+// Export Logs
+// ==========================================
+window.exportLogsToCSV = function() {
+    const tbody = document.getElementById('adminLogsTableBody');
+    if (!tbody || tbody.innerText.includes('لا توجد') || tbody.innerText.includes('جاري تحميل')) {
+        alert('لا توجد بيانات لتصديرها');
+        return;
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += "التاريخ والوقت,المستخدم,الإجراء,التفاصيل\n";
+
+    const rows = tbody.querySelectorAll('tr');
+    rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 4) {
+            const dateText = cells[0].innerText.replace(/\n/g, ' ').replace(/"/g, '""');
+            const userText = cells[1].innerText.replace(/"/g, '""');
+            const actionText = cells[2].innerText.replace(/"/g, '""');
+            const detailsText = cells[3].innerText.replace(/"/g, '""');
+            csvContent += `"${dateText}","${userText}","${actionText}","${detailsText}"\n`;
+        }
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `activity_logs_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+window.exportLogsToPDF = function() {
+    const tbody = document.getElementById('adminLogsTableBody');
+    if (!tbody || tbody.innerText.includes('لا توجد') || tbody.innerText.includes('جاري تحميل')) {
+        alert('لا توجد بيانات لتصديرها');
+        return;
+    }
+
+    const printWindow = window.open('', '_blank');
+    let rowsHtml = '';
+    
+    tbody.querySelectorAll('tr').forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length === 4) {
+            const dateText = cells[0].innerText.replace(/\n/g, ' - ');
+            rowsHtml += `
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">${dateText}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-weight: bold;">${cells[1].innerText}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; color: #0284c7;">${cells[2].innerText}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; font-size: 12px;">${cells[3].innerText}</td>
+                </tr>
+            `;
+        }
+    });
+
+    const html = `
+        <html dir="rtl" lang="ar">
+        <head>
+            <meta charset="UTF-8">
+            <title>تقرير سجل النشاطات - Technology Store</title>
+            <style>
+                body { font-family: Tahoma, Arial, sans-serif; padding: 20px; color: #333; }
+                h1 { text-align: center; color: #2563eb; margin-bottom: 20px; }
+                .meta { text-align: left; margin-bottom: 20px; font-size: 14px; color: #666; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
+                th { background-color: #f8fafc; padding: 12px 8px; text-align: right; border: 1px solid #ddd; color: #475569; }
+                td { text-align: right; }
+                tr:nth-child(even) { background-color: #f9fafb; }
+            </style>
+        </head>
+        <body>
+            <h1>تقرير سجل النشاطات (Activity Logs)</h1>
+            <div class="meta">تاريخ الاستخراج: ${new Date().toLocaleString('ar-EG')}</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 20%">التاريخ والوقت</th>
+                        <th style="width: 15%">المستخدم</th>
+                        <th style="width: 20%">الإجراء</th>
+                        <th style="width: 45%">التفاصيل</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rowsHtml}
+                </tbody>
+            </table>
+            <script>
+                window.onload = function() { window.print(); }
+            </script>
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(html);
+    printWindow.document.close();
+};

@@ -113,7 +113,8 @@ async function fetchProducts() {
     try {
         await loadStoreSettings();
         const response = await fetch(API_URL);
-        globalProducts = await response.json();
+        const allFetchedProducts = await response.json();
+        globalProducts = allFetchedProducts.filter(p => !p.isHidden);
 
         // جلب إحصائيات المنتجات لترتيبها بناءً على الأكثر طلباً ومشاهدة
         try {

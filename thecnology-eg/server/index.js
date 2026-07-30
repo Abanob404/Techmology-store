@@ -89,6 +89,7 @@ const productSchema = new mongoose.Schema({
   warranty: { type: String, default: '' },
   brand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
+  isHidden: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -597,7 +598,25 @@ app.put('/api/products/:id', async (req, res) => {
   }
 });
 
-// 4. حذف منتج نهائياً وحذف صوره من Cloudinary
+// 5. تبديل حالة إخفاء/إظهار منتج
+app.put('/api/products/:id/toggle-visibility', async (req, res) => {
+  try {
+    const { isHidden } = req.body;
+    const updatedProduct = await Product.findByIdAndUpdate(
+      req.params.id,
+      { isHidden: isHidden === true },
+      { new: true }
+    );
+    if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
+    
+    await logActivity(isHidden ? 'إخفاء منتج' : 'إظهار منتج', `تم ${isHidden ? 'إخفاء' : 'إظهار'} المنتج: ${updatedProduct.title}`);
+    res.json(updatedProduct);
+  } catch (err) {
+    res.status(500).json({ message: 'خطأ أثناء تغيير حالة المنتج', error: err.message });
+  }
+});
+
+// 6. حذف منتج نهائياً وحذف صوره من Cloudinary
 app.delete('/api/products/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
