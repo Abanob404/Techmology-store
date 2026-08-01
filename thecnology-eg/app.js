@@ -1205,31 +1205,30 @@ function checkoutWhatsApp() {
     window.open(whatsappUrl, '_blank');
 }
 
-// تحميل الهوية البصرية (اللوجو والخلفية)
-function loadStoreBranding() {
-    const customLogo = localStorage.getItem('tech_store_logo');
-    if (customLogo) {
-        // تحديث كل صور اللوجو في الهيدر والفوتر
-        document.querySelectorAll('img[alt="Technology Store"]').forEach(logoImg => {
-            logoImg.src = customLogo;
-            logoImg.removeAttribute('onerror'); // Prevent fallback text if custom logo fails
-        });
-    }
+// تحميل الهوية البصرية (اللوجو والخلفية) من السيرفر
+async function loadStoreBranding() {
+    try {
+        const response = await fetch(`${BASE_URL}/api/settings`);
+        const settings = await response.json();
 
-    const customBg = localStorage.getItem('tech_store_bg');
-    if (customBg) {
-        const darkBannerImg = document.getElementById('dark-banner');
-        if (darkBannerImg) {
-            darkBannerImg.src = customBg;
+        // تطبيق اللوجو من Cloudinary (يعمل على كل الأجهزة)
+        if (settings.storeLogo) {
+            document.querySelectorAll('img[alt="Technology Store"]').forEach(logoImg => {
+                logoImg.src = settings.storeLogo;
+                logoImg.removeAttribute('onerror');
+            });
         }
-    }
 
-    const customLightBg = localStorage.getItem('tech_store_light_bg');
-    if (customLightBg) {
-        const lightBannerImg = document.getElementById('light-banner');
-        if (lightBannerImg) {
-            lightBannerImg.src = customLightBg;
+        // تطبيق صورة البانر
+        if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
+            const darkBannerImg = document.getElementById('dark-banner');
+            const lightBannerImg = document.getElementById('light-banner');
+            if (darkBannerImg) darkBannerImg.src = settings.lightHeroImage;
+            if (lightBannerImg) lightBannerImg.src = settings.lightHeroImage;
         }
+    } catch (err) {
+        // في حالة الخطأ — الموقع يستخدم logo.webp الافتراضي
+        console.log('Using default branding');
     }
 }
 

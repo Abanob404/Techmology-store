@@ -99,6 +99,7 @@ const Product = mongoose.model('Product', productSchema);
 const settingsSchema = new mongoose.Schema({
   defaultProductImage: { type: String, default: '' },
   lightHeroImage: { type: String, default: 'main-banner.png' },
+  storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
@@ -661,6 +662,18 @@ app.post('/api/settings', async (req, res) => {
     const settings = await getOrCreateSettings();
     let updated = false;
     let logMessage = '';
+
+    // رفع اللوجو الخاص بالمتجر
+    if (req.files && req.files.storeLogo) {
+      const result = await cloudinary.uploader.upload(req.files.storeLogo.tempFilePath, {
+        folder: 'technology_store_settings',
+        format: 'webp',
+        quality: 'auto'
+      });
+      settings.storeLogo = result.secure_url;
+      updated = true;
+      logMessage = logMessage ? logMessage + ' ولوجو المتجر' : 'تحديث لوجو المتجر';
+    }
 
     if (req.files && req.files.defaultProductImage) {
       const result = await cloudinary.uploader.upload(req.files.defaultProductImage.tempFilePath, {

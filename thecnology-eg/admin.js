@@ -850,33 +850,35 @@ window.deleteUser = async function(id) {
 // ==========================================
 // Branding (Logo & Background)
 // ==========================================
-let tempLogo = null;
-let tempBg = null;
-let tempLightBg = null;
+let tempLogoFile = null;
+let tempBgFile = null;
+let tempLightBgFile = null;
 
 function loadCurrentLogo() {
-    const savedLogo = localStorage.getItem('tech_store_logo');
-    const preview = document.getElementById('currentLogoPreview');
-    if (savedLogo && preview) {
-        preview.src = savedLogo;
-        preview.classList.remove('hidden');
-    }
+    // تحميل اللوجو من إعدادات السيرفر (Cloudinary)
+    fetch(`${BASE_URL}/api/settings`)
+        .then(r => r.json())
+        .then(settings => {
+            if (settings.storeLogo) {
+                const preview = document.getElementById('currentLogoPreview');
+                if (preview) {
+                    preview.src = settings.storeLogo;
+                    preview.classList.remove('hidden');
+                }
+            }
+            if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
+                const bgPreview = document.getElementById('currentBgPreview');
+                if (bgPreview) {
+                    bgPreview.src = settings.lightHeroImage;
+                    bgPreview.classList.remove('hidden');
+                }
+            }
+        })
+        .catch(() => {});
 }
 
 function loadCurrentBg() {
-    const savedBg = localStorage.getItem('tech_store_bg');
-    const preview = document.getElementById('currentBgPreview');
-    if (savedBg && preview) {
-        preview.src = savedBg;
-        preview.classList.remove('hidden');
-    }
-    
-    const savedLightBg = localStorage.getItem('tech_store_light_bg');
-    const lightPreview = document.getElementById('currentLightBgPreview');
-    if (savedLightBg && lightPreview) {
-        lightPreview.src = savedLightBg;
-        lightPreview.classList.remove('hidden');
-    }
+    // مدمجت في loadCurrentLogo
 }
 
 const storeLogoInput = document.getElementById('storeLogoInput');
@@ -884,12 +886,13 @@ if (storeLogoInput) {
     storeLogoInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
+            tempLogoFile = file;
+            // عرض معاينة محلية
             const reader = new FileReader();
             reader.onload = function(event) {
-                tempLogo = event.target.result;
                 const preview = document.getElementById('currentLogoPreview');
                 if (preview) {
-                    preview.src = tempLogo;
+                    preview.src = event.target.result;
                     preview.classList.remove('hidden');
                 }
             };
@@ -903,12 +906,12 @@ if (storeBgInput) {
     storeBgInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
+            tempBgFile = file;
             const reader = new FileReader();
             reader.onload = function(event) {
-                tempBg = event.target.result;
                 const preview = document.getElementById('currentBgPreview');
                 if (preview) {
-                    preview.src = tempBg;
+                    preview.src = event.target.result;
                     preview.classList.remove('hidden');
                 }
             };
@@ -922,12 +925,12 @@ if (storeLightBgInput) {
     storeLightBgInput.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (file) {
+            tempLightBgFile = file;
             const reader = new FileReader();
             reader.onload = function(event) {
-                tempLightBg = event.target.result;
                 const preview = document.getElementById('currentLightBgPreview');
                 if (preview) {
-                    preview.src = tempLightBg;
+                    preview.src = event.target.result;
                     preview.classList.remove('hidden');
                 }
             };
@@ -936,27 +939,48 @@ if (storeLightBgInput) {
     });
 }
 
-window.saveBrandingSettings = function() {
-    let saved = false;
-    if (tempLogo) {
-        localStorage.setItem('tech_store_logo', tempLogo);
-        saved = true;
-    }
-    if (tempBg) {
-        localStorage.setItem('tech_store_bg', tempBg);
-        saved = true;
-    }
-    if (tempLightBg) {
-        localStorage.setItem('tech_store_light_bg', tempLightBg);
-        saved = true;
-    }
-    if (saved) {
-        showToast('✅ تم حفظ مظهر الموقع بنجاح!');
-        tempLogo = null;
-        tempBg = null;
-        tempLightBg = null;
-    } else {
+window.saveBrandingSettings = async function() {
+    if (!tempLogoFile && !tempBgFile && !tempLightBgFile) {
         showToast('⚠️ لم تقم باختيار صور جديدة لحفظها.');
+        return;
+    }
+
+    const saveBtn = document.querySelector('button[onclick="saveBrandingSettings()"]');
+    if (saveBtn) saveBtn.disabled = true;
+    showToast('⏳ جاري رفع الصور على السيرفر...');
+
+    const formData = new FormData();
+    if (tempLogoFile) formData.append('storeLogo', tempLogoFile);
+    if (tempBgFile) formData.append('lightHeroImage', tempBgFile);
+    if (tempLightBgFile) formData.append('lightHeroImage', tempLightBgFile);
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/settings`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.message || 'خطأ في الحفظ');
+        }
+
+        const result = await response.json();
+
+        // تحديث اللوجو فوراً في لوحة الإدارة
+        if (result.storeLogo) {
+            const adminLogoImg = document.querySelector('header img[alt="Technology Store"]');
+            if (adminLogoImg) adminLogoImg.src = result.storeLogo;
+        }
+
+        showToast('✅ تم حفظ مظهر الموقع بنجاح! سيظهر التغيير على جميع الأجهزة.');
+        tempLogoFile = null;
+        tempBgFile = null;
+        tempLightBgFile = null;
+    } catch (error) {
+        showToast('❌ خطأ: ' + error.message);
+    } finally {
+        if (saveBtn) saveBtn.disabled = false;
     }
 };
 
