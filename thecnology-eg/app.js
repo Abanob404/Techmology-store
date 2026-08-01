@@ -1221,10 +1221,12 @@ async function loadStoreBranding() {
 
         // تطبيق صورة البانر
         if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
-            const darkBannerImg = document.getElementById('dark-banner');
             const lightBannerImg = document.getElementById('light-banner');
-            if (darkBannerImg) darkBannerImg.src = settings.lightHeroImage;
             if (lightBannerImg) lightBannerImg.src = settings.lightHeroImage;
+        }
+        if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.png') {
+            const darkBannerImg = document.getElementById('dark-banner');
+            if (darkBannerImg) darkBannerImg.src = settings.darkHeroImage;
         }
     } catch (err) {
         // في حالة الخطأ — الموقع يستخدم logo.webp الافتراضي

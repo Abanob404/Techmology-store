@@ -869,10 +869,17 @@ function loadCurrentLogo() {
                 if (adminLogoImg) adminLogoImg.src = settings.storeLogo;
             }
             if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
-                const bgPreview = document.getElementById('currentBgPreview');
-                if (bgPreview) {
-                    bgPreview.src = settings.lightHeroImage;
-                    bgPreview.classList.remove('hidden');
+                const lightBgPreview = document.getElementById('currentLightBgPreview');
+                if (lightBgPreview) {
+                    lightBgPreview.src = settings.lightHeroImage;
+                    lightBgPreview.classList.remove('hidden');
+                }
+            }
+            if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.png') {
+                const darkBgPreview = document.getElementById('currentBgPreview');
+                if (darkBgPreview) {
+                    darkBgPreview.src = settings.darkHeroImage;
+                    darkBgPreview.classList.remove('hidden');
                 }
             }
         })
@@ -953,7 +960,7 @@ window.saveBrandingSettings = async function() {
 
     const formData = new FormData();
     if (tempLogoFile) formData.append('storeLogo', tempLogoFile);
-    if (tempBgFile) formData.append('lightHeroImage', tempBgFile);
+    if (tempBgFile) formData.append('darkHeroImage', tempBgFile);
     if (tempLightBgFile) formData.append('lightHeroImage', tempLightBgFile);
 
     try {

@@ -99,6 +99,7 @@ const Product = mongoose.model('Product', productSchema);
 const settingsSchema = new mongoose.Schema({
   defaultProductImage: { type: String, default: '' },
   lightHeroImage: { type: String, default: 'main-banner.png' },
+  darkHeroImage: { type: String, default: 'main-banner.png' },
   storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
@@ -694,7 +695,18 @@ app.post('/api/settings', async (req, res) => {
       });
       settings.lightHeroImage = result.secure_url;
       updated = true;
-      logMessage = logMessage ? logMessage + ' وخلفية الموقع' : 'تحديث خلفية الموقع';
+      logMessage = logMessage ? logMessage + ' وخلفية الفاتح' : 'تحديث خلفية الوضع الفاتح';
+    }
+
+    if (req.files && req.files.darkHeroImage) {
+      const result = await cloudinary.uploader.upload(req.files.darkHeroImage.tempFilePath, {
+        folder: 'technology_store_settings',
+        format: 'webp',
+        quality: 'auto'
+      });
+      settings.darkHeroImage = result.secure_url;
+      updated = true;
+      logMessage = logMessage ? logMessage + ' وخلفية الغامق' : 'تحديث خلفية الوضع الغامق';
     }
 
     if (req.body && req.body.isShippingEnabled !== undefined) {
