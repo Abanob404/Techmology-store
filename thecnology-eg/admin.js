@@ -865,6 +865,8 @@ function loadCurrentLogo() {
                     preview.src = settings.storeLogo;
                     preview.classList.remove('hidden');
                 }
+                const adminLogoImg = document.querySelector('header img[alt="Technology Store"]');
+                if (adminLogoImg) adminLogoImg.src = settings.storeLogo;
             }
             if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
                 const bgPreview = document.getElementById('currentBgPreview');
