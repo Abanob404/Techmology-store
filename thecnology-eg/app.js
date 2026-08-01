@@ -112,18 +112,26 @@ async function fetchProducts() {
     }
 
     try {
-        await loadStoreSettings();
-        const response = await fetch(API_URL);
-        const allFetchedProducts = await response.json();
+        // تشغيل طلبات API بشكل متوازٍ لتسريع التحميل
+        const [settingsRes, productsRes, analyticsRes] = await Promise.allSettled([
+            fetch(`${BASE_URL}/api/settings`).then(r => r.json()),
+            fetch(API_URL).then(r => r.json()),
+            fetch(`${BASE_URL}/api/analytics`).then(r => r.json())
+        ]);
+
+        // معالجة الإعدادات
+        if (settingsRes.status === 'fulfilled' && settingsRes.value) {
+            const settings = settingsRes.value;
+            if (settings.defaultProductImage) window.defaultProductImage = settings.defaultProductImage;
+            window.isShippingEnabled = settings.isShippingEnabled || false;
+        }
+
+        // معالجة المنتجات
+        const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
         globalProducts = allFetchedProducts.filter(p => !p.isHidden);
 
-        // جلب إحصائيات المنتجات لترتيبها بناءً على الأكثر طلباً ومشاهدة
-        try {
-            const analyticsRes = await fetch(`${BASE_URL}/api/analytics`);
-            window.globalAnalytics = await analyticsRes.json();
-        } catch(e) {
-            window.globalAnalytics = {};
-        }
+        // معالجة الإحصائيات
+        window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
 
         // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
         await renderDynamicCategoryFilters();
@@ -393,6 +401,10 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         return;
     }
 
+    // استخدام DocumentFragment لرندر جميع الكروت دفعة واحدة بدلاً من إعادة parse الـ DOM في كل مرة
+    const fragment = document.createDocumentFragment();
+    const tempContainer = document.createElement('div');
+
     pageProducts.forEach((p, index) => {
         const specsHtml = Array.isArray(p.description) 
             ? p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('') 
@@ -473,8 +485,13 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                 </div>
             </article>
         `;
-        grid.innerHTML += cardHtml;
+        tempContainer.innerHTML = cardHtml;
+        const cardEl = tempContainer.firstElementChild;
+        if (cardEl) fragment.appendChild(cardEl);
     });
+
+    // إضافة جميع الكروت للـ DOM في عملية واحدة
+    grid.appendChild(fragment);
 
     updatePaginationControls(filtered.length);
 }
