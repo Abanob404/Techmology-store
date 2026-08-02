@@ -628,19 +628,19 @@
                 <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary">person_search</span> سجل الزوار الفريدين (الإجمالي: <span id="stat-unique-visitors">0</span>)
                 </h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-right border-collapse">
-                        <thead>
+                <div class="overflow-x-auto max-h-[400px] overflow-y-auto relative rounded-lg border border-outline-variant/30">
+                    <table class="w-full text-right border-collapse min-w-[700px]">
+                        <thead class="bg-surface-container sticky top-0 z-10 shadow-sm">
                             <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
-                                <th class="py-3 pr-2">تاريخ الزيارة</th>
-                                <th class="py-3">الموقع</th>
-                                <th class="py-3">الجهاز</th>
-                                <th class="py-3">المصدر (Referrer)</th>
-                                <th class="py-3">حملة (UTM)</th>
+                                <th class="py-3 px-4 w-[160px]">تاريخ الزيارة</th>
+                                <th class="py-3 px-4 w-[180px]">الموقع / IP</th>
+                                <th class="py-3 px-4 w-[120px]">الجهاز</th>
+                                <th class="py-3 px-4 w-[200px]">المصدر (Referrer)</th>
+                                <th class="py-3 px-4">حملة (UTM)</th>
                             </tr>
                         </thead>
-                        <tbody id="analytics-visitors-table">
-                            <tr><td colspan="5" class="text-center py-4 text-on-surface-variant text-sm">جاري التحميل...</td></tr>
+                        <tbody id="analytics-visitors-table" class="text-sm">
+                            <tr><td colspan="5" class="text-center py-8 text-on-surface-variant">جاري التحميل...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -813,6 +813,9 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
         <!-- ========= TAB 6: Logs ========= -->
         <div id="panel-logs" class="tab-panel hidden h-full flex flex-col">
             <div class="glass-panel p-5 md:p-6 rounded-xl border border-primary/20 flex-1 flex flex-col h-full min-h-[500px]">

@@ -1714,11 +1714,16 @@ window.loadUniqueVisitors = async function() {
                     const date = new Date(v.timestamp).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' });
                     return `
                         <tr class="border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors">
-                            <td class="py-3 pr-2 font-mono-data dir-ltr text-right">${date}</td>
-                            <td class="py-3 text-secondary font-semibold">${v.location || 'غير معروف'}</td>
-                            <td class="py-3 text-on-surface-variant font-mono-data text-xs dir-ltr">${v.device || 'غير معروف'}</td>
-                            <td class="py-3 text-on-surface-variant max-w-[150px] truncate dir-ltr text-right" title="${v.referrer || 'مباشر'}">${v.referrer || 'مباشر'}</td>
-                            <td class="py-3"><span class="px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">${v.utmSource || 'عضوي'}</span></td>
+                            <td class="py-3 px-4 font-mono-data dir-ltr text-right">${date}</td>
+                            <td class="py-3 px-4 text-secondary font-semibold">
+                                <div class="flex flex-col">
+                                    <span>${v.location || 'موقع غير معروف'}</span>
+                                    <span class="text-xs text-on-surface-variant font-mono-data">${v.ip || 'IP غير متاح'}</span>
+                                </div>
+                            </td>
+                            <td class="py-3 px-4 text-on-surface-variant font-mono-data text-xs dir-ltr truncate" title="${v.device || 'غير معروف'}">${v.device || 'غير معروف'}</td>
+                            <td class="py-3 px-4 text-on-surface-variant max-w-[150px] truncate dir-ltr text-right" title="${v.referrer || 'مباشر'}">${v.referrer || 'مباشر'}</td>
+                            <td class="py-3 px-4"><span class="px-2 py-1 bg-primary/10 text-primary rounded-md text-xs">${v.utmSource || 'عضوي'}</span></td>
                         </tr>
                     `;
                 }).join('');
