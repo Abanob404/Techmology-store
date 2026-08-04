@@ -171,7 +171,67 @@ async function getOrCreateSettings() {
   return settings;
 }
 
-// --- الـ API Routes الخاصة بالأقسام ---
+// --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
+app.post('/api/pos-sync', async (req, res) => {
+  try {
+    // 1. التحقق من مفتاح الأمان (Security)
+    const apiKey = req.headers['x-api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    if (apiKey !== 'technology2309') {
+      return res.status(401).json({ success: false, message: 'Unauthorized: Invalid API Key' });
+    }
+
+    // 2. معالجة البيانات (Payload Processing)
+    const { barcode, sku, price, stock, quantity, title, category } = req.body;
+    const identifier = barcode || sku;
+
+    if (!identifier) {
+      return res.status(400).json({ success: false, message: 'Barcode or SKU is required for syncing.' });
+    }
+
+    // 3. تحديث قاعدة البيانات (Database Logic)
+    let product = await Product.findOne({ sku: identifier });
+
+    if (product) {
+      // إذا وجد المنتج، نقوم بتحديث السعر والكمية
+      let updatedFields = [];
+      if (price !== undefined && price !== null) {
+        product.price = Number(price);
+        updatedFields.push(`السعر: ${product.price}`);
+      }
+      
+      const newStock = stock !== undefined ? stock : quantity;
+      if (newStock !== undefined && newStock !== null) {
+        product.stockQuantity = Number(newStock);
+        updatedFields.push(`الرصيد: ${product.stockQuantity}`);
+      }
+
+      await product.save();
+      await logActivity('مزامنة POS', `تم تحديث المنتج "${product.title}" (${updatedFields.join(', ')})`);
+      return res.json({ success: true, message: 'تمت المزامنة وتحديث المنتج بنجاح', product });
+    } else {
+      // إذا لم يجد المنتج، نقوم بإضافته كمنتج جديد مخفي مؤقتاً
+      let settings = await Settings.findOne();
+      product = new Product({
+        title: title || `منتج جديد - ${identifier}`,
+        sku: identifier,
+        price: Number(price) || 0,
+        stockQuantity: Number(stock !== undefined ? stock : quantity) || 0,
+        category: category || 'غير مصنف',
+        image: settings && settings.defaultProductImage ? settings.defaultProductImage : 'https://placehold.co/400x400?text=No+Image',
+        isHidden: true // مخفي مؤقتاً حتى يقوم المالك بمراجعته وإضافة صورة
+      });
+      await product.save();
+      await logActivity('مزامنة POS', `تم إضافة منتج جديد (مخفي) عبر الـ POS: ${product.title}`);
+      return res.json({ success: true, message: 'تمت المزامنة وإضافة المنتج كـ "مخفي"', product });
+    }
+
+  } catch (err) {
+    console.error('POS Sync Error:', err);
+    res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message });
+  }
+});
+
+// --- الـ API Routes الخاصة بالمنتجات ---
 
 // جلب كل الأقسام
 app.get('/api/categories', async (req, res) => {
