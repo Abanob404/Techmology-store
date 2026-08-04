@@ -172,6 +172,11 @@ async function getOrCreateSettings() {
 }
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
+// مسار لاختبار الاتصال من الـ POS (لأن زر اختبار الاتصال قد يرسل طلب GET)
+app.get('/api/pos-sync', (req, res) => {
+  res.json({ success: true, message: 'POS API is working correctly. Ready for POST requests.' });
+});
+
 app.post('/api/pos-sync', async (req, res) => {
   try {
     // 1. التحقق من مفتاح الأمان (Security)
