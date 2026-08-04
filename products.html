@@ -4,17 +4,29 @@
 <head>
     <meta charset="utf-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="description"
+        content="Technology Store - تصفح كتالوج المنتجات وأحدث العروض على أجهزة الكمبيوتر والمراقبة.">
+    <meta property="og:title" content="Technology Store - المنتجات">
+    <meta property="og:description" content="تصفح كتالوج المنتجات وأحدث العروض على أجهزة الكمبيوتر والمراقبة.">
+    <meta property="og:image" content="logo.webp">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#0f1418">
     <title>TECHNOLOGY | المنتجات</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="logo.webp">
+    <link rel="manifest" href="manifest.json">
+    <!-- Preconnect to Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
-
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Material Icons (Non-Blocking) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Cairo font is self-hosted in style.css — no need to load from Google Fonts -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
 
     <script id="tailwind-config">
         tailwind.config = {
@@ -22,11 +34,27 @@
             theme: {
                 extend: {
                     "colors": {
-                        "secondary": "#a6c8ff", "error": "#ffb4ab", "surface-variant": "#30353a", "surface-container-highest": "#30353a",
-                        "surface-container-high": "#252b2f", "surface-container": "#1b2024", "inverse-on-surface": "#2c3135", "secondary-container": "#2992ff",
-                        "tertiary": "#ffb876", "surface": "#0f1418", "outline-variant": "#3e4850", "primary": "#82cfff", "surface-dim": "#0f1418",
-                        "surface-container-lowest": "#090f13", "on-primary": "#00344b", "outline": "#87929b", "on-background": "#dee3e8",
-                        "background": "#0f1418", "surface-container-low": "#171c20", "on-surface": "#dee3e8", "on-surface-variant": "#bdc8d1"
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "secondary": "rgb(var(--color-secondary) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "tertiary": "rgb(var(--color-tertiary) / <alpha-value>)",
+                        "error": "rgb(var(--color-error) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "on-background": "rgb(var(--color-on-background) / <alpha-value>)",
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "surface-variant": "rgb(var(--color-surface-variant) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "outline": "rgb(var(--color-outline) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container": "rgb(var(--color-surface-container) / <alpha-value>)",
+                        "surface-container-high": "rgb(var(--color-surface-container-high) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "surface-dim": "rgb(var(--color-surface-dim) / <alpha-value>)",
+                        "inverse-on-surface": "rgb(var(--color-inverse-on-surface) / <alpha-value>)"
                     },
                     "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
                     "spacing": { "gutter": "24px", "unit": "8px", "container-max": "1440px", "margin-mobile": "20px", "margin-desktop": "64px" },
@@ -38,6 +66,15 @@
             }
         }
     </script>
+
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light') { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
 </head>
 
 <body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
@@ -45,11 +82,11 @@
 
     <!-- TopNavBar -->
     <header
-        class="bg-surface/80 backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20 shadow-[0_0_20px_rgba(0,174,239,0.15)]">
+        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
         <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
             <div class="flex items-center gap-4 md:gap-8">
                 <a class="flex items-center gap-2" href="index.html">
-                    <img src="logo.png" alt="Technology Store" class="h-10 md:h-14 object-contain" onerror="this.onerror=null; this.outerHTML='<span class=\'font-display-lg text-xl md:text-headline-md font-extrabold tracking-tighter text-primary\'>TECHNOLOGY</span>';">
+                    <img src="logo.webp" alt="Technology Store" class="h-12 md:h-16 w-auto max-w-[200px] object-contain">
                 </a>
                 <div class="hidden md:flex items-center relative w-64 lg:w-96">
                     <span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none"
@@ -60,14 +97,21 @@
                 </div>
             </div>
             <nav class="hidden md:flex items-center gap-6">
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="index.html">الرئيسية</a>
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="services.html">الخدمات</a>
-                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base"
-                    href="products.html">الكتالوج</a>
+                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base font-bold"
+                    href="products.html">المنتجات</a>
             </nav>
             <div class="flex items-center gap-3">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
                 <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                         viewBox="0 0 16 16">
@@ -97,7 +141,7 @@
             <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
                 href="services.html">الخدمات</a>
             <a class="block py-2 px-3 rounded-lg text-primary bg-primary/10 text-base font-bold"
-                href="products.html">الكتالوج</a>
+                href="products.html">المنتجات</a>
         </div>
     </header>
 
@@ -195,24 +239,25 @@
         <!-- Main Content Canvas -->
         <main class="flex-1 pb-24 w-full">
             <div
-                class="hidden md:flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 glass-panel p-4 rounded-xl">
+                class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-6 gap-3 glass-panel p-3 sm:p-4 rounded-xl w-full">
                 <div class="flex items-center gap-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-hide"></div>
-                <div class="flex items-center gap-3 shrink-0">
+                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                     <span class="text-xs font-mono-data text-on-surface-variant">ترتيب حسب:</span>
-                    <select
+                    <select id="sortSelect"
                         class="bg-surface border border-outline-variant rounded text-xs font-mono-data text-on-surface py-1.5 pl-8 pr-3 focus:ring-primary focus:border-primary outline-none"
                         dir="rtl">
-                        <option>الأحدث</option>
-                        <option>السعر: الأقل للأعلى</option>
-                        <option>السعر: الأعلى للأقل</option>
+                        <option value="newest">الأحدث</option>
+                        <option value="price_asc">السعر: الأقل للأعلى</option>
+                        <option value="price_desc">السعر: الأعلى للأقل</option>
                     </select>
                 </div>
             </div>
 
             <!-- Product Grid -->
-            <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-gutter">
+            <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-gutter min-h-[500px]">
                 <!-- Products will be injected by app.js here -->
             </div>
+            <div id="paginationControls" class="flex justify-center mt-12 mb-8 hidden"></div>
         </main>
     </div>
 
@@ -222,7 +267,7 @@
         <div
             class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-gutter md:px-margin-desktop py-12 w-full max-w-container-max mx-auto">
             <div class="md:col-span-1 flex flex-col gap-4">
-                <span class="font-display-lg text-headline-md text-secondary">TECHNOLOGY</span>
+                <img src="logo.webp" alt="Technology Store"  class="h-14 md:h-20 w-auto max-w-[250px] object-contain origin-right">
                 <p class="text-on-surface-variant text-sm mt-2 max-w-xs leading-relaxed">معرضك الأول لأحدث أجهزة
                     الكمبيوتر، تجميعات الألعاب، مكونات الهاردوير، وأنظمة المراقبة المتكاملة.</p>
             </div>
@@ -244,26 +289,48 @@
                 <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
                     href="https://wa.me/201515664919" target="_blank">الاستفسار عن الصيانة</a>
             </div>
-            <div class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-4">
                 <h4 class="text-secondary font-bold mb-2 text-lg">تواصل معنا</h4>
-                <p class="text-on-surface-variant text-base leading-relaxed">تفضل بزيارتنا: عزبة النخل ، نهاية شارع
-                    الشيخ منصور، بجوار البتول للموبايلات</p>
-                <p class="text-on-surface-variant text-base text-primary font-bold">01515664919</p>
-                <!-- تمت إضافة أزرار السوشيال ميديا هنا -->
-                <div class="flex gap-4 mt-2">
-                    <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">thumb_up</span> فيسبوك</a>
-                    <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">forum</span> قناة الواتساب</a>
-                </div>
-                <p class="mt-4 text-on-surface-variant/50 text-xs">© 2026 TECHNOLOGY STORE</p>
+                <ul class="space-y-4">
+                    <li>
+                        <a href="https://maps.app.goo.gl/WLhkpQmHVEMHvdnM9" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <span class="text-sm leading-relaxed">تفضل بزيارتنا: عزبة النخل، نهاية شارع الشيخ منصور، بجوار البتول للموبايلات</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="tel:01515664919" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-phone-alt"></i>
+                            </div>
+                            <span class="text-sm font-bold dir-ltr">01515664919</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-[#25D366] transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-[#25D366]/20 transition-colors text-[#25D366]">
+                                <i class="fab fa-whatsapp text-lg"></i>
+                            </div>
+                            <span class="text-sm font-bold">قناة الواتساب</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-[#1877F2] transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-[#1877F2]/20 transition-colors text-[#1877F2]">
+                                <i class="fab fa-facebook text-lg"></i>
+                            </div>
+                            <span class="text-sm font-bold">صفحة فيسبوك</span>
+                        </a>
+                    </li>
+                </ul>
+                <p class="mt-4 text-on-surface-variant/80 text-xs text-center md:text-right">© 2026 TECHNOLOGY STORE</p>
             </div>
         </div>
     </footer>
 
-    <script src="app.js"></script>
+    <script src="app.js" defer></script>
     <script>
         document.querySelectorAll('.filter-btn').forEach(btn => {
             btn.addEventListener('click', function () {

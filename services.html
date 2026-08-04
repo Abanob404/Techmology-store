@@ -3,30 +3,46 @@
 
 <head>
     <meta charset="utf-8">
+    <meta name="description" content="Technology Store - خدمات الصيانة، التجميع الاحترافي، وأنظمة المراقبة المتكاملة">
+    <meta property="og:title" content="Technology Store - خدماتنا">
+    <meta property="og:description" content="Technology Store - خدمات الصيانة، التجميع الاحترافي، وأنظمة المراقبة المتكاملة">
+    <meta property="og:image" content="logo.webp">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#0f1418">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TECHNOLOGY | الخدمات</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="logo.webp">
+    <link rel="manifest" href="manifest.json">
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
-        rel="stylesheet">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&family=Geist:wght@400;500;600&display=swap"
-        rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-    <link rel="stylesheet" href="style.css">
-
     <script id="tailwind-config">
         tailwind.config = {
             darkMode: "class",
             theme: {
                 extend: {
                     "colors": {
-                        "secondary": "#a6c8ff", "error": "#ffb4ab", "surface-variant": "#30353a", "surface-container-highest": "#30353a",
-                        "surface-container-high": "#252b2f", "surface-container": "#1b2024", "inverse-on-surface": "#2c3135", "secondary-container": "#2992ff",
-                        "tertiary": "#ffb876", "surface": "#0f1418", "outline-variant": "#3e4850", "primary": "#82cfff", "surface-dim": "#0f1418",
-                        "surface-container-lowest": "#090f13", "on-primary": "#00344b", "outline": "#87929b", "on-background": "#dee3e8",
-                        "background": "#0f1418", "surface-container-low": "#171c20", "on-surface": "#dee3e8", "on-surface-variant": "#bdc8d1"
+                        "primary": "rgb(var(--color-primary) / <alpha-value>)",
+                        "on-primary": "rgb(var(--color-on-primary) / <alpha-value>)",
+                        "secondary": "rgb(var(--color-secondary) / <alpha-value>)",
+                        "secondary-container": "rgb(var(--color-secondary-container) / <alpha-value>)",
+                        "tertiary": "rgb(var(--color-tertiary) / <alpha-value>)",
+                        "error": "rgb(var(--color-error) / <alpha-value>)",
+                        "background": "rgb(var(--color-background) / <alpha-value>)",
+                        "on-background": "rgb(var(--color-on-background) / <alpha-value>)",
+                        "surface": "rgb(var(--color-surface) / <alpha-value>)",
+                        "on-surface": "rgb(var(--color-on-surface) / <alpha-value>)",
+                        "surface-variant": "rgb(var(--color-surface-variant) / <alpha-value>)",
+                        "on-surface-variant": "rgb(var(--color-on-surface-variant) / <alpha-value>)",
+                        "outline": "rgb(var(--color-outline) / <alpha-value>)",
+                        "outline-variant": "rgb(var(--color-outline-variant) / <alpha-value>)",
+                        "surface-container-lowest": "rgb(var(--color-surface-container-lowest) / <alpha-value>)",
+                        "surface-container-low": "rgb(var(--color-surface-container-low) / <alpha-value>)",
+                        "surface-container": "rgb(var(--color-surface-container) / <alpha-value>)",
+                        "surface-container-high": "rgb(var(--color-surface-container-high) / <alpha-value>)",
+                        "surface-container-highest": "rgb(var(--color-surface-container-highest) / <alpha-value>)",
+                        "surface-dim": "rgb(var(--color-surface-dim) / <alpha-value>)",
+                        "inverse-on-surface": "rgb(var(--color-inverse-on-surface) / <alpha-value>)"
                     },
                     "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
                     "spacing": { "gutter": "24px", "unit": "8px", "container-max": "1440px", "margin-mobile": "20px", "margin-desktop": "64px" },
@@ -38,6 +54,26 @@
             }
         }
     </script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
+
+    <!-- Preconnect to Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Material Icons (Non-Blocking) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Cairo font is self-hosted in style.css — no need to load from Google Fonts -->
+
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light') { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
 </head>
 
 <body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
@@ -45,30 +81,37 @@
 
     <!-- TopNavBar -->
     <header
-        class="bg-surface/80 backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20 shadow-[0_0_20px_rgba(0,174,239,0.15)]">
+        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
         <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
             <div class="flex items-center gap-4 md:gap-8">
                 <a class="flex items-center gap-2" href="index.html">
-                    <img src="logo.png" alt="Technology Store" class="h-10 md:h-14 object-contain" onerror="this.onerror=null; this.outerHTML='<span class=\'font-display-lg text-xl md:text-headline-md font-extrabold tracking-tighter text-primary\'>TECHNOLOGY</span>';">
+                    <img src="logo.webp" alt="Technology Store" class="h-12 md:h-16 w-auto max-w-[200px] object-contain">
                 </a>
                 <div class="hidden md:flex items-center relative w-64 lg:w-96">
-                    <span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 300;">search</span>
+                    <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
                     <input id="searchInput" oninput="searchProducts()"
                         class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
                         placeholder="ابحث في الكتالوج..." type="text">
                 </div>
             </div>
             <nav class="hidden md:flex items-center gap-6">
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="index.html">الرئيسية</a>
-                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base"
+                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base font-bold"
                     href="services.html">الخدمات</a>
-                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base"
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
                     href="products.html">المنتجات</a>
             </nav>
             <div class="flex items-center gap-3">
-                <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+                <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green"
+                    aria-label="تواصل معنا عبر واتساب">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
                         viewBox="0 0 16 16">
                         <path
@@ -76,9 +119,9 @@
                     </svg>
                     <span class="hidden sm:inline">تواصل معنا</span>
                 </a>
-                <button id="mobileMenuBtn" class="md:hidden text-primary p-1">
-                    <span class="material-symbols-outlined text-[28px]"
-                        style="font-variation-settings: 'FILL' 0, 'wght' 400;">menu</span>
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuBtn" class="md:hidden flex items-center justify-center p-2 text-sky-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
                 </button>
             </div>
         </div>
@@ -106,7 +149,7 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">construction</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.877-5.877M11.42 15.17l2.496-3.03c.317-.384.74-.626 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l6.837-5.63m5.108-.233c.55-.164 1.163-.188 1.743-.14a4.5 4.5 0 004.486-6.336l-3.276 3.277a3.004 3.004 0 01-2.25-2.25l3.276-3.276a4.5 4.5 0 00-6.336 4.486c.091 1.076-.071 2.264-.904 2.95l-.102.085"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">صيانة الكمبيوتر واللابتوب</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">إصلاح وتطوير جميع أنواع
@@ -125,7 +168,7 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">router</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">تأسيس شبكات</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">تصميم وتنفيذ شبكات الإنترنت
@@ -144,7 +187,7 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">videocam</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">كاميرات المراقبة</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">توريد وتركيب كاميرات مراقبة
@@ -163,13 +206,13 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">videogame_asset</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">تجميعات احترافية</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">تجميع أجهزة مخصصة حسب ميزانيتك
                     واحتياجاتك، مع تركيب احترافي للـ Cable Management لضمان أفضل تهوية وشكل.</p>
                 <a href="products.html" class="btn-modern-green w-full">
-                    <span class="material-symbols-outlined text-[20px]">grid_view</span>
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                     تصفح الكتالوج
                 </a>
             </div>
@@ -177,7 +220,7 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">settings_input_component</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">تركيب مكونات الهاردوير</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">تحديث جهازك الحالي (ترقية
@@ -196,7 +239,7 @@
             <div
                 class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center transition-all">
                 <div class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
-                    <span class="material-symbols-outlined text-primary text-4xl">support_agent</span>
+                    <svg class="w-10 h-10 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 </div>
                 <h3 class="font-headline-md text-2xl mb-3 text-on-surface">دعم فني واستشارات</h3>
                 <p class="text-on-surface-variant text-base mb-6 flex-1 leading-relaxed">مساعدة تقنية عبر الهاتف أو
@@ -221,7 +264,7 @@
         <div
             class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-gutter md:px-margin-desktop py-12 w-full max-w-container-max mx-auto">
             <div class="md:col-span-1 flex flex-col gap-4">
-                <span class="font-display-lg text-headline-md text-secondary">TECHNOLOGY</span>
+                <img src="logo.webp" alt="Technology Store"  class="h-14 md:h-20 w-auto max-w-[250px] object-contain origin-right">
                 <p class="text-on-surface-variant text-sm mt-2 max-w-xs leading-relaxed">معرضك الأول لأحدث أجهزة
                     الكمبيوتر، تجميعات الألعاب، مكونات الهاردوير، وأنظمة المراقبة المتكاملة.</p>
             </div>
@@ -243,25 +286,47 @@
                 <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
                     href="https://wa.me/201515664919" target="_blank">الاستفسار عن الصيانة</a>
             </div>
-            <div class="flex flex-col gap-4">
+                        <div class="flex flex-col gap-4">
                 <h4 class="text-secondary font-bold mb-2 text-lg">تواصل معنا</h4>
-                <p class="text-on-surface-variant text-base leading-relaxed">تفضل بزيارتنا: نهاية شارع الشيخ منصور،
-                    بجوار البتول للموبايلات</p>
-                <p class="text-on-surface-variant text-base text-primary font-bold">01515664919</p>
-                <!-- تمت إضافة أزرار السوشيال ميديا هنا -->
-                <div class="flex gap-4 mt-2">
-                    <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">thumb_up</span> فيسبوك</a>
-                    <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank"
-                        class="text-primary hover:text-white transition-colors font-bold flex items-center gap-1"><span
-                            class="material-symbols-outlined text-[18px]">forum</span> قناة الواتساب</a>
-                </div>
-                <p class="mt-4 text-on-surface-variant/50 text-xs">© 2026 TECHNOLOGY STORE</p>
+                <ul class="space-y-4">
+                    <li>
+                        <a href="https://maps.app.goo.gl/WLhkpQmHVEMHvdnM9" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <span class="text-sm leading-relaxed">تفضل بزيارتنا: عزبة النخل، نهاية شارع الشيخ منصور، بجوار البتول للموبايلات</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="tel:01515664919" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-phone-alt"></i>
+                            </div>
+                            <span class="text-sm font-bold dir-ltr">01515664919</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-[#25D366] transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-[#25D366]/20 transition-colors text-[#25D366]">
+                                <i class="fab fa-whatsapp text-lg"></i>
+                            </div>
+                            <span class="text-sm font-bold">قناة الواتساب</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-[#1877F2] transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-[#1877F2]/20 transition-colors text-[#1877F2]">
+                                <i class="fab fa-facebook text-lg"></i>
+                            </div>
+                            <span class="text-sm font-bold">صفحة فيسبوك</span>
+                        </a>
+                    </li>
+                </ul>
+                <p class="mt-4 text-on-surface-variant/80 text-xs text-center md:text-right">© 2026 TECHNOLOGY STORE</p>
             </div>
         </div>
     </footer>
-    <script src="app.js"></script>
+    <script src="app.js" defer></script>
 </body>
 
 </html>

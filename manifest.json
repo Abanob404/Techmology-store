@@ -1,0 +1,21 @@
+{
+    "name": "Technology Store",
+    "short_name": "Technology",
+    "description": "Technology Store - وجهتك الأولى لأحدث أجهزة الكمبيوتر والمراقبة",
+    "start_url": "/index.html",
+    "display": "standalone",
+    "background_color": "#0f1418",
+    "theme_color": "#0f1418",
+    "icons": [
+        {
+            "src": "logo.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "logo.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

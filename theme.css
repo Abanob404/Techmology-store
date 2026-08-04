@@ -1,0 +1,91 @@
+/* theme.css - Light/Dark Mode Variables */
+:root {
+    /* Light Mode Colors */
+    --color-primary: 0 97 164;
+    --color-on-primary: 255 255 255;
+    --color-secondary: 74 111 165;
+    --color-secondary-container: 214 227 255;
+    --color-tertiary: 125 82 96;
+    --color-error: 186 26 26;
+    --color-background: 253 251 255;
+    --color-on-background: 26 28 30;
+    --color-surface: 253 251 255;
+    --color-on-surface: 26 28 30;
+    --color-surface-variant: 225 226 232;
+    --color-on-surface-variant: 67 71 78;
+    --color-outline: 116 119 127;
+    --color-outline-variant: 196 198 208;
+    --color-surface-container-lowest: 255 255 255;
+    --color-surface-container-low: 247 245 249;
+    --color-surface-container: 239 237 241;
+    --color-surface-container-high: 233 231 236;
+    --color-surface-container-highest: 227 226 230;
+    --color-surface-dim: 222 216 225;
+    --color-inverse-on-surface: 241 240 244;
+
+    /* Glass Effect */
+    --glass-bg: rgba(239, 237, 241, 0.6);
+    --glass-border: rgba(0, 97, 164, 0.1);
+    --glass-hover: rgba(0, 97, 164, 0.4);
+    --glass-shadow: rgba(0, 97, 164, 0.15);
+    
+    /* Scrollbar */
+    --scrollbar-track: #f1f0f4;
+    --scrollbar-thumb: #c4c6d0;
+    --scrollbar-thumb-hover: #0061a4;
+}
+
+.dark {
+    /* Dark Mode Colors */
+    --color-primary: 130 207 255;
+    --color-on-primary: 0 52 75;
+    --color-secondary: 166 200 255;
+    --color-secondary-container: 41 146 255;
+    --color-tertiary: 255 184 118;
+    --color-error: 255 180 171;
+    --color-background: 15 20 24;
+    --color-on-background: 222 227 232;
+    --color-surface: 15 20 24;
+    --color-on-surface: 222 227 232;
+    --color-surface-variant: 48 53 58;
+    --color-on-surface-variant: 189 200 209;
+    --color-outline: 135 146 155;
+    --color-outline-variant: 62 72 80;
+    --color-surface-container-lowest: 9 15 19;
+    --color-surface-container-low: 23 28 32;
+    --color-surface-container: 27 32 36;
+    --color-surface-container-high: 37 43 47;
+    --color-surface-container-highest: 48 53 58;
+    --color-surface-dim: 15 20 24;
+    --color-inverse-on-surface: 44 49 53;
+
+    /* Glass Effect */
+    --glass-bg: rgba(27, 32, 36, 0.6);
+    --glass-border: rgba(130, 207, 255, 0.1);
+    --glass-hover: rgba(130, 207, 255, 0.4);
+    --glass-shadow: rgba(130, 207, 255, 0.15);
+    
+    /* Scrollbar */
+    --scrollbar-track: #090f13;
+    --scrollbar-thumb: #3e4850;
+    --scrollbar-thumb-hover: #82cfff;
+}
+
+.glass-panel {
+    background: var(--glass-bg) !important;
+    border-color: var(--glass-border) !important;
+}
+.card-hover-effect:hover {
+    border-color: var(--glass-hover) !important;
+    box-shadow: 0 8px 32px var(--glass-shadow) !important;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track) !important;
+}
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb) !important;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover) !important;
+}
