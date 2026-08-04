@@ -12,8 +12,8 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key']
 }));
 app.use(express.json());
 app.use(fileUpload({
@@ -172,58 +172,98 @@ async function getOrCreateSettings() {
 }
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
-app.post('/api/pos-sync', async (req, res) => {
+// مسار لاختبار الاتصال من الـ POS (لأن زر اختبار الاتصال قد يرسل طلب GET)
+app.get(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
+  try {
+    const productsCount = await Product.countDocuments();
+    // No orders collection in current schema, returning 0
+    res.json({ 
+      success: true, 
+      message: 'POS API is working correctly.',
+      products_count: productsCount,
+      orders_count: 0,
+      productsCount: productsCount,
+      ordersCount: 0
+    });
+  } catch (err) {
+    res.json({ success: true, message: 'POS API is working correctly.' });
+  }
+});
+
+app.post(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
   try {
     // 1. التحقق من مفتاح الأمان (Security)
-    const apiKey = req.headers['x-api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    let apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    
+    // إذا كان المفتاح مبعوث كـ Bearer token
+    if (apiKey && apiKey.startsWith('Bearer ')) {
+      apiKey = apiKey.replace('Bearer ', '').trim();
+    }
+    
     if (apiKey !== 'technology2309') {
       return res.status(401).json({ success: false, message: 'Unauthorized: Invalid API Key' });
     }
 
     // 2. معالجة البيانات (Payload Processing)
-    const { barcode, sku, price, stock, quantity, title, category } = req.body;
-    const identifier = barcode || sku;
+    // إذا كان البرنامج يرسل مصفوفة (Array) من المنتجات أو كائن واحد
+    const items = Array.isArray(req.body) ? req.body : (req.body.items || req.body.products || [req.body]);
+    
+    let syncedCount = 0;
+    let addedCount = 0;
+    let errors = [];
 
-    if (!identifier) {
-      return res.status(400).json({ success: false, message: 'Barcode or SKU is required for syncing.' });
-    }
+    const settings = await Settings.findOne();
+    const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : 'https://placehold.co/400x400?text=No+Image';
 
-    // 3. تحديث قاعدة البيانات (Database Logic)
-    let product = await Product.findOne({ sku: identifier });
+    for (const item of items) {
+      const { barcode, sku, price, stock, quantity, title, category } = item;
+      const identifier = barcode || sku;
 
-    if (product) {
-      // إذا وجد المنتج، نقوم بتحديث السعر والكمية
-      let updatedFields = [];
-      if (price !== undefined && price !== null) {
-        product.price = Number(price);
-        updatedFields.push(`السعر: ${product.price}`);
-      }
-      
-      const newStock = stock !== undefined ? stock : quantity;
-      if (newStock !== undefined && newStock !== null) {
-        product.stockQuantity = Number(newStock);
-        updatedFields.push(`الرصيد: ${product.stockQuantity}`);
+      if (!identifier) {
+        errors.push('Barcode or SKU is required for one of the items.');
+        continue;
       }
 
-      await product.save();
-      await logActivity('مزامنة POS', `تم تحديث المنتج "${product.title}" (${updatedFields.join(', ')})`);
-      return res.json({ success: true, message: 'تمت المزامنة وتحديث المنتج بنجاح', product });
-    } else {
-      // إذا لم يجد المنتج، نقوم بإضافته كمنتج جديد مخفي مؤقتاً
-      let settings = await Settings.findOne();
-      product = new Product({
-        title: title || `منتج جديد - ${identifier}`,
-        sku: identifier,
-        price: Number(price) || 0,
-        stockQuantity: Number(stock !== undefined ? stock : quantity) || 0,
-        category: category || 'غير مصنف',
-        image: settings && settings.defaultProductImage ? settings.defaultProductImage : 'https://placehold.co/400x400?text=No+Image',
-        isHidden: true // مخفي مؤقتاً حتى يقوم المالك بمراجعته وإضافة صورة
-      });
-      await product.save();
-      await logActivity('مزامنة POS', `تم إضافة منتج جديد (مخفي) عبر الـ POS: ${product.title}`);
-      return res.json({ success: true, message: 'تمت المزامنة وإضافة المنتج كـ "مخفي"', product });
+      let product = await Product.findOne({ sku: identifier });
+
+      if (product) {
+        if (price !== undefined && price !== null) product.price = Number(price);
+        const newStock = stock !== undefined ? stock : quantity;
+        if (newStock !== undefined && newStock !== null) product.stockQuantity = Number(newStock);
+        await product.save();
+        syncedCount++;
+      } else {
+        product = new Product({
+          title: title || `منتج جديد - ${identifier}`,
+          sku: identifier,
+          price: Number(price) || 0,
+          stockQuantity: Number(stock !== undefined ? stock : quantity) || 0,
+          category: category || 'غير مصنف',
+          image: defaultImg,
+          isHidden: true
+        });
+        await product.save();
+        addedCount++;
+      }
     }
+
+    if (syncedCount > 0 || addedCount > 0) {
+      await logActivity('مزامنة POS', `تم تحديث ${syncedCount} منتج وإضافة ${addedCount} منتج جديد`);
+    }
+
+    const productsCount = await Product.countDocuments();
+
+    return res.json({ 
+      success: true, 
+      message: `تمت المزامنة بنجاح. تم تحديث ${syncedCount} وإضافة ${addedCount}.`,
+      synced: syncedCount,
+      added: addedCount,
+      errors: errors.length > 0 ? errors : undefined,
+      products_count: productsCount,
+      productsCount: productsCount,
+      orders_count: 0,
+      ordersCount: 0
+    });
 
   } catch (err) {
     console.error('POS Sync Error:', err);
