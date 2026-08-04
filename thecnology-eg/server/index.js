@@ -12,8 +12,8 @@ const app = express();
 // Middleware
 app.use(cors({
   origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key']
 }));
 app.use(express.json());
 app.use(fileUpload({
@@ -173,11 +173,11 @@ async function getOrCreateSettings() {
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
 // مسار لاختبار الاتصال من الـ POS (لأن زر اختبار الاتصال قد يرسل طلب GET)
-app.get('/api/pos-sync', (req, res) => {
+app.get(['/api/pos-sync', '/api/pos-sync/*'], (req, res) => {
   res.json({ success: true, message: 'POS API is working correctly. Ready for POST requests.' });
 });
 
-app.post('/api/pos-sync', async (req, res) => {
+app.post(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
   try {
     // 1. التحقق من مفتاح الأمان (Security)
     const apiKey = req.headers['x-api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
