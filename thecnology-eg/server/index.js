@@ -193,7 +193,13 @@ app.get(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
 app.post(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
   try {
     // 1. التحقق من مفتاح الأمان (Security)
-    const apiKey = req.headers['x-api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    let apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    
+    // إذا كان المفتاح مبعوث كـ Bearer token
+    if (apiKey && apiKey.startsWith('Bearer ')) {
+      apiKey = apiKey.replace('Bearer ', '').trim();
+    }
+    
     if (apiKey !== 'technology2309') {
       return res.status(401).json({ success: false, message: 'Unauthorized: Invalid API Key' });
     }
