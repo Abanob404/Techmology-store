@@ -3,9 +3,9 @@ const API_URL = `${BASE_URL}/api/products`;
 let globalProducts = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 16;
-let activeCategory = "all";
-let activeSearchTerm = "";
-let currentSort = "newest";
+let activeCategory = sessionStorage.getItem('tech_activeCategory') || "all";
+let activeSearchTerm = sessionStorage.getItem('tech_activeSearch') || "";
+let currentSort = sessionStorage.getItem('tech_currentSort') || "newest";
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 
 // ==========================================
@@ -128,7 +128,12 @@ async function fetchProducts() {
 
         // معالجة المنتجات
         const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
-        globalProducts = allFetchedProducts.filter(p => !p.isHidden);
+        globalProducts = allFetchedProducts.filter(p => {
+            if (p.isHidden) return false;
+            // إخفاء المنتجات بدون صورة حقيقية
+            if (!p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image')) return false;
+            return true;
+        });
 
         // معالجة الإحصائيات
         window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
@@ -174,7 +179,45 @@ async function fetchProducts() {
             document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."]').forEach(input => input.value = initialSearch);
             renderProducts("all", initialSearch);
         } else {
-            renderProducts();
+            // استعادة حالة التصفح المحفوظة (القسم والصفحة والسكرول)
+            const savedPage = parseInt(sessionStorage.getItem('tech_currentPage')) || 1;
+            const savedSort = sessionStorage.getItem('tech_currentSort');
+            if (savedSort) {
+                currentSort = savedSort;
+                const sortSelect = document.getElementById('sortSelect');
+                if (sortSelect) sortSelect.value = currentSort;
+            }
+            
+            // تفعيل زر القسم المحفوظ
+            if (activeCategory !== 'all') {
+                const filterButtons = document.querySelectorAll('.filter-btn');
+                filterButtons.forEach(btn => {
+                    if (btn.dataset.category === activeCategory) {
+                        btn.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                        btn.classList.add('bg-primary', 'text-on-primary', 'border-primary', 'active');
+                    } else {
+                        btn.classList.remove('bg-primary', 'text-on-primary', 'border-primary', 'active');
+                        btn.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
+                    }
+                });
+            }
+            
+            // تحميل كل الصفحات حتى الصفحة المحفوظة
+            renderProducts(activeCategory, activeSearchTerm);
+            if (savedPage > 1) {
+                for (let pg = 2; pg <= savedPage; pg++) {
+                    currentPage = pg;
+                    renderProducts(activeCategory, activeSearchTerm, true);
+                }
+            }
+            
+            // استعادة موضع السكرول
+            const savedScroll = parseInt(sessionStorage.getItem('tech_scrollPos'));
+            if (savedScroll > 0) {
+                requestAnimationFrame(() => {
+                    setTimeout(() => window.scrollTo(0, savedScroll), 100);
+                });
+            }
         }
     } catch (error) {
         console.error('خطأ:', error);
@@ -425,8 +468,6 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         if (p.stockQuantity === 0) {
             isOutOfStock = true;
             availabilityBadge = `<div class="absolute top-3 right-3 bg-red-500/20 text-red-400 border border-red-500/30 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-lg">نفدت الكمية</div>`;
-        } else if (p.stockQuantity > 0 && p.stockQuantity <= 5) {
-            availabilityBadge = `<div class="absolute top-3 right-3 bg-orange-500/20 text-orange-400 border border-orange-500/30 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-lg">باقي ${p.stockQuantity} قطع فقط!</div>`;
         } else {
             availabilityBadge = `<div class="absolute top-3 right-3 bg-green-500/20 text-green-400 border border-green-500/30 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide shadow-lg">متوفر</div>`;
         }
@@ -749,8 +790,6 @@ window.openProductModal = function(id) {
     if (p.stockQuantity === 0) {
         isOutOfStock = true;
         badgeContainer.innerHTML = `<div class="bg-red-500/20 text-red-400 border border-red-500/30 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide shadow-lg">نفدت الكمية</div>`;
-    } else if (p.stockQuantity > 0 && p.stockQuantity <= 5) {
-        badgeContainer.innerHTML = `<div class="bg-orange-500/20 text-orange-400 border border-orange-500/30 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide shadow-lg">باقي ${p.stockQuantity} قطع فقط!</div>`;
     } else {
         badgeContainer.innerHTML = `<div class="bg-green-500/20 text-green-400 border border-green-500/30 px-4 py-1.5 rounded-full text-sm font-bold tracking-wide shadow-lg">متوفر</div>`;
     }
@@ -1268,6 +1307,15 @@ async function loadStoreBranding() {
         console.log('Using default branding');
     }
 }
+
+// حفظ حالة التصفح قبل الخروج أو التحديث
+window.addEventListener('beforeunload', () => {
+    sessionStorage.setItem('tech_activeCategory', activeCategory);
+    sessionStorage.setItem('tech_activeSearch', activeSearchTerm);
+    sessionStorage.setItem('tech_currentSort', currentSort);
+    sessionStorage.setItem('tech_currentPage', String(currentPage));
+    sessionStorage.setItem('tech_scrollPos', String(window.scrollY));
+});
 
 document.addEventListener('DOMContentLoaded', () => {
     trackPageVisit();
