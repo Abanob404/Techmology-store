@@ -1133,7 +1133,7 @@ function renderCart() {
     priceEl.textContent = `${total} ج.م`;
 }
 
-function checkoutWhatsApp() {
+async function checkoutWhatsApp() {
     if (cart.length === 0) {
         alert("عربة التسوق فارغة.");
         return;
@@ -1157,52 +1157,53 @@ function checkoutWhatsApp() {
         return;
     }
 
-    let message = "مرحباً، أريد إتمام طلب الشراء التالي: 🛍️\n\n";
-    
-    // بيانات العميل
-    message += `👤 *الاسم:* ${name}\n`;
-    message += `📞 *الهاتف:* ${phone}\n`;
-    if (window.isShippingEnabled) {
-        message += `📍 *العنوان:* ${address}\n`;
-    } else {
-        message += `📍 *الاستلام:* من المعرض\n`;
-    }
-    message += `\n➖ ➖ ➖ ➖ ➖ ➖\n\n`;
+    const orderPayload = {
+        customerName: name,
+        customerPhone: phone,
+        customerAddress: window.isShippingEnabled ? address : "استلام من المعرض",
+        shippingAmount: 0,
+        paymentMethod: "cash_on_delivery",
+        items: cart.map(item => ({
+            productId: item._id,
+            posItemId: item.posItemId || undefined,
+            sku: item.sku || undefined,
+            title: item.title,
+            quantity: item.quantity,
+            price: item.price
+        }))
+    };
 
-    let grandTotal = 0;
-    let totalItemsCount = 0;
+    try {
+        const btn = document.querySelector('button[onclick="checkoutWhatsApp()"]');
+        const originalText = btn.innerHTML;
+        btn.innerHTML = `<span class="material-symbols-outlined animate-spin">sync</span> جاري إرسال الطلب...`;
+        btn.disabled = true;
 
-    cart.forEach((item) => {
-        const itemTotal = item.price * item.quantity;
-        grandTotal += itemTotal;
-        totalItemsCount += item.quantity;
+        const response = await fetch('/api/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(orderPayload)
+        });
+
+        const data = await response.json();
         
-        message += `📦 *${item.title}*\n`;
-        message += `🔢 الكمية: ${item.quantity}\n`;
-        message += `💵 السعر: ${item.price} ج.م\n\n`;
-    });
+        btn.innerHTML = originalText;
+        btn.disabled = false;
 
-    if (totalItemsCount > 1) {
-        message += `➖ ➖ ➖ ➖ ➖ ➖\n`;
-        message += `💰 *إجمالي الطلب: ${grandTotal} ج.م*\n`;
-        if (window.isShippingEnabled) {
-            message += `*(لا يشمل مصاريف الشحن)*\n`;
+        if (data.success) {
+            alert(`تم استلام طلبك بنجاح! رقم طلبك هو: ${data.orderId || ''}`);
+            cart = [];
+            saveCart();
+            updateCartBadge();
+            renderCart();
+            closeCartSidebar();
+        } else {
+            alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
         }
+    } catch (err) {
+        console.error("Checkout error:", err);
+        alert("تعذر الاتصال بالخادم. يرجى التأكد من اتصالك بالإنترنت والمحاولة مجدداً.");
     }
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappUrl = `https://api.whatsapp.com/send/?phone=201515664919&text=${encodedMessage}`;
-
-    // Analytics: track whatsapp orders
-    cart.forEach(item => trackEvent('whatsapp_orders', item._id, item.title));
-    // إفراغ السلة بعد التوجيه
-    cart = [];
-    saveCart();
-    updateCartBadge();
-    renderCart();
-    closeCartSidebar();
-
-    window.open(whatsappUrl, '_blank');
 }
 
 // تحميل الهوية البصرية (اللوجو والخلفية) من السيرفر
