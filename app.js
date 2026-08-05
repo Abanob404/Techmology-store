@@ -128,7 +128,12 @@ async function fetchProducts() {
 
         // معالجة المنتجات
         const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
-        globalProducts = allFetchedProducts.filter(p => !p.isHidden);
+        globalProducts = allFetchedProducts.filter(p => {
+            if (p.isHidden) return false;
+            // إخفاء المنتجات بدون صورة حقيقية
+            if (!p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image')) return false;
+            return true;
+        });
 
         // معالجة الإحصائيات
         window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
