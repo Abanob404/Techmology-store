@@ -13,7 +13,7 @@ const app = express();
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key', 'x-pos-api-key']
 }));
 app.use(express.json());
 app.use(fileUpload({
@@ -432,16 +432,21 @@ app.post('/api/orders', async (req, res) => {
         product = await Product.findOne({ posItemId: item.posItemId });
       }
 
-      const itemPrice = product ? product.price : (item.price || 0);
+      if (!product) {
+        return res.status(404).json({ success: false, message: `المنتج غير موجود: ${item.title || item.sku}` });
+      }
+
+      // حساب السعر الفعلي من الداتابيز فقط
+      const itemPrice = product.price || 0;
       const qty = item.quantity || 1;
       const lineTotal = itemPrice * qty;
       subtotal += lineTotal;
 
       orderItems.push({
-        productId: product ? product._id : null,
-        posItemId: product ? product.posItemId : item.posItemId,
-        sku: product ? product.sku : item.sku,
-        title: product ? product.title : (item.title || 'منتج غير معروف'),
+        productId: product._id,
+        posItemId: product.posItemId,
+        sku: product.sku,
+        title: product.title,
         quantity: qty,
         price: itemPrice,
         lineTotal: lineTotal
@@ -484,7 +489,7 @@ app.post('/api/orders', async (req, res) => {
     doc.markModified('whatsapp_orders');
     await doc.save();
 
-    res.json({ success: true, message: 'تم إرسال الطلب بنجاح', orderId: order._id });
+    res.json({ success: true, message: 'تم إرسال الطلب بنجاح', orderId: order.orderNumber });
   } catch (err) {
     console.error('Error submitting order:', err);
     res.status(500).json({ success: false, message: 'خطأ أثناء تقديم الطلب' });
@@ -1229,7 +1234,9 @@ app.delete('/api/admin/users/:id', async (req, res) => {
 
 // تشغيل السيرفر محلياً
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 السيرفر يعمل على منفذ: ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`🚀 السيرفر يعمل على منفذ: ${PORT}`));
+}
 
 // التصدير الصحيح والكامل للـ Serverless (تم تعديل الـ le.exports الخطأ)
 module.exports = app;
