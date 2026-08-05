@@ -13,7 +13,7 @@ const app = express();
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key', 'x-pos-api-key']
 }));
 app.use(express.json());
 app.use(fileUpload({
@@ -85,7 +85,10 @@ const productSchema = new mongoose.Schema({
     publicId: String
   }],
   stockQuantity: { type: Number, default: 1 },
-  sku: { type: String, default: '' },
+  sku: { type: String, default: '', index: true },
+  posItemId: { type: Number, index: true, sparse: true },
+  source: { type: String, default: 'website', index: true },
+  lastSyncedAt: { type: Date },
   warranty: { type: String, default: '' },
   brand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
@@ -139,6 +142,32 @@ const activityLogSchema = new mongoose.Schema({
 });
 const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
 
+// تعريف موديل الطلبات (Order Schema)
+const orderSchema = new mongoose.Schema({
+  orderNumber: { type: String, required: true, unique: true },
+  customerName: { type: String, required: true },
+  customerPhone: { type: String, required: true },
+  customerAddress: { type: String, required: true },
+  notes: { type: String, default: '' },
+  shippingAmount: { type: Number, default: 0 },
+  paymentMethod: { type: String, default: 'cash_on_delivery' },
+  items: [{
+    productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
+    posItemId: { type: Number },
+    sku: { type: String },
+    title: { type: String },
+    quantity: { type: Number, default: 1 },
+    price: { type: Number, required: true },
+    lineTotal: { type: Number, required: true }
+  }],
+  subtotal: { type: Number, required: true },
+  total: { type: Number, required: true },
+  status: { type: String, enum: ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'], default: 'pending' },
+  posInvoiceId: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now }
+});
+const Order = mongoose.model('Order', orderSchema);
+
 // دالة مساعدة لتسجيل حدث
 async function logActivity(action, details, user = 'نظام') {
   try {
@@ -172,106 +201,300 @@ async function getOrCreateSettings() {
 }
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
-// مسار لاختبار الاتصال من الـ POS (لأن زر اختبار الاتصال قد يرسل طلب GET)
-app.get(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
+
+function requirePosApiKey(req, res, next) {
+  const configured = String(process.env.POS_API_KEY || "technology2309").trim(); // Fallback to hardcoded if not in env
+  const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
+  
+  if (!configured) {
+    return res.status(503).json({ message: "غير مضبوط على السيرفر POS_API_KEY" });
+  }
+  if (!supplied || supplied !== configured) {
+    return res.status(401).json({ message: "غير صحيح POS مفتاح ربط الـ" });
+  }
+  next();
+}
+
+// 1. اختبار الاتصال
+app.get('/api/pos/ping', requirePosApiKey, async (req, res) => {
   try {
     const productsCount = await Product.countDocuments();
-    // No orders collection in current schema, returning 0
-    res.json({ 
-      success: true, 
-      message: 'POS API is working correctly.',
-      products_count: productsCount,
-      orders_count: 0,
-      productsCount: productsCount,
-      ordersCount: 0
+    const pendingOrdersCount = await Order.countDocuments({ status: 'pending' });
+    
+    res.json({
+      ok: true,
+      service: "technology-store-pos-link",
+      products: productsCount,
+      pendingOrders: pendingOrdersCount,
+      serverTime: new Date().toISOString()
     });
   } catch (err) {
-    res.json({ success: true, message: 'POS API is working correctly.' });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-app.post(['/api/pos-sync', '/api/pos-sync/*'], async (req, res) => {
+// 2. مزامنة المنتجات
+app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
   try {
-    // 1. التحقق من مفتاح الأمان (Security)
-    let apiKey = req.headers['x-api-key'] || req.headers['api-key'] || req.headers['authorization'] || req.body.apiKey || req.query.apiKey;
+    const { fullSync, warehouseId, syncedAt, products } = req.body;
     
-    // إذا كان المفتاح مبعوث كـ Bearer token
-    if (apiKey && apiKey.startsWith('Bearer ')) {
-      apiKey = apiKey.replace('Bearer ', '').trim();
-    }
-    
-    if (apiKey !== 'technology2309') {
-      return res.status(401).json({ success: false, message: 'Unauthorized: Invalid API Key' });
+    if (!Array.isArray(products)) {
+      return res.status(400).json({ ok: false, message: "Products must be an array" });
     }
 
-    // 2. معالجة البيانات (Payload Processing)
-    // إذا كان البرنامج يرسل مصفوفة (Array) من المنتجات أو كائن واحد
-    const items = Array.isArray(req.body) ? req.body : (req.body.items || req.body.products || [req.body]);
-    
-    let syncedCount = 0;
-    let addedCount = 0;
-    let errors = [];
+    let received = products.length;
+    let processed = 0;
+    let upserted = 0;
+    let modified = 0;
 
     const settings = await Settings.findOne();
     const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : 'https://placehold.co/400x400?text=No+Image';
 
-    for (const item of items) {
-      const { barcode, sku, price, stock, quantity, title, category } = item;
-      const identifier = barcode || sku;
+    for (const item of products) {
+      processed++;
+      const { posItemId, sku, title, category, price, oldPrice, description, stockQuantity, warranty, brand, image, isActive } = item;
+      
+      const searchCriteria = {};
+      if (sku) searchCriteria.sku = sku;
+      else if (posItemId) searchCriteria.posItemId = posItemId;
+      else continue;
 
-      if (!identifier) {
-        errors.push('Barcode or SKU is required for one of the items.');
-        continue;
-      }
-
-      let product = await Product.findOne({ sku: identifier });
+      let product = await Product.findOne(searchCriteria);
+      const isHiddenFlag = isActive !== undefined ? !isActive : false;
 
       if (product) {
-        if (price !== undefined && price !== null) product.price = Number(price);
-        const newStock = stock !== undefined ? stock : quantity;
-        if (newStock !== undefined && newStock !== null) product.stockQuantity = Number(newStock);
+        if (posItemId !== undefined) product.posItemId = posItemId;
+        if (title !== undefined) product.title = title;
+        if (category !== undefined) product.category = category;
+        if (price !== undefined) product.price = price;
+        if (oldPrice !== undefined) product.oldPrice = oldPrice;
+        if (description !== undefined) product.description = Array.isArray(description) ? description : [description];
+        if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
+        if (warranty !== undefined) product.warranty = warranty;
+        if (brand !== undefined) product.brand = brand;
+        if (image !== undefined && image !== "") product.image = image;
+        product.isHidden = isHiddenFlag;
+        product.source = "pos";
+        product.lastSyncedAt = new Date();
+        
         await product.save();
-        syncedCount++;
+        modified++;
       } else {
         product = new Product({
-          title: title || `منتج جديد - ${identifier}`,
-          sku: identifier,
-          price: Number(price) || 0,
-          stockQuantity: Number(stock !== undefined ? stock : quantity) || 0,
+          posItemId: posItemId,
+          sku: sku,
+          title: title || `منتج جديد - ${sku || posItemId}`,
           category: category || 'غير مصنف',
-          image: defaultImg,
-          isHidden: true
+          price: Number(price) || 0,
+          oldPrice: Number(oldPrice),
+          description: Array.isArray(description) ? description : (description ? [description] : []),
+          stockQuantity: Number(stockQuantity) || 0,
+          warranty: warranty || '',
+          brand: brand || '',
+          image: image && image !== "" ? image : defaultImg,
+          isHidden: isHiddenFlag,
+          source: "pos",
+          lastSyncedAt: new Date()
         });
         await product.save();
-        addedCount++;
+        upserted++;
       }
     }
 
-    if (syncedCount > 0 || addedCount > 0) {
-      await logActivity('مزامنة POS', `تم تحديث ${syncedCount} منتج وإضافة ${addedCount} منتج جديد`);
+    // معالجة المنتجات القديمة عند fullSync
+    let deactivated = 0;
+    if (fullSync === true) {
+      const syncDate = new Date();
+      // نطرح دقيقتين كاحتياط لعدم إخفاء منتجات تم تحديثها للتو
+      syncDate.setMinutes(syncDate.getMinutes() - 2); 
+      
+      const updateResult = await Product.updateMany(
+        { source: "pos", lastSyncedAt: { $lt: syncDate }, isHidden: false },
+        { $set: { isHidden: true, stockQuantity: 0 } }
+      );
+      deactivated = updateResult.modifiedCount;
     }
 
-    const productsCount = await Product.countDocuments();
-
-    return res.json({ 
-      success: true, 
-      message: `تمت المزامنة بنجاح. تم تحديث ${syncedCount} وإضافة ${addedCount}.`,
-      synced: syncedCount,
-      added: addedCount,
-      errors: errors.length > 0 ? errors : undefined,
-      products_count: productsCount,
-      productsCount: productsCount,
-      orders_count: 0,
-      ordersCount: 0
+    res.json({
+      ok: true,
+      received,
+      processed,
+      upserted,
+      modified,
+      deactivated,
+      syncedAt: new Date().toISOString()
     });
 
   } catch (err) {
     console.error('POS Sync Error:', err);
-    res.status(500).json({ success: false, message: 'Internal Server Error', error: err.message });
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 3. جلب طلبات الموقع داخل البرنامج
+app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
+  try {
+    const status = req.query.status || 'pending';
+    const limit = parseInt(req.query.limit) || 500;
+
+    const orders = await Order.find({ status: status }).limit(limit).sort({ createdAt: 1 });
+    
+    const formattedOrders = orders.map(order => ({
+      _id: order._id.toString(),
+      orderNumber: order.orderNumber,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      notes: order.notes,
+      shippingAmount: order.shippingAmount,
+      paymentMethod: order.paymentMethod,
+      subtotal: order.subtotal,
+      total: order.total,
+      status: order.status,
+      createdAt: order.createdAt.toISOString(),
+      items: order.items.map(item => ({
+        productId: item.productId ? item.productId.toString() : null,
+        posItemId: item.posItemId,
+        sku: item.sku,
+        title: item.title,
+        quantity: item.quantity,
+        price: item.price,
+        lineTotal: item.lineTotal
+      }))
+    }));
+
+    res.json({
+      ok: true,
+      orders: formattedOrders
+    });
+
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// 4. تحديث حالة طلب الموقع من البرنامج
+app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status, posInvoiceId } = req.body;
+
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ ok: false, message: "Invalid status" });
+    }
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({ ok: false, message: "Order not found" });
+    }
+
+    order.status = status;
+    if (posInvoiceId) {
+      order.posInvoiceId = posInvoiceId;
+    }
+
+    await order.save();
+
+    res.json({
+      ok: true,
+      message: "Order status updated successfully",
+      orderId: order._id,
+      status: order.status
+    });
+
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
 // --- الـ API Routes الخاصة بالمنتجات ---
+
+// إضافة طلب جديد (عبر الموقع)
+app.post('/api/orders', async (req, res) => {
+  try {
+    const { customerName, customerPhone, customerAddress, notes, shippingAmount, paymentMethod, items } = req.body;
+    
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'السلة فارغة' });
+    }
+
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (let item of items) {
+      let product = null;
+      if (item.productId) {
+        product = await Product.findById(item.productId);
+      } else if (item.sku) {
+        product = await Product.findOne({ sku: item.sku });
+      } else if (item.posItemId) {
+        product = await Product.findOne({ posItemId: item.posItemId });
+      }
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: `المنتج غير موجود: ${item.title || item.sku}` });
+      }
+
+      // حساب السعر الفعلي من الداتابيز فقط
+      const itemPrice = product.price || 0;
+      const qty = item.quantity || 1;
+      const lineTotal = itemPrice * qty;
+      subtotal += lineTotal;
+
+      orderItems.push({
+        productId: product._id,
+        posItemId: product.posItemId,
+        sku: product.sku,
+        title: product.title,
+        quantity: qty,
+        price: itemPrice,
+        lineTotal: lineTotal
+      });
+    }
+
+    const total = subtotal + (Number(shippingAmount) || 0);
+    const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const order = new Order({
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerAddress,
+      notes,
+      shippingAmount: Number(shippingAmount) || 0,
+      paymentMethod,
+      items: orderItems,
+      subtotal,
+      total
+    });
+
+    await order.save();
+    
+    // تسجيل إحصائية
+    let doc = await Analytics.findOne({ key: 'main' });
+    if (!doc) doc = new Analytics({ key: 'main' });
+    const today = new Date().toISOString().split('T')[0];
+    const wOrders = { ...doc.whatsapp_orders };
+    // Using whatsapp_orders field for all orders temporarily
+    for (let item of orderItems) {
+      if (item.productId) {
+        const idStr = item.productId.toString();
+        if (!wOrders[idStr]) wOrders[idStr] = { count: 0, title: item.title };
+        wOrders[idStr].count++;
+        wOrders[idStr].lastDate = new Date().toISOString();
+      }
+    }
+    doc.whatsapp_orders = wOrders;
+    doc.markModified('whatsapp_orders');
+    await doc.save();
+
+    res.json({ success: true, message: 'تم إرسال الطلب بنجاح', orderId: order.orderNumber });
+  } catch (err) {
+    console.error('Error submitting order:', err);
+    res.status(500).json({ success: false, message: 'خطأ أثناء تقديم الطلب' });
+  }
+});
 
 // جلب كل الأقسام
 app.get('/api/categories', async (req, res) => {
@@ -1011,7 +1234,9 @@ app.delete('/api/admin/users/:id', async (req, res) => {
 
 // تشغيل السيرفر محلياً
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`🚀 السيرفر يعمل على منفذ: ${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, () => console.log(`🚀 السيرفر يعمل على منفذ: ${PORT}`));
+}
 
 // التصدير الصحيح والكامل للـ Serverless (تم تعديل الـ le.exports الخطأ)
 module.exports = app;

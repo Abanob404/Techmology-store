@@ -1191,7 +1191,41 @@ async function checkoutWhatsApp() {
         btn.disabled = false;
 
         if (data.success) {
-            alert(`تم استلام طلبك بنجاح! رقم طلبك هو: ${data.orderId || ''}`);
+            // تجهيز رسالة الواتساب الاختيارية
+            let waMsg = `مرحباً، أريد إتمام/متابعة طلب الشراء رقم: ${data.orderId}\n\n`;
+            waMsg += `👤 *الاسم:* ${name}\n`;
+            waMsg += `📞 *الهاتف:* ${phone}\n`;
+            waMsg += `📍 *العنوان:* ${window.isShippingEnabled ? address : 'استلام من المعرض'}\n\n`;
+            cart.forEach(item => {
+                waMsg += `📦 *${item.title}*\n🔢 الكمية: ${item.quantity}\n💵 السعر: ${item.price} ج.م\n\n`;
+            });
+            const encodedWaMsg = encodeURIComponent(waMsg);
+            const whatsappUrl = `https://api.whatsapp.com/send/?phone=201515664919&text=${encodedWaMsg}`;
+
+            // إنشاء نافذة منبثقة للنجاح
+            const successModal = document.createElement('div');
+            successModal.className = 'fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4';
+            successModal.innerHTML = `
+                <div class="bg-surface rounded-2xl w-full max-w-md p-6 sm:p-8 text-center shadow-2xl transform scale-100 transition-all border border-outline-variant/30">
+                    <div class="w-20 h-20 bg-green-500/20 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <span class="material-symbols-outlined text-[40px]">check_circle</span>
+                    </div>
+                    <h2 class="text-2xl font-black text-on-surface mb-2">تم استلام طلبك بنجاح!</h2>
+                    <p class="text-on-surface-variant text-sm sm:text-base mb-6">رقم الطلب الخاص بك هو:<br><span class="text-lg font-bold text-primary mt-2 block" dir="ltr">${data.orderId || data.orderNumber || ''}</span></p>
+                    
+                    <div class="flex flex-col gap-3">
+                        <a href="${whatsappUrl}" target="_blank" onclick="this.closest('.fixed').remove()" class="w-full btn-modern-green !py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-bold !rounded-xl shadow-lg shadow-green-500/20 hover:scale-[1.02] transition-transform">
+                            <i class="fa-brands fa-whatsapp text-xl"></i>
+                            إرسال نسخة من الطلب عبر واتساب (اختياري)
+                        </a>
+                        <button onclick="this.closest('.fixed').remove()" class="w-full bg-surface-variant hover:bg-outline-variant/30 text-on-surface font-bold py-3 rounded-xl transition-colors">
+                            إغلاق ومتابعة التسوق
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(successModal);
+
             cart = [];
             saveCart();
             updateCartBadge();
