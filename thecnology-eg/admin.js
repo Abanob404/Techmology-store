@@ -256,20 +256,51 @@ window.addNewCategory = async function() {
         return;
     }
 
+    try {
+        const response = await fetch(`${API_BASE_URL}/categories`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ name: newCat })
+        });
+
+        if (response.ok) {
+            showToast('✅ تم إضافة القسم بنجاح');
+            input.value = '';
+            renderCategoriesAdminList(); // Refresh list
+            loadAdminProducts(true);     // Refresh products to get updated categories list
+        } else {
+            const err = await response.json();
+            showToast(`❌ خطأ: ${err.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ تعذر الاتصال بالخادم');
+    }
 };
 
-window.deleteCategory = function(cat) {
+window.deleteCategory = async function(cat) {
     if (!confirm(`هل أنت متأكد من حذف قسم "${cat}"؟\n(ملاحظة: هذا لن يحذف المنتجات التي تنتمي لهذا القسم، ولكن سيزيل القسم من قائمة الاختيارات الافتراضية)`)) {
         return;
     }
 
-    let categories = getCategories();
-    categories = categories.filter(c => c !== cat);
-    saveCategories(categories);
-    showToast('🗑️ تم حذف القسم من الاختيارات الافتراضية.');
-    
-    renderCategoriesAdminList();
-    populateCategoriesDatalist(window.adminProducts || []);
+    try {
+        const response = await fetch(`${API_BASE_URL}/categories/${encodeURIComponent(cat)}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (response.ok) {
+            showToast('🗑️ تم حذف القسم من الاختيارات الافتراضية.');
+            renderCategoriesAdminList();
+            loadAdminProducts(true);
+        } else {
+            const err = await response.json();
+            showToast(`❌ خطأ: ${err.message}`);
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ تعذر الاتصال بالخادم');
+    }
 };
 
 // ==========================================
@@ -343,6 +374,7 @@ function renderProductsPage() {
         const isHidden = p.isHidden === true;
 
         const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+        const isPlaceholder = !p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image') || (window.defaultProductImage && p.image === window.defaultProductImage);
         const tr = document.createElement('tr');
         
         // Row styling based on stock and visibility
@@ -359,6 +391,7 @@ function renderProductsPage() {
                         <span class="flex items-center gap-2">
                             ${p.title} 
                             ${isHidden ? '<span class="text-[10px] bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded">مخفي</span>' : ''}
+                            ${isPlaceholder ? '<span class="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded" title="لن يظهر للعملاء حتى تضيف صورة">بدون صورة</span>' : ''}
                         </span>
                     </div>
                 </td>
@@ -397,14 +430,21 @@ function renderProductsPage() {
 // Pagination
 // ==========================================
 function updatePaginationControls() {
-    const totalPages = Math.max(1, Math.ceil(window.filteredProducts.length / ITEMS_PER_PAGE));
+    const totalItems = window.filteredProducts ? window.filteredProducts.length : 0;
+    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
     const pageIndicator = document.getElementById('pageIndicator');
     const prevBtn = document.getElementById('prevPageBtn');
     const nextBtn = document.getElementById('nextPageBtn');
 
-    if (pageIndicator) pageIndicator.textContent = `صفحة ${window.currentPage} / ${totalPages}`;
-    if (prevBtn) prevBtn.disabled = window.currentPage <= 1;
-    if (nextBtn) nextBtn.disabled = window.currentPage >= totalPages;
+    if (pageIndicator) {
+        if (totalItems === 0) {
+            pageIndicator.textContent = `صفحة 0 / 0`;
+        } else {
+            pageIndicator.textContent = `صفحة ${window.currentPage} / ${totalPages}`;
+        }
+    }
+    if (prevBtn) prevBtn.disabled = window.currentPage <= 1 || totalItems === 0;
+    if (nextBtn) nextBtn.disabled = window.currentPage >= totalPages || totalItems === 0;
 }
 
 window.goToPage = function(page) {
@@ -428,7 +468,9 @@ window.filterAdminProducts = function(preservePage = false) {
         const catMatch = categoryFilter ? p.category === categoryFilter : true;
         
         let stockMatch = true;
-        if (stockFilter === 'low_stock') stockMatch = p.quantity === 0;
+        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
+        if (stockFilter === 'low_stock') stockMatch = qty <= 3 && qty > 0;
+        else if (stockFilter === 'out_of_stock') stockMatch = qty === 0;
         else if (stockFilter === 'hidden') stockMatch = p.isHidden === true;
 
         if (query) {
@@ -1147,7 +1189,7 @@ window.openEditModal = function(id) {
     // عرض الصور الحالية مع أزرار التحكم والترتيب والحذف
     window.currentEditingImages = [];
     if (product.image) {
-        window.currentEditingImages.push({ url: product.image, publicId: product.imagePublicId || 'main', isMain: true });
+        window.currentEditingImages.push({ url: product.image, publicId: product.imagePublicId || `main_${product._id}`, isMain: true });
     }
     if (product.additionalImages && product.additionalImages.length > 0) {
         product.additionalImages.forEach(imgData => {

@@ -258,6 +258,24 @@
                             </button>
                         </form>
                     </div>
+
+                    <!-- Categories Settings -->
+                    <div class="glass-panel p-5 rounded-xl border border-outline-variant/50 mt-6" id="manageCategoriesWrapper">
+                        <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">category</span> إدارة أقسام المنتجات
+                        </h3>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex gap-2">
+                                <input type="text" id="newCategoryInput" placeholder="اسم القسم الجديد..." class="flex-1 bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                <button onclick="addNewCategory()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm shrink-0 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-[18px]">add</span>
+                                </button>
+                            </div>
+                            <div id="categoriesAdminList" class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 border border-outline-variant/20 rounded-lg p-2 bg-surface-container-low">
+                                <!-- Dynamically populated -->
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Products Table -->
@@ -288,12 +306,13 @@
                             </select>
                             <select id="adminStockFilter" onchange="filterAdminProducts()" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface focus:outline-none focus:border-primary text-sm min-w-[150px]">
                                 <option value="">كل الحالات</option>
-                                <option value="low_stock">نواقص المخزون (0)</option>
+                                <option value="low_stock">نواقص المخزون (<= 3)</option>
+                                <option value="out_of_stock">نفدت الكمية (0)</option>
                                 <option value="hidden">المنتجات المخفية</option>
                             </select>
                         </div>
                         <div class="overflow-x-auto">
-                            <table class="w-full text-right border-collapse">
+                            <table class="w-full text-right border-collapse min-w-[700px]">
                                 <thead>
                                     <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
                                         <th class="py-3 pr-2">المنتج</th>
@@ -400,23 +419,6 @@
                     </div>
                 </div>
 
-                <!-- Categories Settings -->
-                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50" id="manageCategoriesWrapper">
-                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
-                        <span class="material-symbols-outlined text-primary text-[20px]">category</span> إدارة أقسام المنتجات
-                    </h3>
-                    <div class="flex flex-col gap-4">
-                        <div class="flex gap-2">
-                            <input type="text" id="newCategoryInput" placeholder="اسم القسم الجديد..." class="flex-1 bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
-                            <button onclick="addNewCategory()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm shrink-0 flex items-center justify-center">
-                                <span class="material-symbols-outlined text-[18px]">add</span>
-                            </button>
-                        </div>
-                        <div id="categoriesAdminList" class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 border border-outline-variant/20 rounded-lg p-2 bg-surface-container-low">
-                            <!-- Dynamically populated -->
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
 
