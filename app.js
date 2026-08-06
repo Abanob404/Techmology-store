@@ -126,16 +126,9 @@ async function fetchProducts() {
             window.isShippingEnabled = settings.isShippingEnabled || false;
         }
 
-        // معالجة المنتجات
+        // معالجة المنتجات (إخفاء المنتجات التي تم وضع isHidden: true لها فقط)
         const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
-        const defaultImg = window.defaultProductImage || '';
-        globalProducts = allFetchedProducts.filter(p => {
-            if (p.isHidden) return false;
-            // إخفاء المنتجات بدون صورة حقيقية أو اللي صورتها هي الافتراضية
-            if (!p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image')) return false;
-            if (defaultImg && p.image === defaultImg) return false;
-            return true;
-        });
+        globalProducts = allFetchedProducts.filter(p => !p.isHidden);
 
         // معالجة الإحصائيات
         window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
