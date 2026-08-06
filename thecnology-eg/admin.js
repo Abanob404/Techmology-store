@@ -379,7 +379,7 @@ function renderProductsPage() {
         
         // Row styling based on stock and visibility
         let rowClass = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ';
-        if (isHidden || isPlaceholder) rowClass += 'opacity-50 grayscale ';
+        if (isHidden) rowClass += 'opacity-50 grayscale ';
         else if (isOutOfStock) rowClass += 'bg-red-900/10 ';
         else if (isLowStock) rowClass += 'bg-orange-900/10 ';
 
@@ -471,10 +471,7 @@ window.filterAdminProducts = function(preservePage = false) {
         const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
         if (stockFilter === 'low_stock') stockMatch = qty <= 3 && qty > 0;
         else if (stockFilter === 'out_of_stock') stockMatch = qty === 0;
-        else if (stockFilter === 'hidden') {
-            const isPlaceholder = !p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image') || (window.defaultProductImage && p.image === window.defaultProductImage);
-            stockMatch = (p.isHidden === true) || isPlaceholder;
-        }
+        else if (stockFilter === 'hidden') stockMatch = p.isHidden === true;
 
         if (query) {
             return (titleMatch || skuMatch) && catMatch && stockMatch;

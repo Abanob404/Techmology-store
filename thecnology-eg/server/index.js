@@ -93,6 +93,7 @@ const productSchema = new mongoose.Schema({
   brand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
   isHidden: { type: Boolean, default: false },
+  visibilityManuallySet: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -279,7 +280,8 @@ app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
         
         await product.save();
         modified++;
-      } else {
+        const hasRealImg = image && image !== "" && !image.includes('placehold.co') && !image.includes('no-image') && !image.includes('No+Image') && image !== defaultImg;
+        const initialHidden = isHiddenFlag || !hasRealImg;
         product = new Product({
           posItemId: posItemId,
           sku: sku,
@@ -292,7 +294,7 @@ app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
           warranty: warranty || '',
           brand: brand || '',
           image: image && image !== "" ? image : defaultImg,
-          isHidden: isHiddenFlag,
+          isHidden: initialHidden,
           source: "pos",
           lastSyncedAt: new Date()
         });
@@ -634,14 +636,24 @@ app.get('/api/products', async (req, res) => {
   try {
     const now = new Date();
     
-    // Check and update expired discounts safely
+    // إخفاء المنتجات التي بدون صورة حقيقية تلقائياً في قاعدة البيانات إذا لم يتم تغيير حالتها يدوياً
     try {
-      await Product.updateMany(
-        { discountExpiresAt: { $lt: now, $type: 'date' } },
-        { $unset: { oldPrice: 1, discountExpiresAt: 1 } }
-      );
-    } catch (updateErr) {
-      console.error('Error updating expired discounts:', updateErr);
+      const settings = await Settings.findOne();
+      const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : '';
+      const imagelessFilter = {
+        $or: [
+          { image: { $exists: false } },
+          { image: null },
+          { image: "" },
+          { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
+          ...(defaultImg ? [{ image: defaultImg }] : [])
+        ],
+        visibilityManuallySet: { $ne: true },
+        isHidden: false
+      };
+      await Product.updateMany(imagelessFilter, { $set: { isHidden: true } });
+    } catch (e) {
+      console.error('Error auto-hiding imageless products:', e);
     }
 
     const products = await Product.find().sort({ createdAt: -1 });
@@ -930,7 +942,7 @@ app.put('/api/products/:id/toggle-visibility', async (req, res) => {
     const { isHidden } = req.body;
     const updatedProduct = await Product.findByIdAndUpdate(
       req.params.id,
-      { isHidden: isHidden === true },
+      { isHidden: isHidden === true, visibilityManuallySet: true },
       { new: true }
     );
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
