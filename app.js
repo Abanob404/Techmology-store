@@ -132,8 +132,25 @@ async function fetchProducts() {
         // معالجة الإعدادات
         if (settingsRes.status === 'fulfilled' && settingsRes.value) {
             const settings = settingsRes.value;
+            window.storeSettings = settings;
             if (settings.defaultProductImage) window.defaultProductImage = settings.defaultProductImage;
             window.isShippingEnabled = settings.isShippingEnabled || false;
+            
+            // FB Pixel injection
+            if (settings.isPixelEnabled && settings.fbPixelId) {
+                if (!window.fbq) {
+                    !function(f,b,e,v,n,t,s)
+                    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                    n.queue=[];t=b.createElement(e);t.async=!0;
+                    t.src=v;s=b.getElementsByTagName(e)[0];
+                    s.parentNode.insertBefore(t,s)}(window, document,'script',
+                    'https://connect.facebook.net/en_US/fbevents.js');
+                    fbq('init', settings.fbPixelId);
+                    fbq('track', 'PageView');
+                }
+            }
         }
 
         // معالجة المنتجات (إخفاء المنتجات التي تم وضع isHidden: true لها فقط)
@@ -829,10 +846,31 @@ window.openProductModal = function(id) {
 
     const shareBtn = document.getElementById('modalShareBtn');
     shareBtn.onclick = () => shareProduct(p.title, p.price, `${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}`);
-    // Render Related Products
+    
+    // Quick Buy Button Injection
+    const container = addToCartBtn.parentElement;
+    const existingQb = container.querySelector('.quick-buy-btn');
+    if (existingQb) existingQb.remove();
+    
+    if (!isOutOfStock && window.storeSettings && window.storeSettings.isQuickBuyEnabled) {
+        const qb = document.createElement('button');
+        qb.className = 'quick-buy-btn flex-1 py-3 bg-green-500 text-white font-bold rounded hover:bg-green-600 transition-colors flex items-center justify-center gap-1 text-sm shrink-0 whitespace-nowrap px-2';
+        qb.innerHTML = 'شراء الآن ⚡';
+        qb.onclick = () => openQuickBuyModal(p._id);
+        container.insertBefore(qb, addToCartBtn);
+        addToCartBtn.classList.remove('w-full');
+        addToCartBtn.classList.add('flex-1', 'shrink-0', 'whitespace-nowrap', 'px-2');
+        container.classList.add('flex', 'gap-2');
+    } else {
+        addToCartBtn.classList.add('w-full');
+        addToCartBtn.classList.remove('flex-1', 'shrink-0', 'whitespace-nowrap', 'px-2');
+    }
+
+    // Render Related Products (Cross-Selling)
     const relatedContainer = document.getElementById('relatedProductsContainer');
     const relatedSection = document.getElementById('modalRelatedProducts');
     if (relatedContainer && relatedSection) {
+        if (window.storeSettings && window.storeSettings.isCrossSellEnabled) {
         // استبعاد المنتجات النافدة من الاقتراحات بحيث لا تظهر أبداً إلا بعد توفيرها مجدداً
         let related = globalProducts.filter(prod => prod.category === p.category && prod._id !== p._id && prod.stockQuantity !== 0);
         
@@ -863,6 +901,9 @@ window.openProductModal = function(id) {
                 `;
             }).join('');
             relatedSection.classList.remove('hidden');
+        } else {
+            relatedSection.classList.add('hidden');
+        }
         } else {
             relatedSection.classList.add('hidden');
         }
@@ -1034,6 +1075,9 @@ function addToCart(productId) {
         alert("عذراً، هذا المنتج غير متوفر حالياً.");
         return;
     }
+
+    // Facebook Pixel Track AddToCart
+    if (window.fbq) fbq('track', 'AddToCart');
 
     // Analytics: track add to cart
     trackEvent('cart_adds', product._id, product.title);
@@ -1478,4 +1522,73 @@ async function trackVisitor() {
 // Execute on load
 document.addEventListener('DOMContentLoaded', trackVisitor);
 
+function openQuickBuyModal(id) {
+    const p = globalProducts.find(x => x._id === id);
+    if(!p) return;
+    
+    let m = document.getElementById('quickBuyModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'quickBuyModal';
+        m.className = 'fixed inset-0 z-[60] hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 opacity-0';
+        m.innerHTML = `
+            <div class="bg-surface border border-outline-variant/30 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300 p-5">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-lg text-on-surface">طلب سريع ⚡</h3>
+                    <button onclick="closeQuickBuyModal()" class="text-on-surface-variant hover:text-primary"><span class="material-symbols-outlined">close</span></button>
+                </div>
+                <div class="flex items-center gap-3 mb-4 p-3 bg-surface-variant/30 rounded-xl">
+                    <img id="qbImage" src="" class="w-12 h-12 rounded object-contain bg-surface">
+                    <div>
+                        <p id="qbTitle" class="text-sm font-bold text-on-surface line-clamp-1"></p>
+                        <p id="qbPrice" class="text-primary text-sm font-bold"></p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    <input type="text" id="qbName" placeholder="الاسم الكريم" class="w-full bg-surface-container border border-outline-variant rounded-lg py-3 px-4 text-sm text-on-surface focus:border-primary focus:outline-none">
+                    <input type="tel" id="qbPhone" placeholder="رقم الهاتف" class="w-full bg-surface-container border border-outline-variant rounded-lg py-3 px-4 text-sm text-on-surface focus:border-primary focus:outline-none text-right" dir="ltr">
+                    <button id="qbSubmitBtn" class="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors flex items-center justify-center gap-2">
+                        <i class="fa-brands fa-whatsapp text-lg"></i> إرسال الطلب
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(m);
+    }
+    
+    document.getElementById('qbImage').src = p.image || window.defaultProductImage || 'https://placehold.co/400?text=No+Image';
+    document.getElementById('qbTitle').innerText = p.title;
+    document.getElementById('qbPrice').innerText = p.price + ' ج.م';
+    
+    document.getElementById('qbSubmitBtn').onclick = () => {
+        const name = document.getElementById('qbName').value.trim();
+        const phone = document.getElementById('qbPhone').value.trim();
+        if (!name || !phone) {
+            alert('يرجى إدخال الاسم ورقم الهاتف');
+            return;
+        }
+        if (window.fbq) {
+            fbq('track', 'Purchase', {currency: 'EGP', value: p.price});
+        }
+        const text = `مرحباً، أريد طلب هذا المنتج (طلب سريع):\nالمنتج: ${p.title}\nالسعر: ${p.price} ج.م\nالاسم: ${name}\nرقم الهاتف: ${phone}\nرابط المنتج: ${window.location.origin}/products?id=${p._id}`;
+        window.open(`https://wa.me/201515664919?text=${encodeURIComponent(text)}`, '_blank');
+        closeQuickBuyModal();
+    };
+    
+    m.classList.remove('hidden');
+    setTimeout(() => {
+        m.classList.remove('opacity-0');
+        m.querySelector('.transform').classList.remove('scale-95');
+        m.querySelector('.transform').classList.add('scale-100');
+    }, 10);
+}
 
+function closeQuickBuyModal() {
+    const m = document.getElementById('quickBuyModal');
+    if(m) {
+        m.classList.add('opacity-0');
+        m.querySelector('.transform').classList.remove('scale-100');
+        m.querySelector('.transform').classList.add('scale-95');
+        setTimeout(() => m.classList.add('hidden'), 300);
+    }
+}

@@ -107,6 +107,10 @@ const settingsSchema = new mongoose.Schema({
   storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
   posApiKey: { type: String, default: 'technology2309' },
+  isCrossSellEnabled: { type: Boolean, default: false },
+  isQuickBuyEnabled: { type: Boolean, default: false },
+  isPixelEnabled: { type: Boolean, default: false },
+  fbPixelId: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -1070,6 +1074,26 @@ app.post('/api/settings', async (req, res) => {
       settings.posApiKey = String(req.body.posApiKey).trim();
       updated = true;
       logMessage = logMessage ? logMessage + ' ومفتاح الـ POS' : 'تم تحديث مفتاح ربط الـ POS';
+    }
+
+    if (req.body && req.body.isCrossSellEnabled !== undefined) {
+      settings.isCrossSellEnabled = req.body.isCrossSellEnabled === 'true' || req.body.isCrossSellEnabled === true;
+      updated = true;
+    }
+
+    if (req.body && req.body.isQuickBuyEnabled !== undefined) {
+      settings.isQuickBuyEnabled = req.body.isQuickBuyEnabled === 'true' || req.body.isQuickBuyEnabled === true;
+      updated = true;
+    }
+
+    if (req.body && req.body.isPixelEnabled !== undefined) {
+      settings.isPixelEnabled = req.body.isPixelEnabled === 'true' || req.body.isPixelEnabled === true;
+      updated = true;
+    }
+
+    if (req.body && req.body.fbPixelId !== undefined) {
+      settings.fbPixelId = String(req.body.fbPixelId).trim();
+      updated = true;
     }
 
     if (!updated) {
