@@ -249,13 +249,20 @@ const handlePosSync = async (req, res) => {
 
     for (const item of products) {
       processed++;
-      const { posItemId, sku, price, stockQuantity, oldPrice } = item;
       
+      // مطابقة الحقول مع أسماء الـ POS الفعلية
+      const skuVal = item.barcode || item.sku;
+      const posIdVal = item.posItemId;
+      const priceVal = item.sale_price_piece || item.salePrice || item.sale_price || item.price;
+      const stockVal = item.quantity !== undefined ? item.quantity : item.stockQuantity;
+      const isOnOffer = item.is_on_offer == 1 || item.is_on_offer === '1' || item.is_on_offer === true || item.isOnOffer;
+      const offerPriceVal = item.offer_price || item.offerPrice;
+
       const searchCriteria = {};
-      if (sku && String(sku).trim() !== '') {
-        searchCriteria.sku = String(sku).trim();
-      } else if (posItemId !== undefined && posItemId !== null) {
-        searchCriteria.posItemId = posItemId;
+      if (skuVal && String(skuVal).trim() !== '') {
+        searchCriteria.sku = String(skuVal).trim();
+      } else if (posIdVal !== undefined && posIdVal !== null) {
+        searchCriteria.posItemId = posIdVal;
       } else {
         continue;
       }
@@ -264,16 +271,21 @@ const handlePosSync = async (req, res) => {
 
       if (product) {
         // تحديث السعر والكمية فقط للمنتجات التي سبق إنشاؤها في المتجر
-        if (price !== undefined && price !== null && !isNaN(Number(price))) {
-          product.price = Number(price);
+        if (priceVal !== undefined && priceVal !== null && !isNaN(Number(priceVal))) {
+          if (isOnOffer && offerPriceVal !== undefined && !isNaN(Number(offerPriceVal))) {
+            product.price = Number(offerPriceVal);
+            product.oldPrice = Number(priceVal);
+          } else {
+            product.price = Number(priceVal);
+            product.oldPrice = undefined; // مسح السعر القديم إذا لم يكن هناك عرض
+          }
         }
-        if (oldPrice !== undefined && oldPrice !== null && !isNaN(Number(oldPrice))) {
-          product.oldPrice = Number(oldPrice);
+        
+        if (stockVal !== undefined && stockVal !== null && !isNaN(Number(stockVal))) {
+          product.stockQuantity = Number(stockVal);
         }
-        if (stockQuantity !== undefined && stockQuantity !== null && !isNaN(Number(stockQuantity))) {
-          product.stockQuantity = Number(stockQuantity);
-        }
-        if (posItemId !== undefined) product.posItemId = posItemId;
+        
+        if (posIdVal !== undefined) product.posItemId = posIdVal;
         product.lastSyncedAt = new Date();
         
         await product.save();
@@ -605,8 +617,8 @@ app.post('/api/restore', async (req, res) => {
 app.get('/api/products', async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
-    // حد أقصى افتراضي 300 لمنع السقوط مع دعم allowDiskUse
-    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit) || (req.query.all === 'true' ? 1000 : 300)));
+    // حد أقصى 100 منتج لحماية الذاكرة مع السماح للـ Disk Use
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 100));
     const skip = (page - 1) * limit;
 
     const products = await Product.find()
@@ -631,14 +643,17 @@ const handleEmergencyClean = async (req, res) => {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    // حذف جميع المنتجات بدون صورة أو بالصورة الافتراضية أو التي أُنشت اليوم من الـ POS
+    // حذف أي منتج ليس له صورة حقيقية أو ليس له قسم محدد للعودة للمنتجات الأصلية
     const deleteFilter = {
       $or: [
         { image: { $exists: false } },
         { image: null },
         { image: "" },
         { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
-        { createdAt: { $gte: todayStart } },
+        { category: { $exists: false } },
+        { category: null },
+        { category: "" },
+        { category: "غير مصنف" },
         ...(defaultImg ? [{ image: defaultImg }] : [])
       ]
     };
