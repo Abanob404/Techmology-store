@@ -106,6 +106,7 @@ const settingsSchema = new mongoose.Schema({
   darkHeroImage: { type: String, default: 'main-banner.png' },
   storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
+  posApiKey: { type: String, default: 'technology2309' },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -203,17 +204,19 @@ async function getOrCreateSettings() {
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
 
-function requirePosApiKey(req, res, next) {
-  const configured = String(process.env.POS_API_KEY || "technology2309").trim(); // Fallback to hardcoded if not in env
-  const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
-  
-  if (!configured) {
-    return res.status(503).json({ message: "غير مضبوط على السيرفر POS_API_KEY" });
+async function requirePosApiKey(req, res, next) {
+  try {
+    const settings = await Settings.findOne();
+    const configured = (settings && settings.posApiKey) ? String(settings.posApiKey).trim() : "technology2309";
+    const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
+    
+    if (!supplied || supplied !== configured) {
+      return res.status(401).json({ message: "غير صحيح POS مفتاح ربط الـ" });
+    }
+    next();
+  } catch (err) {
+    return res.status(500).json({ message: "خطأ داخلي في الخادم عند التحقق من الصلاحيات" });
   }
-  if (!supplied || supplied !== configured) {
-    return res.status(401).json({ message: "غير صحيح POS مفتاح ربط الـ" });
-  }
-  next();
 }
 
 // 1. اختبار الاتصال
@@ -1061,6 +1064,12 @@ app.post('/api/settings', async (req, res) => {
       settings.isShippingEnabled = req.body.isShippingEnabled === 'true' || req.body.isShippingEnabled === true;
       updated = true;
       logMessage = logMessage ? logMessage + ' وإعدادات الشحن' : `تم ${settings.isShippingEnabled ? 'تفعيل' : 'إيقاف'} الشحن`;
+    }
+
+    if (req.body && req.body.posApiKey !== undefined) {
+      settings.posApiKey = String(req.body.posApiKey).trim();
+      updated = true;
+      logMessage = logMessage ? logMessage + ' ومفتاح الـ POS' : 'تم تحديث مفتاح ربط الـ POS';
     }
 
     if (!updated) {
