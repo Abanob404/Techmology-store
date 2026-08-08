@@ -953,6 +953,18 @@ function loadCurrentLogo() {
             if (settings.posApiKey && document.getElementById('posApiKeyInput')) {
                 document.getElementById('posApiKeyInput').value = settings.posApiKey;
             }
+            if (document.getElementById('crossSellToggleInput')) {
+                document.getElementById('crossSellToggleInput').checked = !!settings.isCrossSellEnabled;
+            }
+            if (document.getElementById('quickBuyToggleInput')) {
+                document.getElementById('quickBuyToggleInput').checked = !!settings.isQuickBuyEnabled;
+            }
+            if (document.getElementById('pixelToggleInput')) {
+                document.getElementById('pixelToggleInput').checked = !!settings.isPixelEnabled;
+            }
+            if (document.getElementById('fbPixelIdInput')) {
+                document.getElementById('fbPixelIdInput').value = settings.fbPixelId || '';
+            }
         })
         .catch(() => {});
 }
@@ -1134,6 +1146,34 @@ if (defaultProductImageInput) {
             reader.readAsDataURL(file);
         }
     });
+}
+
+window.saveMarketingSettings = async function(showSuccess = false) {
+    const isCrossSellEnabled = document.getElementById('crossSellToggleInput') ? document.getElementById('crossSellToggleInput').checked : false;
+    const isQuickBuyEnabled = document.getElementById('quickBuyToggleInput') ? document.getElementById('quickBuyToggleInput').checked : false;
+    const isPixelEnabled = document.getElementById('pixelToggleInput') ? document.getElementById('pixelToggleInput').checked : false;
+    const fbPixelId = document.getElementById('fbPixelIdInput') ? document.getElementById('fbPixelIdInput').value.trim() : '';
+
+    const fd = new FormData();
+    fd.append('isCrossSellEnabled', isCrossSellEnabled);
+    fd.append('isQuickBuyEnabled', isQuickBuyEnabled);
+    fd.append('isPixelEnabled', isPixelEnabled);
+    fd.append('fbPixelId', fbPixelId);
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/settings`, {
+            method: 'POST',
+            body: fd
+        });
+        if (response.ok) {
+            if (showSuccess) showToast('✅ تم حفظ إعدادات التسويق بنجاح');
+        } else {
+            if (showSuccess) showToast('⚠️ حدث خطأ أثناء الحفظ');
+        }
+    } catch (err) {
+        console.error(err);
+        if (showSuccess) showToast('⚠️ خطأ في الاتصال بالسيرفر');
+    }
 }
 
 window.saveStoreSettings = async function() {

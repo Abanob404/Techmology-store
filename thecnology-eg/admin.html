@@ -418,8 +418,54 @@
                                 <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
                             </label>
                         </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل البيع المتقاطع (Cross-Selling)</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">اقتراح منتجات ذات صلة للعميل</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="crossSellToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل الطلب السريع (Quick Buy)</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">إضافة زر الشراء السريع عبر واتساب</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="quickBuyToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
                         <button onclick="saveStoreSettings()" id="saveSettingsBtn" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Marketing Settings -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">campaign</span> إعدادات التسويق (Marketing)
+                    </h3>
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-1">معرف فيسبوك بيكسل (Facebook Pixel ID)</label>
+                            <input type="text" id="fbPixelIdInput" placeholder="مثال: 123456789012345" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل Facebook Pixel</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">تشغيل التتبع وتحليل زوار المتجر</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pixelToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <button onclick="saveMarketingSettings(true)" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ إعدادات التسويق
                         </button>
                     </div>
                 </div>
