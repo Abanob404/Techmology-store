@@ -1121,7 +1121,7 @@ window.saveShippingSettings = async function() {
             showToast(`✅ تم ${isEnabled ? 'تفعيل' : 'إيقاف'} الشحن بنجاح!`);
         } else {
             const errData = await response.json();
-            alert(`خطأ: ${errData.message}`);
+            showToast(`⚠️ خطأ: ${errData.message}`);
         }
     } catch (err) {
         console.error(err);
@@ -1154,7 +1154,7 @@ window.saveMarketingSettings = async function(showSuccess = false) {
     const isPixelEnabled = document.getElementById('pixelToggleInput') ? document.getElementById('pixelToggleInput').checked : false;
     const fbPixelId = document.getElementById('fbPixelIdInput') ? document.getElementById('fbPixelIdInput').value.trim() : '';
 
-    const fd = new FormData();
+    const fd = new URLSearchParams();
     fd.append('isCrossSellEnabled', isCrossSellEnabled);
     fd.append('isQuickBuyEnabled', isQuickBuyEnabled);
     fd.append('isPixelEnabled', isPixelEnabled);
@@ -1163,16 +1163,20 @@ window.saveMarketingSettings = async function(showSuccess = false) {
     try {
         const response = await fetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
-            body: fd
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: fd.toString()
         });
         if (response.ok) {
-            if (showSuccess) showToast('✅ تم حفظ إعدادات التسويق بنجاح');
+            showToast('✅ تم حفظ الإعدادات بنجاح');
         } else {
-            if (showSuccess) showToast('⚠️ حدث خطأ أثناء الحفظ');
+            const errData = await response.json();
+            showToast(`⚠️ خطأ: ${errData.message || 'حدث خطأ أثناء الحفظ'}`);
         }
     } catch (err) {
         console.error(err);
-        if (showSuccess) showToast('⚠️ خطأ في الاتصال بالسيرفر');
+        showToast('⚠️ خطأ في الاتصال بالسيرفر');
     }
 }
 

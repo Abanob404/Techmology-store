@@ -860,7 +860,7 @@ window.openProductModal = function(id) {
         container.insertBefore(qb, addToCartBtn);
         addToCartBtn.classList.remove('w-full');
         addToCartBtn.classList.add('flex-1', 'shrink-0', 'whitespace-nowrap', 'px-2');
-        container.classList.add('flex', 'gap-2');
+        container.classList.add('flex', 'flex-col', 'sm:flex-row', 'gap-2');
     } else {
         addToCartBtn.classList.add('w-full');
         addToCartBtn.classList.remove('flex-1', 'shrink-0', 'whitespace-nowrap', 'px-2');
@@ -1530,7 +1530,7 @@ function openQuickBuyModal(id) {
     if (!m) {
         m = document.createElement('div');
         m.id = 'quickBuyModal';
-        m.className = 'fixed inset-0 z-[60] hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 opacity-0';
+        m.className = 'fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm transition-all duration-300 opacity-0';
         m.innerHTML = `
             <div class="bg-surface border border-outline-variant/30 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300 p-5">
                 <div class="flex justify-between items-center mb-4">
