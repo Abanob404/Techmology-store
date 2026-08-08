@@ -92,9 +92,9 @@ const productSchema = new mongoose.Schema({
   warranty: { type: String, default: '' },
   brand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
-  isHidden: { type: Boolean, default: false },
+  isHidden: { type: Boolean, default: false, index: true },
   visibilityManuallySet: { type: Boolean, default: false },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now, index: true }
 });
 
 const Product = mongoose.model('Product', productSchema);
@@ -234,8 +234,8 @@ app.get('/api/pos/ping', requirePosApiKey, async (req, res) => {
   }
 });
 
-// 2. مزامنة المنتجات
-app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
+// 2. مزامنة المنتجات (Update Only - تحديث السعر والكمية فقط للمنتجات الموجودة)
+const handlePosSync = async (req, res) => {
   try {
     const { fullSync, warehouseId, syncedAt, products } = req.body;
     
@@ -245,85 +245,52 @@ app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
 
     let received = products.length;
     let processed = 0;
-    let upserted = 0;
     let modified = 0;
-
-    const settings = await Settings.findOne();
-    const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : 'https://placehold.co/400x400?text=No+Image';
 
     for (const item of products) {
       processed++;
-      const { posItemId, sku, title, category, price, oldPrice, description, stockQuantity, warranty, brand, image, isActive } = item;
+      const { posItemId, sku, price, stockQuantity, oldPrice } = item;
       
       const searchCriteria = {};
-      if (sku) searchCriteria.sku = sku;
-      else if (posItemId) searchCriteria.posItemId = posItemId;
-      else continue;
+      if (sku && String(sku).trim() !== '') {
+        searchCriteria.sku = String(sku).trim();
+      } else if (posItemId !== undefined && posItemId !== null) {
+        searchCriteria.posItemId = posItemId;
+      } else {
+        continue;
+      }
 
       let product = await Product.findOne(searchCriteria);
-      const isHiddenFlag = isActive !== undefined ? !isActive : false;
 
       if (product) {
+        // تحديث السعر والكمية فقط للمنتجات التي سبق إنشاؤها في المتجر
+        if (price !== undefined && price !== null && !isNaN(Number(price))) {
+          product.price = Number(price);
+        }
+        if (oldPrice !== undefined && oldPrice !== null && !isNaN(Number(oldPrice))) {
+          product.oldPrice = Number(oldPrice);
+        }
+        if (stockQuantity !== undefined && stockQuantity !== null && !isNaN(Number(stockQuantity))) {
+          product.stockQuantity = Number(stockQuantity);
+        }
         if (posItemId !== undefined) product.posItemId = posItemId;
-        if (title !== undefined) product.title = title;
-        if (category !== undefined) product.category = category;
-        if (price !== undefined) product.price = price;
-        if (oldPrice !== undefined) product.oldPrice = oldPrice;
-        if (description !== undefined) product.description = Array.isArray(description) ? description : [description];
-        if (stockQuantity !== undefined) product.stockQuantity = stockQuantity;
-        if (warranty !== undefined) product.warranty = warranty;
-        if (brand !== undefined) product.brand = brand;
-        if (image !== undefined && image !== "") product.image = image;
-        product.isHidden = isHiddenFlag;
-        product.source = "pos";
         product.lastSyncedAt = new Date();
         
         await product.save();
         modified++;
-        const hasRealImg = image && image !== "" && !image.includes('placehold.co') && !image.includes('no-image') && !image.includes('No+Image') && image !== defaultImg;
-        const initialHidden = isHiddenFlag || !hasRealImg;
-        product = new Product({
-          posItemId: posItemId,
-          sku: sku,
-          title: title || `منتج جديد - ${sku || posItemId}`,
-          category: category || 'غير مصنف',
-          price: Number(price) || 0,
-          oldPrice: Number(oldPrice),
-          description: Array.isArray(description) ? description : (description ? [description] : []),
-          stockQuantity: Number(stockQuantity) || 0,
-          warranty: warranty || '',
-          brand: brand || '',
-          image: image && image !== "" ? image : defaultImg,
-          isHidden: initialHidden,
-          source: "pos",
-          lastSyncedAt: new Date()
-        });
-        await product.save();
-        upserted++;
+      } else {
+        // التجاهل التام وعدم إنشاء أي منتج جديد في المتجر
+        continue;
       }
-    }
-
-    // معالجة المنتجات القديمة عند fullSync
-    let deactivated = 0;
-    if (fullSync === true) {
-      const syncDate = new Date();
-      // نطرح دقيقتين كاحتياط لعدم إخفاء منتجات تم تحديثها للتو
-      syncDate.setMinutes(syncDate.getMinutes() - 2); 
-      
-      const updateResult = await Product.updateMany(
-        { source: "pos", lastSyncedAt: { $lt: syncDate }, isHidden: false },
-        { $set: { isHidden: true, stockQuantity: 0 } }
-      );
-      deactivated = updateResult.modifiedCount;
     }
 
     res.json({
       ok: true,
+      message: "تم تحديث كميات وأسعار المنتجات الموجودة فقط (Update Only)",
       received,
       processed,
-      upserted,
       modified,
-      deactivated,
+      upserted: 0,
       syncedAt: new Date().toISOString()
     });
 
@@ -331,7 +298,10 @@ app.post('/api/pos/products/sync', requirePosApiKey, async (req, res) => {
     console.error('POS Sync Error:', err);
     res.status(500).json({ ok: false, error: err.message });
   }
-});
+};
+
+app.post('/api/pos/products/sync', requirePosApiKey, handlePosSync);
+app.post('/api/pos-sync', requirePosApiKey, handlePosSync);
 
 // 3. جلب طلبات الموقع داخل البرنامج
 app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
@@ -631,38 +601,66 @@ app.post('/api/restore', async (req, res) => {
 
 // --- الـ API Routes ---
 
-// 1. جلب كل المنتجات
+// 1. جلب المنتجات (محمية مع دعم allowDiskUse و Pagination لمنع الـ Memory Limit)
 app.get('/api/products', async (req, res) => {
   try {
-    const now = new Date();
-    
-    // إخفاء المنتجات التي بدون صورة حقيقية تلقائياً في قاعدة البيانات إذا لم يتم تغيير حالتها يدوياً
-    try {
-      const settings = await Settings.findOne();
-      const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : '';
-      const imagelessFilter = {
-        $or: [
-          { image: { $exists: false } },
-          { image: null },
-          { image: "" },
-          { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
-          ...(defaultImg ? [{ image: defaultImg }] : [])
-        ],
-        visibilityManuallySet: { $ne: true },
-        isHidden: false
-      };
-      await Product.updateMany(imagelessFilter, { $set: { isHidden: true } });
-    } catch (e) {
-      console.error('Error auto-hiding imageless products:', e);
-    }
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    // حد أقصى افتراضي 300 لمنع السقوط مع دعم allowDiskUse
+    const limit = Math.min(1000, Math.max(1, parseInt(req.query.limit) || (req.query.all === 'true' ? 1000 : 300)));
+    const skip = (page - 1) * limit;
 
-    const products = await Product.find().sort({ createdAt: -1 });
+    const products = await Product.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .allowDiskUse(true);
+
     res.json(products);
   } catch (error) {
     console.error('GET /api/products error:', error);
     res.status(500).json({ message: error.message || 'Internal Server Error' });
   }
 });
+
+// --- مسار الطوارئ لتنظيف قاعدة البيانات من المنتجات الوهمية (Emergency Cleanup) ---
+const handleEmergencyClean = async (req, res) => {
+  try {
+    const settings = await Settings.findOne();
+    const defaultImg = settings && settings.defaultProductImage ? settings.defaultProductImage : '';
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    // حذف جميع المنتجات بدون صورة أو بالصورة الافتراضية أو التي أُنشت اليوم من الـ POS
+    const deleteFilter = {
+      $or: [
+        { image: { $exists: false } },
+        { image: null },
+        { image: "" },
+        { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
+        { createdAt: { $gte: todayStart } },
+        ...(defaultImg ? [{ image: defaultImg }] : [])
+      ]
+    };
+
+    const deleteResult = await Product.deleteMany(deleteFilter);
+    const remainingCount = await Product.countDocuments();
+
+    res.json({
+      ok: true,
+      message: `تم تنظيف قاعدة البيانات بنجاح. تم حذف ${deleteResult.deletedCount} منتج وهمي.`,
+      deletedCount: deleteResult.deletedCount,
+      remainingCount: remainingCount
+    });
+  } catch (err) {
+    console.error('Emergency Clean Error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+};
+
+app.delete('/api/emergency-clean', handleEmergencyClean);
+app.get('/api/emergency-clean', handleEmergencyClean);
+app.post('/api/emergency-clean', handleEmergencyClean);
 
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
