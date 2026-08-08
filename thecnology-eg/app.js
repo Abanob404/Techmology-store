@@ -36,22 +36,29 @@ function trackEvent(type, productId, productTitle) {
     }).catch(() => {});
 }
 function trackPageVisit() {
-    const analytics = getAnalytics();
-    const page = window.location.pathname.split('/').pop() || 'index.html';
-    if (!analytics.page_visits) analytics.page_visits = {};
-    analytics.page_visits[page] = (analytics.page_visits[page] || 0) + 1;
-    analytics.total_visits = (analytics.total_visits || 0) + 1;
-    const today = new Date().toISOString().split('T')[0];
-    if (!analytics.daily_visits) analytics.daily_visits = {};
-    analytics.daily_visits[today] = (analytics.daily_visits[today] || 0) + 1;
-    saveAnalytics(analytics);
-    
-    // إرسال الإحصائية للسيرفر المركزي (لتعمل من الهاتف أو أي جهاز)
-    fetch(`${BASE_URL}/api/analytics/track`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'page_visit', page })
-    }).catch(() => {});
+    try {
+        const pagePath = window.location.pathname.toLowerCase();
+        const page = pagePath.split('/').pop() || '/';
+        const isProductsPage = pagePath.includes('products');
+        
+        const analytics = getAnalytics();
+        if (!analytics.page_visits) analytics.page_visits = {};
+        analytics.page_visits[page] = (analytics.page_visits[page] || 0) + 1;
+        analytics.total_visits = (analytics.total_visits || 0) + 1;
+        const today = new Date().toISOString().split('T')[0];
+        if (!analytics.daily_visits) analytics.daily_visits = {};
+        analytics.daily_visits[today] = (analytics.daily_visits[today] || 0) + 1;
+        saveAnalytics(analytics);
+        
+        // إرسال الإحصائية للسيرفر المركزي (لتعمل من الهاتف أو أي جهاز)
+        fetch(`${BASE_URL}/api/analytics/track`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'page_visit', page })
+        }).catch(() => {});
+    } catch (e) {
+        console.error("Error tracking visit:", e);
+    }
 }
 
 window.defaultProductImage = '';
@@ -86,6 +93,9 @@ function getFallbackImage(product) {
 // جلب المنتجات وتفعيل البحث
 async function fetchProducts() {
     const grid = document.getElementById('productsGrid');
+    const pagePath = window.location.pathname.toLowerCase();
+    const isProductsPage = pagePath.includes('products') || pagePath.includes('products.html');
+
     if (grid) {
         let skeletonHtml = '';
         for(let i = 0; i < 8; i++) {
@@ -153,7 +163,7 @@ async function fetchProducts() {
         if (initialId) {
             // عرض منتج محدد عبر ID
             const singleProduct = globalProducts.find(p => p._id === initialId);
-            if (singleProduct) {
+            if (isProductsPage) {
                 globalProducts = [singleProduct];
             }
             renderProducts();
@@ -501,7 +511,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                     <div class="mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
                         <div class="flex items-center justify-between gap-2">
                             ${priceHtml}
-                            <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products.html?id=${p._id}')" class="text-on-surface-variant hover:text-primary transition-colors p-2 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
+                            <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}')" class="text-on-surface-variant hover:text-primary transition-colors p-2 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                                 </svg>
@@ -818,7 +828,7 @@ window.openProductModal = function(id) {
     }
 
     const shareBtn = document.getElementById('modalShareBtn');
-    shareBtn.onclick = () => shareProduct(p.title, p.price, `${window.location.origin}/products.html?id=${p._id}`);
+    shareBtn.onclick = () => shareProduct(p.title, p.price, `${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}`);
     // Render Related Products
     const relatedContainer = document.getElementById('relatedProductsContainer');
     const relatedSection = document.getElementById('modalRelatedProducts');
@@ -1335,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', () => {
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 if (!document.getElementById('productsGrid')) {
-                    window.location.href = `products.html?q=${encodeURIComponent(e.target.value.trim())}`;
+                    window.location.href = `/products?q=${encodeURIComponent(e.target.value.trim())}`;
                 }
             }
         });

@@ -701,8 +701,9 @@ if (settingsForm) {
         e.preventDefault();
         const newUser = document.getElementById('newUsername').value.trim();
         const newPass = document.getElementById('newPassword').value.trim();
+        const posApiKey = document.getElementById('posApiKeyInput') ? document.getElementById('posApiKeyInput').value.trim() : '';
 
-        if (!newUser && !newPass) {
+        if (!newUser && !newPass && !posApiKey) {
             showToast('⚠️ لم تدخل أي بيانات جديدة.');
             return;
         }
@@ -711,24 +712,49 @@ if (settingsForm) {
         if (!currentUser) return;
         
         try {
-            const updateData = { username: newUser || currentUser.username };
-            if (newPass) updateData.password = newPass;
+            // 1. تحديث بيانات المستخدم (في حال وجودها)
+            if (newUser || newPass) {
+                const updateData = { username: newUser || currentUser.username };
+                if (newPass) updateData.password = newPass;
+                
+                const response = await fetch(`${BASE_URL}/api/admin/users/${currentUser.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+                
+                if (response.ok) {
+                    const updatedUser = await response.json();
+                    sessionStorage.setItem('tech_current_user', JSON.stringify(updatedUser));
+                    checkAuth();
+                } else {
+                    const errData = await response.json();
+                    alert(`خطأ: ${errData.message}`);
+                    return;
+                }
+            }
+
+            // 2. تحديث مفتاح ربط الكاشير
+            if (posApiKey) {
+                const fd = new FormData();
+                fd.append('posApiKey', posApiKey);
+                
+                const resSettings = await fetch(`${BASE_URL}/api/settings`, {
+                    method: 'POST',
+                    body: fd
+                });
+                
+                if (!resSettings.ok) {
+                    const errData = await resSettings.json();
+                    alert(`خطأ في تحديث مفتاح الكاشير: ${errData.message}`);
+                    return;
+                }
+            }
             
-            const response = await fetch(`${BASE_URL}/api/admin/users/${currentUser.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updateData)
-            });
-            
-            if (response.ok) {
-                const updatedUser = await response.json();
-                sessionStorage.setItem('tech_current_user', JSON.stringify(updatedUser));
-                settingsForm.reset();
-                showToast('✅ تم تحديث بيانات الدخول بنجاح!');
-                checkAuth();
-            } else {
-                const errData = await response.json();
-                alert(`خطأ: ${errData.message}`);
+            settingsForm.reset();
+            showToast('✅ تم تحديث الإعدادات بنجاح!');
+            if (posApiKey && document.getElementById('posApiKeyInput')) {
+                document.getElementById('posApiKeyInput').value = posApiKey;
             }
         } catch (err) {
             console.error(err);
@@ -923,6 +949,9 @@ function loadCurrentLogo() {
                     darkBgPreview.src = settings.darkHeroImage;
                     darkBgPreview.classList.remove('hidden');
                 }
+            }
+            if (settings.posApiKey && document.getElementById('posApiKeyInput')) {
+                document.getElementById('posApiKeyInput').value = settings.posApiKey;
             }
         })
         .catch(() => {});

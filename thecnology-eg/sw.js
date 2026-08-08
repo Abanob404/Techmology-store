@@ -2,8 +2,8 @@ self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open('technology-store-v1').then((cache) => cache.addAll([
       '/',
-      '/index.html',
-      '/products.html',
+      '/products',
+      '/services',
       '/app.js',
       '/style.css',
       '/logo.png',
