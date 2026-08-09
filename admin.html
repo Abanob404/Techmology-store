@@ -145,6 +145,9 @@
                 <button onclick="switchTab('logs')" id="tab-logs" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">manage_search</span> سجل النشاطات (Logs)
                 </button>
+                <button onclick="switchTab('api')" id="tab-api" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">api</span> إدارة الـ API والتنظيف
+                </button>
             </nav>
 
             <!-- Sidebar Footer -->
@@ -782,6 +785,48 @@
                             <tr><td colspan="4" class="text-center py-8 text-on-surface-variant">جاري تحميل السجل...</td></tr>
                         </tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+        <!-- API Management & Cleanup Panel -->
+        <div id="panel-api" class="tab-panel hidden h-full flex flex-col p-4 sm:p-6 overflow-y-auto">
+            <h2 class="text-2xl font-black text-on-surface mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[28px]">api</span> إدارة الـ API والتنظيف
+            </h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- API Links -->
+                <div class="glass-panel rounded-2xl p-6 border border-outline-variant/30 flex flex-col">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="material-symbols-outlined text-primary text-[24px]">link</span>
+                        <h3 class="text-xl font-bold text-on-surface">روابط الـ API الخاصة بالمتجر</h3>
+                    </div>
+                    <p class="text-on-surface-variant text-sm mb-4">استخدم هذه الروابط في برنامج المبيعات (POS) الخاص بك لربط المخزون.</p>
+                    <div class="space-y-4">
+                        <div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/50">
+                            <span class="text-xs font-bold text-primary mb-1 block">رابط رفع ومزامنة المنتجات (POST)</span>
+                            <code class="text-sm text-on-surface-variant break-all select-all font-mono" dir="ltr">https://technology-store-eg.vercel.app/api/pos/products/sync</code>
+                        </div>
+                        <div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/50">
+                            <span class="text-xs font-bold text-primary mb-1 block">رابط جلب الطلبات (GET)</span>
+                            <code class="text-sm text-on-surface-variant break-all select-all font-mono" dir="ltr">https://technology-store-eg.vercel.app/api/pos/orders</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emergency Cleanup -->
+                <div class="glass-panel rounded-2xl p-6 border border-red-500/30 bg-red-500/5 flex flex-col relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="material-symbols-outlined text-red-500 text-[24px]">delete_forever</span>
+                        <h3 class="text-xl font-bold text-on-surface">تنظيف قاعدة البيانات (طوارئ)</h3>
+                    </div>
+                    <p class="text-on-surface-variant text-sm mb-4 flex-1">
+                        استخدم هذا الزر لمسح المنتجات الوهمية (بدون صور أو بدون أقسام) التي أضافها برنامج الـ POS بالخطأ. 
+                        <strong>تحذير:</strong> هذا سيحذف أي منتج حقيقي لا يحتوي على صورة أيضاً.
+                    </p>
+                    <button onclick="runEmergencyClean()" id="emergencyCleanBtn" class="w-full bg-red-500 text-white hover:bg-red-600 font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-red-500/20 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[20px]">warning</span> بدء تنظيف المنتجات الوهمية
+                    </button>
                 </div>
             </div>
         </div>

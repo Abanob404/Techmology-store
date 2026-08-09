@@ -2692,3 +2692,37 @@ window.exportLogsToPDF = function() {
     printWindow.document.write(html);
     printWindow.document.close();
 };
+
+window.runEmergencyClean = async function() {
+    if (!confirm('تحذير: هل أنت متأكد من رغبتك في حذف جميع المنتجات التي ليس لها صورة؟ هذا الإجراء لا يمكن التراجع عنه.')) {
+        return;
+    }
+
+    const btn = document.getElementById('emergencyCleanBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<span class="material-symbols-outlined animate-spin text-[20px]">sync</span> جاري التنظيف...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch(`${BASE_URL}/api/emergency-clean`, {
+            method: 'DELETE', // Route is defined as app.delete('/api/emergency-clean') in backend
+            headers: {
+                'Authorization': `Bearer ${localStorage.getItem('tech_token')}`
+            }
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            showToast(`✅ تم بنجاح حذف ${data.deletedCount} منتج وهمي!`);
+        } else {
+            const errData = await response.json();
+            showToast(`⚠️ خطأ: ${errData.message || 'حدث خطأ أثناء التنظيف'}`);
+        }
+    } catch (error) {
+        console.error('Error during emergency clean:', error);
+        showToast('⚠️ خطأ في الاتصال بالسيرفر. إذا كان هناك أكثر من 3000 منتج، يرجى استخدام أداة التنظيف المرفقة (clean_db.js) من الكمبيوتر لأن السيرفر يغلق الاتصال بعد 10 ثوانٍ.');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
