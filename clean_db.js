@@ -2,14 +2,14 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 dotenv.config(); // لقرائة ملف .env إذا كان موجوداً
 
-// يرجى وضع رابط قاعدة البيانات هنا إذا لم يكن موجوداً في ملف .env
-const MONGODB_URI = process.env.MONGODB_URI || "ضع_رابط_قاعدة_البيانات_هنا";
+// يرجى تمرير رابط قاعدة البيانات كمتغير بيئة عند التشغيل، لا تقم بكتابته هنا أبداً
+const MONGODB_URI = process.env.MONGODB_URI;
 
 async function cleanDatabase() {
     console.log("⏳ جاري الاتصال بقاعدة البيانات...");
-    
-    if (MONGODB_URI === "ضع_رابط_قاعدة_البيانات_هنا") {
-        console.error("❌ يرجى تعديل الملف ووضع رابط قاعدة البيانات الخاص بك (MONGODB_URI) في السطر رقم 6");
+
+    if (!MONGODB_URI) {
+        console.error("❌ يرجى تعيين متغير البيئة MONGODB_URI في ملف .env أو في بيئة التشغيل.");
         process.exit(1);
     }
 
@@ -28,21 +28,21 @@ async function cleanDatabase() {
         // فلتر الحذف (المنتجات الوهمية)
         const deleteFilter = {
             $or: [
-              { image: { $exists: false } },
-              { image: null },
-              { image: "" },
-              { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
-              { category: { $exists: false } },
-              { category: null },
-              { category: "" },
-              { category: "غير مصنف" },
-              ...(defaultImg ? [{ image: defaultImg }] : [])
+                { image: { $exists: false } },
+                { image: null },
+                { image: "" },
+                { image: { $regex: /placehold\.co|no-image|No\+Image/i } },
+                { category: { $exists: false } },
+                { category: null },
+                { category: "" },
+                { category: "غير مصنف" },
+                ...(defaultImg ? [{ image: defaultImg }] : [])
             ]
         };
 
         console.log("⏳ جاري البحث عن المنتجات الوهمية (60,000 منتج)... قد يستغرق هذا دقيقة.");
         const fakeProductsCount = await db.collection('products').countDocuments(deleteFilter);
-        
+
         console.log(`🗑️ تم العثور على ${fakeProductsCount} منتج وهمي مطابق لشروط الحذف.`);
 
         if (fakeProductsCount > 0) {
