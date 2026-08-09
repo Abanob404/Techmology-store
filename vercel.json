@@ -19,7 +19,19 @@
             "use": "@vercel/static"
         },
         {
-            "src": "*.png",
+            "src": "*.{png,webp,svg,ico,jpg,jpeg}",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "*.json",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "fonts/**",
+            "use": "@vercel/static"
+        },
+        {
+            "src": "assets/**",
             "use": "@vercel/static"
         }
     ],
@@ -41,8 +53,32 @@
             "dest": "/$1"
         },
         {
-            "src": "/(.*\\.png)",
+            "src": "/(.*\\.(?:png|webp|svg|ico|jpg|jpeg))",
             "dest": "/$1"
+        },
+        {
+            "src": "/(.*\\.json)",
+            "dest": "/$1"
+        },
+        {
+            "src": "/fonts/(.*)",
+            "dest": "/fonts/$1"
+        },
+        {
+            "src": "/assets/(.*)",
+            "dest": "/assets/$1"
+        },
+        {
+            "src": "/products",
+            "dest": "/products.html"
+        },
+        {
+            "src": "/services",
+            "dest": "/services.html"
+        },
+        {
+            "src": "/admin",
+            "dest": "/admin.html"
         },
         {
             "src": "/",

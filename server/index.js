@@ -675,8 +675,6 @@ const handleEmergencyClean = async (req, res) => {
 };
 
 app.delete('/api/emergency-clean', handleEmergencyClean);
-app.get('/api/emergency-clean', handleEmergencyClean);
-app.post('/api/emergency-clean', handleEmergencyClean);
 
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
