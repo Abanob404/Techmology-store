@@ -623,15 +623,8 @@ app.post('/api/restore', async (req, res) => {
 // 1. جلب المنتجات (محمية مع دعم allowDiskUse و Pagination لمنع الـ Memory Limit)
 app.get('/api/products', async (req, res) => {
   try {
-    const page = Math.max(1, parseInt(req.query.page) || 1);
-    // حد أقصى 100 منتج لحماية الذاكرة مع السماح للـ Disk Use
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 100));
-    const skip = (page - 1) * limit;
-
     const products = await Product.find()
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
       .allowDiskUse(true);
 
     res.json(products);

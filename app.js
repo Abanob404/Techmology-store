@@ -1299,26 +1299,42 @@ async function checkoutWhatsApp() {
                         <span class="material-symbols-outlined text-[40px]">check_circle</span>
                     </div>
                     <h2 class="text-2xl font-black text-on-surface mb-2">تم استلام طلبك بنجاح!</h2>
-                    <p class="text-on-surface-variant text-sm sm:text-base mb-6">رقم الطلب الخاص بك هو:<br><span class="text-lg font-bold text-primary mt-2 block" dir="ltr">${data.orderId || data.orderNumber || ''}</span></p>
+                    <p class="text-on-surface-variant text-sm sm:text-base mb-4">رقم الطلب الخاص بك هو:<br><span class="text-lg font-bold text-primary mt-2 block" dir="ltr">${data.orderId || data.orderNumber || ''}</span></p>
                     
+                    <p class="text-on-surface-variant text-sm mb-6 animate-pulse">جاري تحويلك لإتمام الطلب عبر واتساب...</p>
+
                     <div class="flex flex-col gap-3">
-                        <a href="${whatsappUrl}" target="_blank" onclick="this.closest('.fixed').remove()" class="w-full btn-modern-green !py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-bold !rounded-xl shadow-lg shadow-green-500/20 hover:scale-[1.02] transition-transform">
+                        <a href="${whatsappUrl}" target="_blank" id="forceWaBtn" class="w-full btn-modern-green !py-3 flex items-center justify-center gap-2 text-sm sm:text-base font-bold !rounded-xl shadow-lg shadow-green-500/20 hover:scale-[1.02] transition-transform">
                             <i class="fa-brands fa-whatsapp text-xl"></i>
-                            إرسال نسخة من الطلب عبر واتساب (اختياري)
+                            تأكيد الطلب عبر واتساب
                         </a>
-                        <button onclick="this.closest('.fixed').remove()" class="w-full bg-surface-variant hover:bg-outline-variant/30 text-on-surface font-bold py-3 rounded-xl transition-colors">
-                            إغلاق ومتابعة التسوق
-                        </button>
                     </div>
                 </div>
             `;
             document.body.appendChild(successModal);
 
-            cart = [];
-            saveCart();
-            updateCartBadge();
-            renderCart();
-            closeCartSidebar();
+            const clearCartLogic = () => {
+                cart = [];
+                saveCart();
+                updateCartBadge();
+                renderCart();
+                closeCartSidebar();
+            };
+
+            const waBtn = document.getElementById('forceWaBtn');
+            waBtn.onclick = function(e) {
+                clearCartLogic();
+                this.closest('.fixed').remove();
+            };
+
+            // التحويل التلقائي
+            setTimeout(() => {
+                const waWindow = window.open(whatsappUrl, '_blank');
+                if (waWindow) {
+                    clearCartLogic();
+                    // optional: successModal.remove();
+                }
+            }, 500);
         } else {
             alert("حدث خطأ أثناء إرسال الطلب. يرجى المحاولة مرة أخرى.");
         }
