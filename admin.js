@@ -1106,15 +1106,12 @@ window.saveShippingSettings = async function() {
     const isEnabled = document.getElementById('shippingToggleInput').checked;
     
     try {
-        const formData = new URLSearchParams();
+        const formData = new FormData();
         formData.append('isShippingEnabled', isEnabled);
         
         const response = await fetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: formData.toString()
+            body: formData
         });
 
         if (response.ok) {

@@ -153,9 +153,12 @@ async function fetchProducts() {
             }
         }
 
-        // معالجة المنتجات (إخفاء المنتجات التي تم وضع isHidden: true لها فقط)
+        // معالجة المنتجات (إخفاء المنتجات المخفية والوهمية التي ليس لها صورة حقيقية)
         const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
-        globalProducts = allFetchedProducts.filter(p => !p.isHidden);
+        globalProducts = allFetchedProducts.filter(p => {
+            const hasValidImage = p.image && p.image.trim() !== '' && !p.image.includes('placehold.co') && !p.image.includes('no-image');
+            return !p.isHidden && hasValidImage;
+        });
 
         // معالجة الإحصائيات
         window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
@@ -178,12 +181,13 @@ async function fetchProducts() {
         const initialCategory = urlParams.get('category');
 
         if (initialId) {
-            // عرض منتج محدد عبر ID
-            const singleProduct = globalProducts.find(p => p._id === initialId);
-            if (isProductsPage) {
-                globalProducts = [singleProduct];
-            }
-            renderProducts();
+            // رندرة جميع المنتجات ثم فتح المنتج المطلوب في نافذة منبثقة
+            renderProducts("all", "");
+            setTimeout(() => {
+                if (typeof openProductModal === 'function') {
+                    openProductModal(initialId);
+                }
+            }, 300);
         } else if (initialCategory) {
             // تفعيل الفلترة للفئة المحددة في الرابط
             const filterButtons = document.querySelectorAll('.filter-btn');

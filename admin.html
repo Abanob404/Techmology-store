@@ -981,6 +981,9 @@
                 t.classList.add('text-on-surface-variant');
             });
             
+            // Scroll to top when changing tabs
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
             const panel = document.getElementById(`panel-${tabName}`);
             const tab = document.getElementById(`tab-${tabName}`);
             if (panel) panel.classList.remove('hidden');
