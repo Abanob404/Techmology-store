@@ -29,7 +29,7 @@ cloudinary.config({
 });
 
 // الاتصال بقاعدة بيانات MongoDB
-mongoose.connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000, socketTimeoutMS: 45000 })
   .then(async () => {
     console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB');
     await initDefaultAdmin();
@@ -210,7 +210,7 @@ async function getOrCreateSettings() {
 
 async function requirePosApiKey(req, res, next) {
   try {
-    const settings = await Settings.findOne();
+    const settings = await Settings.findOne().maxTimeMS(5000).lean();
     const configured = (settings && settings.posApiKey) ? String(settings.posApiKey).trim() : "technology2309";
     const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
     
@@ -219,7 +219,7 @@ async function requirePosApiKey(req, res, next) {
     }
     next();
   } catch (err) {
-    return res.status(500).json({ message: "خطأ داخلي في الخادم عند التحقق من الصلاحيات" });
+    return res.status(503).json({ message: "الخدمة غير متاحة حالياً بسبب الضغط، يرجى المحاولة لاحقاً", error: err.message });
   }
 }
 
@@ -238,6 +238,19 @@ app.get('/api/pos/ping', requirePosApiKey, async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// جلب المنتجات للمقارنة (للـ POS) مع تحسين الذاكرة
+app.get('/api/pos/products', requirePosApiKey, async (req, res) => {
+  try {
+    // جلب الحقول الضرورية فقط كما طلب الـ POS لتقليل استهلاك الذاكرة ومنع انهيار السيرفر 500
+    const products = await Product.find({})
+      .select('sku posItemId price stockQuantity oldPrice barcode quantity is_on_offer offer_price -_id')
+      .lean();
+    res.json(products);
+  } catch (err) {
+    res.status(503).json({ ok: false, error: err.message });
   }
 });
 
