@@ -74,7 +74,7 @@ body, .font-display-lg, .font-headline-md, .font-mono-data, .font-label-caps, .f
 
 /* Modern Green Button */
 .btn-modern-green {
-    background-color: #25D366; /* WhatsApp official green */
+    background-color: #0F7341; /* Darker green for WCAG contrast */
     color: #ffffff !important;
     font-family: 'Cairo', sans-serif;
     font-weight: 700;
@@ -83,7 +83,7 @@ body, .font-display-lg, .font-headline-md, .font-mono-data, .font-label-caps, .f
     border-radius: 6px;
     font-size: 14px;
     cursor: pointer;
-    box-shadow: 0 4px 10px rgba(37, 211, 102, 0.2);
+    box-shadow: 0 4px 10px rgba(15, 115, 65, 0.2);
     transition: all 0.3s ease;
     display: inline-flex;
     align-items: center;
@@ -92,9 +92,9 @@ body, .font-display-lg, .font-headline-md, .font-mono-data, .font-label-caps, .f
 }
 
 .btn-modern-green:hover {
-    background-color: #128C7E;
+    background-color: #0B5430;
     transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(37, 211, 102, 0.3);
+    box-shadow: 0 6px 15px rgba(15, 115, 65, 0.3);
 }
 
 /* Admin Dashboard specific utilities */

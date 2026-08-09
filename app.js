@@ -136,20 +136,22 @@ async function fetchProducts() {
             if (settings.defaultProductImage) window.defaultProductImage = settings.defaultProductImage;
             window.isShippingEnabled = settings.isShippingEnabled || false;
             
-            // FB Pixel injection
+            // FB Pixel injection (Lazy Load to improve PageSpeed)
             if (settings.isPixelEnabled && settings.fbPixelId) {
-                if (!window.fbq) {
-                    !function(f,b,e,v,n,t,s)
-                    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-                    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-                    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-                    n.queue=[];t=b.createElement(e);t.async=!0;
-                    t.src=v;s=b.getElementsByTagName(e)[0];
-                    s.parentNode.insertBefore(t,s)}(window, document,'script',
-                    'https://connect.facebook.net/en_US/fbevents.js');
-                    fbq('init', settings.fbPixelId);
-                    fbq('track', 'PageView');
-                }
+                setTimeout(() => {
+                    if (!window.fbq) {
+                        !function(f,b,e,v,n,t,s)
+                        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+                        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+                        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+                        n.queue=[];t=b.createElement(e);t.async=!0; t.defer=!0;
+                        t.src=v;s=b.getElementsByTagName(e)[0];
+                        s.parentNode.insertBefore(t,s)}(window, document,'script',
+                        'https://connect.facebook.net/en_US/fbevents.js');
+                        fbq('init', settings.fbPixelId);
+                        fbq('track', 'PageView');
+                    }
+                }, 3500); // تأخير تحميل بيكسل فيسبوك لمدة 3.5 ثواني
             }
         }
 
@@ -511,7 +513,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
 
         const fbImage = getFallbackImage(p);
         const hasValidImage = p.image && !p.image.includes('placehold.co');
-        const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/q_auto,f_auto,w_600/') : fbImage;
+        const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_400,h_400,c_fill,q_auto,f_auto/') : fbImage;
         const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
         const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
         const decodeAttr = index < 4 && !append ? 'decoding="sync"' : 'decoding="async"';
@@ -943,10 +945,10 @@ function injectFloatingSocials() {
     const div = document.createElement('div');
     div.className = 'fixed bottom-6 left-6 z-40 flex flex-col gap-3';
     div.innerHTML = `
-        <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank" class="w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform" title="قناة الواتساب">
+        <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank" class="w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform" aria-label="تواصل معنا عبر واتساب" title="قناة الواتساب">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
         </a>
-        <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank" class="w-12 h-12 bg-[#1877F2] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(24,119,242,0.3)] hover:scale-110 transition-transform" title="صفحتنا على فيسبوك">
+        <a href="https://www.facebook.com/Technology.Store.cairo/" target="_blank" class="w-12 h-12 bg-[#1877F2] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(24,119,242,0.3)] hover:scale-110 transition-transform" aria-label="صفحتنا على فيسبوك" title="صفحتنا على فيسبوك">
             <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg>
         </a>
     `;
@@ -958,6 +960,7 @@ function injectCartUI() {
     // أيقونة السلة العائمة
     const cartIcon = document.createElement('div');
     cartIcon.id = 'floatingCartBtn';
+    cartIcon.setAttribute('aria-label', 'عربة التسوق');
     cartIcon.className = 'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
     cartIcon.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>

@@ -6,6 +6,7 @@
     "dev:server": "cd server && npm run dev",
     "dev": "npm run dev:server",
     "install:all": "npm install && cd server && npm install",
+    "build": "npm run build:css",
     "build:css": "tailwindcss -i ./input.css -o ./style.css --minify",
     "watch:css": "tailwindcss -i ./input.css -o ./style.css --watch"
   },
