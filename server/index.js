@@ -625,6 +625,7 @@ app.get('/api/products', async (req, res) => {
   try {
     const products = await Product.find()
       .sort({ createdAt: -1 })
+      .limit(3000) // 🛡️ حد أقصى 3000 منتج لحماية سيرفر Vercel من الانهيار (Timeout)
       .allowDiskUse(true);
 
     res.json(products);
