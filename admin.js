@@ -471,7 +471,10 @@ window.filterAdminProducts = function(preservePage = false) {
         const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
         if (stockFilter === 'low_stock') stockMatch = qty <= 3 && qty > 0;
         else if (stockFilter === 'out_of_stock') stockMatch = qty === 0;
-        else if (stockFilter === 'hidden') stockMatch = p.isHidden === true;
+        else if (stockFilter === 'hidden') {
+            const hasValidImage = p.image && p.image.trim() !== '' && !p.image.includes('placehold.co') && !p.image.includes('no-image');
+            stockMatch = p.isHidden === true || !hasValidImage;
+        }
 
         if (query) {
             return (titleMatch || skuMatch) && catMatch && stockMatch;
@@ -2528,12 +2531,20 @@ async function fetchAdminLogs() {
         const response = await fetch(`${BASE_URL}/api/admin/logs?limit=100&_t=${Date.now()}`, {
             cache: 'no-store'
         });
-        const logs = await response.json();
+        
+        let logs = [];
+        try {
+            logs = await response.json();
+        } catch(e) {
+            console.error("Failed to parse JSON:", e);
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-error">السيرفر لم يرسل استجابة صحيحة.</td></tr>`;
+            return;
+        }
         
         if (response.ok) {
             renderAdminLogs(logs);
         } else {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-error">خطأ في تحميل السجل</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-error">خطأ في تحميل السجل: ${logs.message || 'غير معروف'}</td></tr>`;
         }
     } catch (err) {
         console.error('Error fetching logs:', err);
@@ -2546,7 +2557,7 @@ function renderAdminLogs(logs) {
     const tbody = document.getElementById('adminLogsTableBody');
     if (!tbody) return;
 
-    if (!logs || logs.length === 0) {
+    if (!logs || !Array.isArray(logs) || logs.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant">لا توجد أي نشاطات مسجلة حتى الآن</td></tr>`;
         return;
     }
