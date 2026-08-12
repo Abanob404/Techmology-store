@@ -1,5 +1,6 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
@@ -205,6 +206,40 @@ async function getOrCreateSettings() {
   }
   return settings;
 }
+
+// --- SSR Route for /products ---
+app.get('/products', async (req, res) => {
+  try {
+    const htmlPath = path.join(__dirname, '../products.html');
+    let html = fs.readFileSync(htmlPath, 'utf-8');
+
+    if (req.query.id) {
+      const product = await Product.findById(req.query.id).lean();
+      if (product) {
+        const title = `${product.title} | TECHNOLOGY`;
+        const description = product.category ? `قسم: ${product.category}` : `سعر المنتج: ${product.price} جنيه`;
+        let image = product.image || 'logo.webp';
+        
+        // Ensure image is absolute
+        if (image.startsWith('/')) {
+          image = `https://${req.get('host')}${image}`;
+        } else if (!image.startsWith('http')) {
+           image = `https://${req.get('host')}/${image}`;
+        }
+
+        // Replace tags in HTML
+        html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
+        html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${title}">`);
+        html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
+        html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
+      }
+    }
+    res.send(html);
+  } catch (err) {
+    console.error('SSR Error:', err);
+    res.sendFile(path.join(__dirname, '../products.html'));
+  }
+});
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
 

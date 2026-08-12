@@ -70,7 +70,7 @@
         },
         {
             "src": "/products",
-            "dest": "/products.html"
+            "dest": "server/index.js"
         },
         {
             "src": "/services",

@@ -6,7 +6,7 @@ self.addEventListener('install', (e) => {
       '/services',
       '/app.js',
       '/style.css',
-      '/logo.png',
+      '/logo.webp',
       '/favicon.svg'
     ])),
   );
