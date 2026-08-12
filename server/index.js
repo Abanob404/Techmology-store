@@ -210,7 +210,7 @@ async function getOrCreateSettings() {
 // --- SSR Route for /products ---
 app.get('/products', async (req, res) => {
   try {
-    const htmlPath = path.join(__dirname, '../products.html');
+    const htmlPath = path.join(__dirname, '../products_page.html');
     let html = fs.readFileSync(htmlPath, 'utf-8');
 
     if (req.query.id) {
@@ -237,7 +237,7 @@ app.get('/products', async (req, res) => {
     res.send(html);
   } catch (err) {
     console.error('SSR Error:', err);
-    res.sendFile(path.join(__dirname, '../products.html'));
+    res.sendFile(path.join(__dirname, '../products_page.html'));
   }
 });
 
