@@ -516,7 +516,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_400,h_400,c_fill,q_auto,f_auto/') : fbImage;
         const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
         const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
-        const decodeAttr = index < 4 && !append ? 'decoding="sync"' : 'decoding="async"';
+        const decodeAttr = 'decoding="async"';
 
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
