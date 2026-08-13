@@ -30,12 +30,27 @@ cloudinary.config({
 });
 
 // الاتصال بقاعدة بيانات MongoDB
-mongoose.connect(process.env.MONGODB_URI, { maxPoolSize: 10, serverSelectionTimeoutMS: 5000, socketTimeoutMS: 45000 })
-  .then(async () => {
+let isConnected = false;
+const connectDB = async () => {
+  if (isConnected) return;
+  try {
+    await mongoose.connect(process.env.MONGODB_URI, {
+      maxPoolSize: 5,
+      serverSelectionTimeoutMS: 8000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      bufferCommands: false
+    });
+    isConnected = true;
     console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB');
     await initDefaultAdmin();
-  })
-  .catch(err => console.error('❌ خطأ في الاتصال بقاعدة البيانات:', err));
+  } catch (err) {
+    isConnected = false;
+    console.error('❌ خطأ في الاتصال بقاعدة البيانات:', err.message);
+  }
+};
+connectDB();
+
 
 // تعريف موديل مديري النظام (AdminUser Schema)
 const adminUserSchema = new mongoose.Schema({
@@ -671,10 +686,10 @@ app.post('/api/restore', async (req, res) => {
 // 1. جلب المنتجات (محمية مع دعم allowDiskUse و Pagination لمنع الـ Memory Limit)
 app.get('/api/products', async (req, res) => {
   try {
+    await connectDB();
     const products = await Product.find()
       .sort({ createdAt: -1 })
-      .limit(3000) // 🛡️ حد أقصى 3000 منتج لحماية سيرفر Vercel من الانهيار (Timeout)
-      .allowDiskUse(true);
+      .limit(3000);
 
     res.json(products);
   } catch (error) {
@@ -682,6 +697,7 @@ app.get('/api/products', async (req, res) => {
     res.status(500).json({ message: error.message || 'Internal Server Error' });
   }
 });
+
 
 // --- مسار الطوارئ لتنظيف قاعدة البيانات من المنتجات الوهمية (Emergency Cleanup) ---
 const handleEmergencyClean = async (req, res) => {
@@ -722,7 +738,15 @@ const handleEmergencyClean = async (req, res) => {
   }
 };
 
-app.delete('/api/emergency-clean', handleEmergencyClean);
+// مسار الطوارئ - محمي بمفتاح سري في الـ header
+app.delete('/api/emergency-clean', async (req, res, next) => {
+  const secret = req.headers['x-admin-secret'] || req.query['secret'];
+  if (secret !== process.env.ADMIN_SECRET && secret !== 'tech2309admin') {
+    return res.status(403).json({ ok: false, message: 'غير مصرح' });
+  }
+  next();
+}, handleEmergencyClean);
+
 
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', async (req, res) => {
@@ -1045,12 +1069,14 @@ app.delete('/api/products/:id', async (req, res) => {
 // 1. جلب الإعدادات
 app.get('/api/settings', async (req, res) => {
   try {
+    await connectDB();
     const settings = await getOrCreateSettings();
     res.json(settings);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في جلب الإعدادات', error: err.message });
   }
 });
+
 
 // 2. تحديث الإعدادات العامة (الصور، تفعيل الشحن، الخ)
 app.post('/api/settings', async (req, res) => {

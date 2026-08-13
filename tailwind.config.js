@@ -7,7 +7,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // All colors now use CSS variables so light/dark mode works properly
+        // Using CSS variables so light/dark mode works correctly
         "primary":                      "rgb(var(--color-primary) / <alpha-value>)",
         "on-primary":                   "rgb(var(--color-on-primary) / <alpha-value>)",
         "secondary":                    "rgb(var(--color-secondary) / <alpha-value>)",
