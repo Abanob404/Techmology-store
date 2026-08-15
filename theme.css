@@ -71,21 +71,99 @@
     --scrollbar-thumb-hover: #82cfff;
 }
 
+/* =====================================================
+   LIGHT MODE OVERRIDES
+   Tailwind uses hardcoded dark hex colors so we 
+   override them here when .dark is NOT on <html>
+   ===================================================== */
+
+/* Body & Background */
+html:not(.dark) body {
+    background-color: #FDFBFF !important;
+    color: #1A1C1E !important;
+}
+
+/* Backgrounds */
+html:not(.dark) .bg-background  { background-color: #FDFBFF !important; }
+html:not(.dark) .bg-surface     { background-color: #FDFBFF !important; }
+html:not(.dark) .bg-surface-dim { background-color: #DED8E1 !important; }
+
+html:not(.dark) .bg-surface-container-lowest { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-surface-container-low    { background-color: #F7F5F9 !important; }
+html:not(.dark) .bg-surface-container        { background-color: #EFE8F1 !important; }
+html:not(.dark) .bg-surface-container-high   { background-color: #E9E7EC !important; }
+html:not(.dark) .bg-surface-container-highest{ background-color: #E3E2E6 !important; }
+html:not(.dark) .bg-surface-variant          { background-color: #E1E2E8 !important; }
+
+/* Text Colors */
+html:not(.dark) .text-on-surface         { color: #1A1C1E !important; }
+html:not(.dark) .text-on-background      { color: #1A1C1E !important; }
+html:not(.dark) .text-on-surface-variant { color: #43474E !important; }
+html:not(.dark) .text-primary            { color: #0061A4 !important; }
+html:not(.dark) .text-secondary          { color: #4A6FA5 !important; }
+html:not(.dark) .text-tertiary           { color: #7D5260 !important; }
+html:not(.dark) .text-error              { color: #BA1A1A !important; }
+html:not(.dark) .text-outline            { color: #74777F !important; }
+
+/* Primary button */
+html:not(.dark) .bg-primary          { background-color: #0061A4 !important; }
+html:not(.dark) .bg-secondary-container { background-color: #D6E3FF !important; }
+html:not(.dark) .text-on-primary     { color: #FFFFFF !important; }
+
+/* Borders */
+html:not(.dark) .border-outline-variant { border-color: #C4C6D0 !important; }
+html:not(.dark) .border-outline         { border-color: #74777F !important; }
+html:not(.dark) .border-surface-variant { border-color: #E1E2E8 !important; }
+html:not(.dark) .divide-outline-variant > * + * { border-color: #C4C6D0 !important; }
+
+/* Nav & header */
+html:not(.dark) nav,
+html:not(.dark) header {
+    background-color: #E9E7EC !important;
+    border-color: #C4C6D0 !important;
+}
+
+/* Cards */
+html:not(.dark) .card-hover-effect {
+    border-color: #C4C6D0;
+}
+html:not(.dark) .card-hover-effect:hover {
+    border-color: rgba(0, 97, 164, 0.4) !important;
+    box-shadow: 0 8px 32px rgba(0, 97, 164, 0.15) !important;
+}
+
+/* Hover states */
+html:not(.dark) .hover\:bg-surface-container-high:hover { background-color: #E9E7EC !important; }
+html:not(.dark) .hover\:bg-surface-container:hover      { background-color: #EFE8F1 !important; }
+html:not(.dark) .hover\:bg-surface-variant:hover        { background-color: #E1E2E8 !important; }
+html:not(.dark) .hover\:bg-primary\/20:hover            { background-color: rgba(0,97,164,0.2) !important; }
+
+/* Inputs & forms */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+    background-color: #FFFFFF !important;
+    color: #1A1C1E !important;
+    border-color: #C4C6D0 !important;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+    color: #74777F !important;
+}
+
+/* Scrollbar */
+html:not(.dark) ::-webkit-scrollbar-track { background: #f1f0f4 !important; }
+html:not(.dark) ::-webkit-scrollbar-thumb { background: #c4c6d0 !important; }
+html:not(.dark) ::-webkit-scrollbar-thumb:hover { background: #0061a4 !important; }
+
+/* Glass panel */
 .glass-panel {
     background: var(--glass-bg) !important;
     border-color: var(--glass-border) !important;
 }
-.card-hover-effect:hover {
-    border-color: var(--glass-hover) !important;
-    box-shadow: 0 8px 32px var(--glass-shadow) !important;
-}
 
-::-webkit-scrollbar-track {
-    background: var(--scrollbar-track) !important;
-}
-::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-thumb) !important;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: var(--scrollbar-thumb-hover) !important;
-}
+/* Scrollbar (dark - default) */
+::-webkit-scrollbar-track  { background: var(--scrollbar-track) !important; }
+::-webkit-scrollbar-thumb  { background: var(--scrollbar-thumb) !important; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover) !important; }
