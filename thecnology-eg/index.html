@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html class="dark" lang="ar" dir="rtl">
+
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <meta name="description"
+        content="Technology Store - وجهتك الأولى لأحدث أجهزة الكمبيوتر، اللابتوبات، وتجميعات الألعاب بأفضل الأسعار.">
+    <meta property="og:title" content="Technology Store">
+    <meta property="og:description" content="وجهتك الأولى لأحدث أجهزة الكمبيوتر، اللابتوبات، وتجميعات الألعاب بأفضل الأسعار.">
+    <meta property="og:image" content="logo.webp">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#0f1418">
+    <title>TECHNOLOGY | الرئيسية</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="logo.webp">
+    <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://res.cloudinary.com">
+    <link rel="preload" as="image" href="main-banner.webp" fetchpriority="high">
+
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
+    <!-- AOS Animations CSS (Non-Blocking) -->
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet" media="print" onload="this.media='all'">
+    
+    <!-- Preconnect to Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- FontAwesome (Non-Blocking) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Material Icons (Non-Blocking) -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Cairo font is self-hosted in style.css — no need to load from Google Fonts -->
+    
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light') { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
+    dir="rtl">
+
+    <!-- TopNavBar -->
+    <header
+        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
+        <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
+            <div class="flex items-center gap-4 md:gap-8">
+                <a class="flex items-center gap-2" href="/">
+                    <img src="logo.webp" alt="Technology Store" width="200" height="64" class="h-12 md:h-16 w-auto max-w-[200px] object-contain"
+                       >
+                </a>
+                <div class="hidden md:flex items-center relative w-64 lg:w-96">
+                    <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <!-- تم إضافة الـ ID ودالة البحث هنا -->
+                    <input id="searchInput" oninput="searchProducts()"
+                        class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
+                        placeholder="ابحث في الكتالوج..." type="text">
+                </div>
+            </div>
+            <nav class="hidden md:flex items-center gap-6">
+                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base font-bold"
+                    href="/">الرئيسية</a>
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
+                    href="/services">الخدمات</a>
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
+                    href="/products">المنتجات</a>
+            </nav>
+            <div class="flex items-center gap-3">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+                <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green"
+                    aria-label="تواصل معنا عبر واتساب">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        viewBox="0 0 16 16">
+                        <path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232" />
+                    </svg>
+                    <span class="hidden sm:inline">تواصل معنا</span>
+                </a>
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuBtn" class="md:hidden flex items-center justify-center p-2 text-sky-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
+                </button>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobileMenu"
+            class="hidden md:hidden bg-surface-container border-t border-primary/10 px-4 py-4 flex-col gap-3">
+            <div class="flex items-center relative w-full mb-3">
+                <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input oninput="searchProducts()"
+                    class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
+                    placeholder="ابحث في الكتالوج..." type="text">
+            </div>
+            <a class="block py-2 px-3 rounded-lg text-primary bg-primary/10 text-base font-bold"
+                href="/">الرئيسية</a>
+            <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
+                href="/services">الخدمات</a>
+            <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
+                href="/products">المنتجات</a>
+        </div>
+    </header>
+
+    <main class="flex-1 pt-24 w-full">
+        <!-- Hero Section -->
+        <section class="relative pt-40 pb-20 overflow-hidden flex flex-col items-center justify-center min-h-[70vh]">
+            <div class="absolute inset-0 bg-surface-container-low/50 opacity-20 dark:opacity-100"></div>
+            
+            <div class="absolute inset-0 z-0 flex items-center justify-center opacity-40 dark:opacity-30 dark:mix-blend-screen p-4 md:p-0">
+                <img id="dark-banner" src="main-banner.webp" alt="Technology Store Banner" width="1200" height="600" fetchpriority="high" decoding="async" class="hidden dark:block w-full h-full max-w-[700px] max-h-[450px] md:max-w-none md:max-h-none md:w-full md:h-full object-contain object-center">
+                <img id="light-banner" src="main-banner.webp" alt="Technology Store Banner" width="1200" height="600" loading="lazy" decoding="async" class="block dark:hidden w-full h-full max-w-[700px] max-h-[450px] md:max-w-none md:max-h-none md:w-full md:h-full object-contain object-center">
+            </div>
+            
+            <div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background z-0"></div>
+
+            <div class="relative z-10 max-w-container-max mx-auto px-gutter text-center flex flex-col items-center">
+                <span
+                    class="px-5 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-sm font-mono-data tracking-widest mb-6">مرحباً
+                    بك في عالم التكنولوجيا</span>
+                <h1 class="font-display-lg text-5xl md:text-7xl text-on-surface mb-6 leading-[1.2] font-black tracking-tight">أقوى
+                    الأجهزة<br><span class="text-primary text-glow">بأفضل الأسعار</span></h1>
+                <p class="text-on-surface-variant max-w-2xl text-xl mb-10 leading-relaxed">تصفح الكتالوج الشامل لأجهزة
+                    اللابتوب، تجميعات الألعاب، وأنظمة المراقبة. قم بزيارة معرضنا للاستلام والتركيب أو تواصل معنا مباشرة
+                    للاستفسار.</p>
+                <div class="flex gap-4">
+                    <a href="/products"
+                        class="px-8 py-4 bg-primary text-on-primary font-bold text-lg rounded hover:bg-primary/90 hover:glow-primary transition-all flex items-center gap-2">
+                        تصفح الكتالوج
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                    </a>
+                    <a href="/services"
+                        class="px-8 py-4 bg-surface-container border border-primary/30 text-primary font-bold text-lg rounded hover:bg-primary/10 transition-colors">
+                        اكتشف خدماتنا
+                    </a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Featured Section -->
+        <div class="max-w-container-max mx-auto px-gutter md:px-margin-desktop py-20">
+            <div class="flex justify-between items-end mb-10 border-b border-outline-variant/30 pb-4">
+                <div>
+                    <h2 class="font-headline-md text-2xl text-primary">أقسام مميزة</h2>
+                    <p class="text-on-surface-variant text-sm mt-1">كل ما تحتاجه لبناء نظامك المتكامل</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <a href="/products?category=Desktops"
+                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    <div
+                        class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h3 class="font-headline-md text-2xl mb-3 text-on-surface">تجميعات احترافية</h3>
+                    <p class="text-on-surface-variant text-base">أقوى أجهزة الجيمنج والمونتاج المجهزة بالكامل لك.</p>
+                </a>
+                <a href="/products?category=Networking"
+                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    <div
+                        class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg>
+                    </div>
+                    <h3 class="font-headline-md text-2xl mb-3 text-on-surface">أنظمة شبكات</h3>
+                    <p class="text-on-surface-variant text-base">راوترات وسويتشات وكابلات عالية الجودة جاهزة للتركيب.</p>
+                </a>
+                <a href="/products?category=Surveillance"
+                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    <div
+                        class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h3 class="font-headline-md text-2xl mb-3 text-on-surface">أنظمة المراقبة</h3>
+                    <p class="text-on-surface-variant text-base">كاميرات مراقبة وتجهيزات أمنية متكاملة لضمان سلامتك.</p>
+                </a>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer
+        class="bg-surface-container-lowest text-secondary font-mono-data text-mono-data w-full mt-auto border-t border-outline-variant">
+        <div
+            class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-gutter md:px-margin-desktop py-12 w-full max-w-container-max mx-auto">
+            <div class="md:col-span-1 flex flex-col gap-4">
+                <img src="logo.webp" alt="Technology Store" width="250" height="80" class="h-14 md:h-20 w-auto max-w-[250px] object-contain origin-right">
+                <p class="text-on-surface-variant text-sm mt-2 max-w-xs leading-relaxed">معرضك الأول لأحدث أجهزة
+                    الكمبيوتر، تجميعات الألعاب، مكونات الهاردوير، وأنظمة المراقبة المتكاملة.</p>
+            </div>
+            <div class="flex flex-col gap-4">
+                <h4 class="text-secondary font-bold mb-2 text-lg">روابط سريعة</h4>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="/">عن المعرض</a>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="/products">كتالوج المنتجات</a>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="/services">خدمات الصيانة والتركيب</a>
+            </div>
+            <div class="flex flex-col gap-4">
+                <h4 class="text-secondary font-bold mb-2 text-lg">خدمة العملاء</h4>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="https://wa.me/201515664919" target="_blank">الدعم الفني عبر واتساب</a>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="https://wa.me/201515664919" target="_blank">الاستفسار عن المنتجات</a>
+                <a class="text-on-surface-variant text-base hover:text-primary transition-colors hover:underline decoration-primary"
+                    href="https://wa.me/201515664919" target="_blank">الاستفسار عن الصيانة</a>
+            </div>
+                        <div class="flex flex-col gap-4">
+                <h4 class="text-secondary font-bold mb-2 text-lg">تواصل معنا</h4>
+                <ul class="space-y-4 mb-6">
+                    <li>
+                        <a href="https://maps.app.goo.gl/WLhkpQmHVEMHvdnM9" target="_blank" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <span class="text-sm leading-relaxed">عزبة النخل، نهاية شارع الشيخ منصور، بجوار البتول للموبايلات</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="tel:01515664919" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-phone-alt"></i>
+                            </div>
+                            <span class="text-sm font-bold dir-ltr">01515664919</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="mailto:technology.store.official1@gmail.com" class="flex items-center gap-3 text-on-surface-variant hover:text-primary transition-colors group">
+                            <div class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors text-primary">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <span class="text-sm font-bold">البريد الإلكتروني (Gmail)</span>
+                        </a>
+                    </li>
+                </ul>
+                <div class="flex flex-wrap gap-2 mt-2 justify-center md:justify-start">
+                    <a href="https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-[#25D366] hover:bg-[#25D366] hover:text-white shadow-md hover:shadow-lg hover:shadow-[#25D366]/30 transition-all duration-300 hover:-translate-y-1" title="واتساب" aria-label="WhatsApp">
+                        <i class="fab fa-whatsapp text-xl"></i>
+                    </a>
+                    <a href="https://www.facebook.com/technologystore.official/" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-[#1877F2] hover:bg-[#1877F2] hover:text-white shadow-md hover:shadow-lg hover:shadow-[#1877F2]/30 transition-all duration-300 hover:-translate-y-1" title="فيسبوك" aria-label="Facebook">
+                        <i class="fab fa-facebook-f text-xl"></i>
+                    </a>
+                    <a href="https://www.instagram.com/technologystore.official/" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-[#E1306C] hover:bg-gradient-to-tr hover:from-[#f09433] hover:via-[#e6683c] hover:to-[#bc1888] hover:text-white shadow-md hover:shadow-lg hover:shadow-[#E1306C]/30 transition-all duration-300 hover:-translate-y-1" title="إنستجرام" aria-label="Instagram">
+                        <i class="fab fa-instagram text-xl"></i>
+                    </a>
+                    <a href="https://www.tiktok.com/@technologystore.official" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface hover:bg-black hover:text-white shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1" title="تيك توك" aria-label="TikTok">
+                        <i class="fab fa-tiktok text-xl"></i>
+                    </a>
+                    <a href="https://x.com/techstoreeg" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-on-surface hover:bg-black hover:text-white shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1" title="إكس (تويتر)" aria-label="X (Twitter)">
+                        <i class="fab fa-twitter text-xl"></i>
+                    </a>
+                    <a href="#" target="_blank" class="w-10 h-10 rounded-full bg-surface-variant flex items-center justify-center text-[#0088cc] hover:bg-[#0088cc] hover:text-white shadow-md hover:shadow-lg hover:shadow-[#0088cc]/30 transition-all duration-300 hover:-translate-y-1" title="تليجرام" aria-label="Telegram">
+                        <i class="fab fa-telegram-plane text-xl"></i>
+                    </a>
+                </div>
+                <div class="mt-4 text-center md:text-right">
+                    <p class="text-on-surface-variant/80 text-xs">© 2026 TECHNOLOGY STORE | تصميم وتطوير: <a href="https://wa.me/201223493179" target="_blank" class="whitespace-nowrap text-blue-400 hover:text-green-500 font-bold transition-colors duration-300" style="text-decoration: none;">Abanoub Nasser</a></p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js" defer></script>
+    <script>AOS.init({ once: true, offset: 50, duration: 600 });</script>
+    <script src="app.js" defer></script>
+</body>
+
+</html>

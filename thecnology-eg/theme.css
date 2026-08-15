@@ -1,0 +1,155 @@
+/* =====================================================
+   theme.css — Light & Dark Mode Variables + Overrides
+   ===================================================== */
+
+/* ── CSS Variables (used by .glass-panel and scrollbar) ── */
+:root {
+    --color-primary: 0 97 164;
+    --color-on-primary: 255 255 255;
+    --color-secondary: 74 111 165;
+    --color-secondary-container: 214 227 255;
+    --color-tertiary: 125 82 96;
+    --color-error: 186 26 26;
+    --color-background: 253 251 255;
+    --color-on-background: 26 28 30;
+    --color-surface: 253 251 255;
+    --color-on-surface: 26 28 30;
+    --color-surface-variant: 225 226 232;
+    --color-on-surface-variant: 67 71 78;
+    --color-outline: 116 119 127;
+    --color-outline-variant: 196 198 208;
+    --color-surface-container-lowest: 255 255 255;
+    --color-surface-container-low: 247 245 249;
+    --color-surface-container: 239 237 241;
+    --color-surface-container-high: 233 231 236;
+    --color-surface-container-highest: 227 226 230;
+    --color-surface-dim: 222 216 225;
+    --color-inverse-on-surface: 241 240 244;
+    --glass-bg: rgba(239, 237, 241, 0.6);
+    --glass-border: rgba(0, 97, 164, 0.1);
+    --glass-hover: rgba(0, 97, 164, 0.4);
+    --glass-shadow: rgba(0, 97, 164, 0.15);
+    --scrollbar-track: #f1f0f4;
+    --scrollbar-thumb: #c4c6d0;
+    --scrollbar-thumb-hover: #0061a4;
+}
+
+.dark {
+    --color-primary: 130 207 255;
+    --color-on-primary: 0 52 75;
+    --color-secondary: 166 200 255;
+    --color-secondary-container: 41 146 255;
+    --color-tertiary: 255 184 118;
+    --color-error: 255 180 171;
+    --color-background: 15 20 24;
+    --color-on-background: 222 227 232;
+    --color-surface: 15 20 24;
+    --color-on-surface: 222 227 232;
+    --color-surface-variant: 48 53 58;
+    --color-on-surface-variant: 189 200 209;
+    --color-outline: 135 146 155;
+    --color-outline-variant: 62 72 80;
+    --color-surface-container-lowest: 9 15 19;
+    --color-surface-container-low: 23 28 32;
+    --color-surface-container: 27 32 36;
+    --color-surface-container-high: 37 43 47;
+    --color-surface-container-highest: 48 53 58;
+    --color-surface-dim: 15 20 24;
+    --color-inverse-on-surface: 44 49 53;
+    --glass-bg: rgba(27, 32, 36, 0.6);
+    --glass-border: rgba(130, 207, 255, 0.1);
+    --glass-hover: rgba(130, 207, 255, 0.4);
+    --glass-shadow: rgba(130, 207, 255, 0.15);
+    --scrollbar-track: #090f13;
+    --scrollbar-thumb: #3e4850;
+    --scrollbar-thumb-hover: #82cfff;
+}
+
+/* ── Glass & Card Effects ── */
+.glass-panel {
+    background: var(--glass-bg) !important;
+    border-color: var(--glass-border) !important;
+}
+.card-hover-effect:hover {
+    border-color: var(--glass-hover) !important;
+    box-shadow: 0 8px 32px var(--glass-shadow) !important;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar-track       { background: var(--scrollbar-track) !important; }
+::-webkit-scrollbar-thumb       { background: var(--scrollbar-thumb) !important; }
+::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover) !important; }
+
+/* =====================================================
+   LIGHT MODE OVERRIDES
+   Tailwind classes have hardcoded dark hex values.
+   These rules override them when .dark is removed.
+   ===================================================== */
+
+/* ── Base ── */
+html:not(.dark) body {
+    background-color: #FDFBFF !important;
+    color: #1A1C1E !important;
+}
+
+/* ── Background utilities ── */
+html:not(.dark) .bg-background           { background-color: #FDFBFF !important; }
+html:not(.dark) .bg-surface              { background-color: #FDFBFF !important; }
+html:not(.dark) .bg-surface-dim          { background-color: #DED8E1 !important; }
+html:not(.dark) .bg-surface-container-lowest  { background-color: #FFFFFF !important; }
+html:not(.dark) .bg-surface-container-low     { background-color: #F7F5F9 !important; }
+html:not(.dark) .bg-surface-container         { background-color: #EFE8F1 !important; }
+html:not(.dark) .bg-surface-container-high    { background-color: #E9E7EC !important; }
+html:not(.dark) .bg-surface-container-highest { background-color: #E3E2E6 !important; }
+html:not(.dark) .bg-surface-variant           { background-color: #E1E2E8 !important; }
+
+/* ── Text utilities ── */
+html:not(.dark) .text-on-surface         { color: #1A1C1E !important; }
+html:not(.dark) .text-on-background      { color: #1A1C1E !important; }
+html:not(.dark) .text-on-surface-variant { color: #43474E !important; }
+html:not(.dark) .text-primary            { color: #0061A4 !important; }
+html:not(.dark) .text-secondary          { color: #4A6FA5 !important; }
+html:not(.dark) .text-tertiary           { color: #7D5260 !important; }
+html:not(.dark) .text-error              { color: #BA1A1A !important; }
+html:not(.dark) .text-outline            { color: #74777F !important; }
+html:not(.dark) .text-on-primary         { color: #FFFFFF !important; }
+
+/* ── Primary & accent ── */
+html:not(.dark) .bg-primary              { background-color: #0061A4 !important; }
+html:not(.dark) .bg-secondary-container  { background-color: #D6E3FF !important; }
+
+/* ── Border utilities ── */
+html:not(.dark) .border-outline-variant  { border-color: #C4C6D0 !important; }
+html:not(.dark) .border-outline          { border-color: #74777F !important; }
+html:not(.dark) .border-surface-variant  { border-color: #E1E2E8 !important; }
+
+/* ── Hover backgrounds ── */
+html:not(.dark) .hover\:bg-surface-container-high:hover  { background-color: #E9E7EC !important; }
+html:not(.dark) .hover\:bg-surface-container:hover       { background-color: #EFE8F1 !important; }
+html:not(.dark) .hover\:bg-surface-variant:hover         { background-color: #E1E2E8 !important; }
+html:not(.dark) .hover\:bg-primary\/10:hover             { background-color: rgba(0,97,164,0.1) !important; }
+html:not(.dark) .hover\:bg-primary\/5:hover              { background-color: rgba(0,97,164,0.05) !important; }
+html:not(.dark) .hover\:bg-primary\/20:hover             { background-color: rgba(0,97,164,0.2) !important; }
+html:not(.dark) .hover\:text-primary:hover               { color: #0061A4 !important; }
+
+/* ── Gradient overlays ── */
+html:not(.dark) .from-background { --tw-gradient-from: #FDFBFF !important; }
+html:not(.dark) .to-background   { --tw-gradient-to: #FDFBFF !important; }
+html:not(.dark) .via-background  { --tw-gradient-via: #FDFBFF !important; }
+
+/* ── Inputs ── */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+    background-color: #FFFFFF !important;
+    color: #1A1C1E !important;
+    border-color: #C4C6D0 !important;
+}
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder { color: #74777F !important; }
+html:not(.dark) input:focus,
+html:not(.dark) textarea:focus { border-color: #0061A4 !important; }
+
+/* ── Product cards (generated by JS in app.js) ── */
+html:not(.dark) .card-hover-effect       { border-color: #C4C6D0; }
+html:not(.dark) .bg-outline-variant\/30  { background-color: rgba(196,198,208,0.3) !important; }

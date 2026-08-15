@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html class="dark" lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="description" content="Technology Store - لوحة تحكم الإدارة">
+    <meta property="og:title" content="Technology Store - Admin">
+    <meta property="og:description" content="Technology Store - لوحة تحكم الإدارة">
+    <meta property="og:image" content="logo.webp">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#0f1418">
+    <meta content="width=device-width, initial-scale=1.0" name="viewport">
+    <title>TECHNOLOGY | لوحة الإدارة</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="apple-touch-icon" href="logo.webp">
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Preconnect to Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <!-- Load Non-Essential Icons Asynchronously -->
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <!-- Main font blocking to prevent FOUT -->
+    <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="theme.css">
+
+    <!-- Theme Toggle Script to prevent FOUT/Flash -->
+    <script>
+        if (localStorage.getItem('theme') === 'light') { 
+            document.documentElement.classList.remove('dark');
+        } else { 
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+</head>
+<body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30" dir="rtl">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-6 right-6 bg-primary text-on-primary px-6 py-3 rounded-lg font-bold shadow-[0_0_20px_rgba(130,207,255,0.4)] z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        تمت العملية بنجاح
+    </div>
+
+    <!-- Login Container -->
+    <div id="loginContainer" class="flex flex-1 items-center justify-center p-6 relative">
+        <!-- Theme Toggle on Login Page -->
+        <button onclick="toggleTheme()" class="absolute top-6 left-6 p-2.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+            <!-- Sun Icon (shown in dark mode) -->
+            <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+            <!-- Moon Icon (shown in light mode) -->
+            <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+        </button>
+        <div class="glass-panel p-10 rounded-xl w-full max-w-md text-center">
+            <span class="material-symbols-outlined text-primary text-5xl mb-4">admin_panel_settings</span>
+            <h2 class="font-headline-md text-2xl text-on-surface mb-2">لوحة الإدارة</h2>
+            <p class="text-on-surface-variant text-sm mb-8">تسجيل الدخول للتحكم في المتجر</p>
+            
+            <input type="text" id="adminUsername" placeholder="اسم المستخدم..." class="w-full bg-surface-container-high border border-outline-variant rounded-lg py-3 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-4 text-center">
+            <input type="password" id="adminPassword" placeholder="كلمة المرور..." class="w-full bg-surface-container-high border border-outline-variant rounded-lg py-3 px-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary mb-6 text-center" onkeypress="if(event.key==='Enter')login()">
+            <button onclick="login()" class="w-full py-3 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all">دخول</button>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard Container -->
+    <div id="adminContainer" class="hidden h-[100dvh] w-full bg-background overflow-hidden flex relative">
+        
+        <!-- Mobile Overlay -->
+        <div id="mobileSidebarOverlay" class="fixed inset-0 bg-black/50 z-30 hidden lg:hidden backdrop-blur-sm" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar Navigation -->
+        <aside id="adminSidebar" class="w-64 lg:w-72 flex-shrink-0 bg-surface-container-low border-l border-outline-variant/30 flex flex-col h-full absolute lg:relative right-0 translate-x-full lg:translate-x-0 transition-transform duration-300 z-40">
+            <!-- Sidebar Header -->
+            <div class="h-20 flex items-center justify-between px-6 border-b border-outline-variant/30 shrink-0">
+                <img id="adminLogoImg" src="logo.webp" alt="Technology Store" width="200" height="64" class="h-12 w-auto max-w-[200px] object-contain">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 text-on-surface-variant hover:text-primary rounded-lg bg-surface-variant/30 transition-colors">
+                    <span class="material-symbols-outlined text-[20px]">close</span>
+                </button>
+            </div>
+            
+            <!-- Sidebar Links -->
+            <nav class="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2 sidebar-nav">
+                <button onclick="switchTab('products')" id="tab-products" class="admin-tab active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-primary bg-primary/10 border border-primary/20 font-bold text-sm transition-all hover:bg-primary/20">
+                    <span class="material-symbols-outlined text-[20px]">inventory_2</span> المنتجات والمخزون
+                </button>
+                <button onclick="switchTab('settings')" id="tab-settings" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">settings</span> إعدادات المتجر
+                </button>
+                <button onclick="switchTab('users')" id="tab-users" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">group</span> إدارة المستخدمين
+                </button>
+                <button onclick="switchTab('backup')" id="tab-backup" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">backup</span> النسخ الاحتياطي
+                </button>
+                <button onclick="switchTab('analytics')" id="tab-analytics" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">analytics</span> التقارير والإحصائيات
+                </button>
+                <button onclick="switchTab('logs')" id="tab-logs" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">manage_search</span> سجل النشاطات (Logs)
+                </button>
+                <button onclick="switchTab('api')" id="tab-api" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
+                    <span class="material-symbols-outlined text-[20px]">api</span> إدارة الـ API والتنظيف
+                </button>
+            </nav>
+
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-outline-variant/30 bg-surface-container shrink-0">
+                <p class="text-on-surface-variant text-xs mb-3 text-center">مرحباً <span id="currentUserBadge" class="text-primary font-bold">admin</span></p>
+                <button onclick="logout()" class="w-full px-4 py-2.5 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg hover:bg-red-500 hover:text-white transition-all font-bold flex items-center justify-center gap-2 text-sm">
+                    تسجيل الخروج <span class="material-symbols-outlined text-[18px]">logout</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col h-full overflow-hidden w-full relative bg-surface-container-lowest">
+            
+            <!-- Top Header -->
+            <header class="h-20 flex items-center justify-between px-4 lg:px-8 bg-surface-container/50 backdrop-blur-md border-b border-outline-variant/30 shrink-0 z-20">
+                <div class="flex items-center gap-4">
+                    <button onclick="toggleSidebar()" class="lg:hidden p-2 text-on-surface rounded-lg bg-surface-variant/50 hover:text-primary transition-colors flex items-center">
+                        <span class="material-symbols-outlined">menu</span>
+                    </button>
+                    <h2 id="currentTabTitle" class="font-display-lg text-xl md:text-2xl text-primary font-bold">المنتجات والمخزون</h2>
+                </div>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <button onclick="toggleTheme()" class="p-2.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm flex items-center justify-center" aria-label="Toggle Theme">
+                        <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
+                    <a href="/" target="_blank" class="px-3 md:px-4 py-2 bg-primary text-on-primary rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-2 font-bold text-xs md:text-sm shadow-md shadow-primary/20">
+                        <span class="hidden md:inline">عرض الموقع</span> <span class="material-symbols-outlined text-[16px] md:text-[18px]">open_in_new</span>
+                    </a>
+                </div>
+            </header>
+
+            <!-- Scrollable Content Panels -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 scroll-smooth w-full">
+                <div class="max-w-container-max mx-auto h-full">
+
+        <!-- ========= TAB 1: Products ========= -->
+        <div id="panel-products" class="tab-panel">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                
+                <!-- Add Product Form -->
+                <div class="lg:col-span-1" id="addProductWrapper">
+                    <div class="glass-panel p-5 rounded-xl border border-primary/20">
+                        <h3 class="font-headline-md text-lg mb-5 text-on-surface border-b border-outline-variant/30 pb-3 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">add_circle</span> إضافة منتج
+                        </h3>
+                        <form id="addProductForm" class="flex flex-col gap-3">
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
+                                <input type="text" id="pTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
+                                <input type="text" id="pCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                <datalist id="categoriesList"></datalist>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
+                                    <input type="number" id="pPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                                </div>
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر قبل الخصم (اختياري)</label>
+                                    <input type="number" id="pOldPrice" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3 mt-1">
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">مدة الخصم</label>
+                                    <select id="pDiscountType" onchange="document.getElementById('pDiscountValueContainer').style.display = this.value ? 'block' : 'none'" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                        <option value="">بدون وقت (مستمر)</option>
+                                        <option value="days">أيام</option>
+                                        <option value="hours">ساعات</option>
+                                    </select>
+                                </div>
+                                <div id="pDiscountValueContainer" style="display: none;">
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">القيمة</label>
+                                    <input type="number" id="pDiscountValue" min="1" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
+                                <textarea id="pDesc" rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm"></textarea>
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
+                                <input type="number" id="pQuantity" required min="0" value="1" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">السيريال كود (SKU)</label>
+                                    <input type="text" id="pSku" placeholder="اختياري" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
+                                    <input type="text" id="pBrand" placeholder="اختياري" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
+                                <input type="text" id="pWarranty" placeholder="اختياري (مثل: سنة واحدة)" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">صور المنتج <span class="text-xs text-on-surface-variant/50">(يمكنك تحديد أكثر من صورة)</span></label>
+                                <input type="file" id="pImage" multiple accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                                <div id="imagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
+                            </div>
+                            <button type="submit" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">add</span> إضافة للكتالوج
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- Categories Settings -->
+                    <div class="glass-panel p-5 rounded-xl border border-outline-variant/50 mt-6" id="manageCategoriesWrapper">
+                        <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">category</span> إدارة أقسام المنتجات
+                        </h3>
+                        <div class="flex flex-col gap-4">
+                            <div class="flex gap-2">
+                                <input type="text" id="newCategoryInput" placeholder="اسم القسم الجديد..." class="flex-1 bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                                <button onclick="addNewCategory()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm shrink-0 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-[18px]">add</span>
+                                </button>
+                            </div>
+                            <div id="categoriesAdminList" class="flex flex-col gap-2 max-h-64 overflow-y-auto pr-1 border border-outline-variant/20 rounded-lg p-2 bg-surface-container-low">
+                                <!-- Dynamically populated -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Products Table -->
+                <div class="lg:col-span-3">
+                    <div class="glass-panel p-5 rounded-xl h-full flex flex-col border border-primary/10">
+                        <div class="flex items-center justify-between border-b border-outline-variant/30 pb-3 mb-5">
+                            <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                                <span class="material-symbols-outlined text-primary text-[20px]">edit_note</span> المنتجات والمخزون
+                            </h3>
+                            <div class="flex gap-2" id="csvActionsWrapper">
+                                <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="importCSV(this)">
+                                <button onclick="document.getElementById('csvFileInput').click()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-3 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-1 border border-outline-variant/30">
+                                    <span class="material-symbols-outlined text-[16px]">upload_file</span> استيراد CSV
+                                </button>
+                                <button onclick="exportCSV()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-3 py-1.5 rounded transition-colors text-xs font-bold flex items-center gap-1 border border-outline-variant/30">
+                                    <span class="material-symbols-outlined text-[16px]">download</span> تصدير الكتالوج
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Search & Filter Bar -->
+                        <div class="mb-4 flex flex-col md:flex-row gap-3">
+                            <div class="relative flex-1">
+                                <span class="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+                                <input type="search" id="adminSearchInput" placeholder="البحث باسم المنتج أو السيريال كود SKU..." class="w-full bg-surface-container border border-outline-variant rounded-lg py-2.5 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary text-sm" oninput="filterAdminProducts()">
+                            </div>
+                            <select id="adminCategoryFilter" onchange="filterAdminProducts()" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface focus:outline-none focus:border-primary text-sm min-w-[150px]">
+                                <option value="">كل الأقسام</option>
+                            </select>
+                            <select id="adminStockFilter" onchange="filterAdminProducts()" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-4 text-on-surface focus:outline-none focus:border-primary text-sm min-w-[150px]">
+                                <option value="">كل الحالات</option>
+                                <option value="low_stock">نواقص المخزون (<= 3)</option>
+                                <option value="out_of_stock">نفدت الكمية (0)</option>
+                                <option value="hidden">المنتجات المخفية</option>
+                            </select>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right border-collapse min-w-[700px]">
+                                <thead>
+                                    <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
+                                        <th class="py-3 pr-2">المنتج</th>
+                                        <th class="py-3">القسم</th>
+                                        <th class="py-3">السعر</th>
+                                        <th class="py-3">الكمية المتاحة</th>
+                                        <th class="py-3 text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="adminProductsTable">
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Pagination Controls -->
+                        <div id="paginationControls" class="flex items-center justify-center gap-3 pt-4 mt-4 border-t border-outline-variant/30">
+                            <button onclick="goToPage(window.currentPage - 1)" id="prevPageBtn" class="px-3 py-1.5 bg-surface-container border border-outline-variant rounded text-on-surface-variant text-xs font-bold hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[16px]">chevron_right</span> السابق
+                            </button>
+                            <span id="pageIndicator" class="text-on-surface-variant text-xs font-mono-data">صفحة 1 / 1</span>
+                            <button onclick="goToPage(window.currentPage + 1)" id="nextPageBtn" class="px-3 py-1.5 bg-surface-container border border-outline-variant rounded text-on-surface-variant text-xs font-bold hover:bg-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1">
+                                التالي <span class="material-symbols-outlined text-[16px]">chevron_left</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========= TAB 2: Settings ========= -->
+        <div id="panel-settings" class="tab-panel hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- Account Settings -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">lock</span> بيانات الدخول
+                    </h3>
+                    <form id="settingsForm" class="flex flex-col gap-4">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المستخدم الجديد</label>
+                            <input type="text" id="newUsername" placeholder="اترك فارغاً إذا لا تريد التغيير" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-1">كلمة المرور الجديدة</label>
+                            <input type="password" id="newPassword" placeholder="اترك فارغاً إذا لا تريد التغيير" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                        </div>
+                        <hr class="border-outline-variant/30 my-2">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-1">مفتاح ربط الكاشير (POS API Key)</label>
+                            <input type="text" id="posApiKeyInput" placeholder="technology2309" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                        </div>
+                        <button type="submit" class="w-full py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2 mt-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Branding Settings -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">palette</span> مظهر الموقع
+                    </h3>
+                    <div class="flex flex-col gap-5">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">لوجو المتجر <span class="text-on-surface-variant/50 text-xs">(48×48px مثالي)</span></label>
+                            <input type="file" id="storeLogoInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-secondary/20 file:text-secondary hover:file:bg-secondary/30 transition-all">
+                            <img id="currentLogoPreview" src="" alt="Logo" class="hidden h-14 object-contain mt-3 rounded bg-surface p-2 border border-outline-variant/30">
+                        </div>
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الغامق)</label>
+                            <input type="file" id="storeBgInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
+                            <img id="currentBgPreview" src="" alt="Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
+                        </div>
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الفاتح)</label>
+                            <input type="file" id="storeLightBgInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
+                            <img id="currentLightBgPreview" src="" alt="Light Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
+                        </div>
+                        <button onclick="saveBrandingSettings()" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ مظهر الموقع
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Store Settings (Fallback Image) -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">image</span> إعدادات المتجر
+                    </h3>
+                    <div class="flex flex-col gap-5">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصورة الافتراضية للمنتجات</label>
+                            <input type="file" id="defaultProductImageInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                            <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل الشحن</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">طلب تفاصيل العنوان وإضافة مصاريف شحن</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="shippingToggleInput" onchange="saveShippingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل البيع المتقاطع (Cross-Selling)</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">اقتراح منتجات ذات صلة للعميل</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="crossSellToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل الطلب السريع (Quick Buy)</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">إضافة زر الشراء السريع عبر واتساب</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="quickBuyToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <button onclick="saveStoreSettings()" id="saveSettingsBtn" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Marketing Settings -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[20px]">campaign</span> إعدادات التسويق (Marketing)
+                    </h3>
+                    <div class="flex flex-col gap-4">
+                        <div>
+                            <label class="block text-on-surface-variant text-sm font-semibold mb-1">معرف فيسبوك بيكسل (Facebook Pixel ID)</label>
+                            <input type="text" id="fbPixelIdInput" placeholder="مثال: 123456789012345" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                        </div>
+                        <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
+                            <div>
+                                <h4 class="text-on-surface font-semibold text-sm">تفعيل Facebook Pixel</h4>
+                                <p class="text-on-surface-variant text-xs mt-1">تشغيل التتبع وتحليل زوار المتجر</p>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="pixelToggleInput" onchange="saveMarketingSettings()" class="sr-only peer">
+                                <div class="w-11 h-6 bg-surface-variant peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                            </label>
+                        </div>
+                        <button onclick="saveMarketingSettings(true)" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined text-[18px]">save</span> حفظ إعدادات التسويق
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ========= TAB 3: Users ========= -->
+        <div id="panel-users" class="tab-panel hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Add User -->
+                <div class="md:col-span-1">
+                    <div class="glass-panel p-5 rounded-xl border border-primary/20">
+                        <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">person_add</span> إضافة مستخدم
+                        </h3>
+                        <div class="flex flex-col gap-3">
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المستخدم</label>
+                                <input type="text" id="newUserUsername" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-1">كلمة المرور</label>
+                                <input type="password" id="newUserPassword" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصلاحيات بدقة</label>
+                                <div class="flex flex-col gap-2 bg-surface-container border border-outline-variant rounded p-3">
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="add_product" class="accent-primary w-4 h-4 rounded"> إضافة منتجات جديدة</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="edit_product" class="accent-primary w-4 h-4 rounded"> تعديل المنتجات والكميات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="delete_product" class="accent-primary w-4 h-4 rounded"> حذف المنتجات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_categories" class="accent-primary w-4 h-4 rounded"> إدارة الأقسام</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_settings" class="accent-primary w-4 h-4 rounded"> إعدادات وتصميم المتجر</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_backup" class="accent-primary w-4 h-4 rounded"> النسخ الاحتياطي واسترجاع البيانات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="view_reports" class="accent-primary w-4 h-4 rounded"> التقارير والإحصائيات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> إدارة المستخدمين والصلاحيات</label>
+                                    <label class="flex items-center gap-2 text-sm font-bold text-primary cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors border-t border-outline-variant/30 pt-2 mt-1"><input type="checkbox" name="permissions" value="all" class="accent-primary w-4 h-4 rounded" onchange="document.querySelectorAll('input[name=permissions]').forEach(c => c.checked = this.checked)"> كل الصلاحيات (مدير عام)</label>
+                                </div>
+                            </div>
+                            <button onclick="addNewUser()" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined text-[18px]">person_add</span> إضافة مستخدم
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users Table -->
+                <div class="md:col-span-2">
+                    <div class="glass-panel p-5 rounded-xl border border-primary/10">
+                        <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-5 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary text-[20px]">group</span> المستخدمين الحاليين
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right border-collapse">
+                                <thead>
+                                    <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
+                                        <th class="py-3 pr-2">المستخدم</th>
+                                        <th class="py-3">الصلاحية</th>
+                                        <th class="py-3">التفاصيل</th>
+                                        <th class="py-3 text-center">إجراءات</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="usersTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========= TAB 4: Backup & Restore ========= -->
+        <div id="panel-backup" class="tab-panel hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- Export Backup -->
+                <div>
+                    <div class="glass-panel p-6 rounded-xl border border-primary/20 h-full flex flex-col">
+                        <h3 class="font-headline-md text-xl text-primary border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[24px]">cloud_download</span> أخذ نسخة احتياطية
+                        </h3>
+                        <p class="text-on-surface-variant text-sm mb-6 flex-1 leading-relaxed">
+                            قم بتحميل نسخة احتياطية كاملة من بيانات المتجر (المنتجات، الأقسام، الإعدادات، وروابط الصور). يُنصح بعمل هذه الخطوة دورياً قبل إجراء تعديلات كبيرة.
+                        </p>
+                        <button onclick="exportBackup()" class="w-full py-3 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary/90 hover:glow-primary transition-all flex items-center justify-center gap-2">
+                            <span class="material-symbols-outlined">download</span> تحميل ملف النسخة الاحتياطية
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Import Backup -->
+                <div>
+                    <div class="glass-panel p-6 rounded-xl border border-error/30 h-full flex flex-col relative overflow-hidden">
+                        <!-- Warning banner -->
+                        <div class="absolute top-0 right-0 w-full bg-error/10 border-b border-error/20 py-1.5 px-4 text-error text-xs font-bold text-center">
+                            تحذير: هذه العملية ستحذف البيانات الحالية
+                        </div>
+                        
+                        <h3 class="font-headline-md text-xl text-error border-b border-outline-variant/30 pb-3 mb-4 mt-6 flex items-center gap-2">
+                            <span class="material-symbols-outlined text-[24px]">cloud_upload</span> استعادة نسخة احتياطية
+                        </h3>
+                        <p class="text-on-surface-variant text-sm mb-6 flex-1 leading-relaxed">
+                            قم برفع ملف النسخة الاحتياطية (.json) لاستعادة بيانات المتجر. هذه العملية ستقوم <strong>بمسح كافة المنتجات والأقسام الحالية</strong> واستبدالها ببيانات الملف.
+                        </p>
+                        <div class="flex flex-col gap-3">
+                            <input type="file" id="backupFileInput" accept=".json" class="block w-full text-sm text-on-surface-variant
+                                file:mr-4 file:py-2 file:px-4
+                                file:rounded-lg file:border-0
+                                file:text-sm file:font-semibold
+                                file:bg-surface-container-high file:text-primary
+                                hover:file:bg-surface-variant cursor-pointer border border-outline-variant/50 rounded-lg p-1 bg-surface-container">
+                            <button onclick="importBackup()" class="w-full py-3 bg-error text-on-primary font-bold rounded-lg hover:bg-error/90 hover:shadow-[0_0_15px_rgba(255,180,171,0.3)] transition-all flex items-center justify-center gap-2">
+                                <span class="material-symbols-outlined">restore</span> استعادة البيانات الآن
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ========= TAB 5: Analytics ========= -->
+        <div id="panel-analytics" class="tab-panel hidden">
+            <!-- Top Summary Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إجمالي الزيارات</p>
+                        <h3 id="stat-total-visits" class="font-headline-md text-3xl text-primary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                        <span class="material-symbols-outlined text-[28px]">visibility</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1">إجمالي المنتجات</p>
+                        <h3 id="stat-total-products" class="font-headline-md text-3xl text-secondary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-secondary/10 flex items-center justify-center text-secondary">
+                        <span class="material-symbols-outlined text-[28px]">inventory_2</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between cursor-pointer hover:bg-surface-variant/20 transition-colors group" onclick="openAnalyticsDetails('cart')">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1 group-hover:text-tertiary transition-colors">إضافة للسلة</p>
+                        <h3 id="stat-total-cart" class="font-headline-md text-3xl text-tertiary font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-[28px]">shopping_cart</span>
+                    </div>
+                </div>
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 flex items-center justify-between cursor-pointer hover:bg-surface-variant/20 transition-colors group" onclick="openAnalyticsDetails('whatsapp')">
+                    <div>
+                        <p class="text-on-surface-variant text-sm font-semibold mb-1 group-hover:text-emerald-400 transition-colors">طلبات واتساب</p>
+                        <h3 id="stat-total-orders" class="font-headline-md text-3xl text-emerald-400 font-bold">0</h3>
+                    </div>
+                    <div class="w-12 h-12 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-[28px]">chat</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts & Tables Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Top Viewed Products -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary">local_fire_department</span> أكثر 10 منتجات مشاهدة
+                    </h3>
+                    <div id="analytics-top-views" class="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+
+                <!-- Top Ordered Products (WhatsApp) -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-emerald-400">trending_up</span> أكثر المنتجات طلباً عبر واتساب
+                    </h3>
+                    <div id="analytics-top-orders" class="flex flex-col gap-3 max-h-80 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Distribution and Page Views -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                <!-- Category Distribution -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-secondary">pie_chart</span> توزيع المنتجات حسب القسم
+                    </h3>
+                    <div id="analytics-categories" class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">جاري التحميل...</p>
+                    </div>
+                </div>
+
+                <!-- Page Visits -->
+                <div class="glass-panel p-6 rounded-xl border border-outline-variant/30">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-tertiary">web</span> زيارات صفحات الموقع
+                    </h3>
+                    <div id="analytics-pages" class="flex flex-col gap-3 max-h-60 overflow-y-auto pr-1">
+                        <p class="text-on-surface-variant text-sm text-center py-4">لا توجد بيانات حتى الآن</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Unique Visitors Tracker -->
+            <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8">
+                <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">person_search</span> سجل الزوار الفريدين (الإجمالي: <span id="stat-unique-visitors">0</span>)
+                </h3>
+                <div class="overflow-x-auto max-h-[400px] overflow-y-auto relative rounded-lg border border-outline-variant/30">
+                    <table class="w-full text-right border-collapse min-w-[700px]">
+                        <thead class="bg-surface-container sticky top-0 z-10 shadow-sm">
+                            <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
+                                <th class="py-3 px-4 w-[160px]">تاريخ الزيارة</th>
+                                <th class="py-3 px-4 w-[180px]">الموقع / IP</th>
+                                <th class="py-3 px-4 w-[120px]">الجهاز</th>
+                                <th class="py-3 px-4 w-[200px]">المصدر (Referrer)</th>
+                                <th class="py-3 px-4">حملة (UTM)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="analytics-visitors-table" class="text-sm">
+                            <tr><td colspan="5" class="text-center py-8 text-on-surface-variant">جاري التحميل...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Inventory Reports -->
+            <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8" id="inventory-report-section">
+                <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary">inventory</span> تقرير حالة المخزون المفصل
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-surface-container rounded-lg p-4 border-l-4 border-green-500">
+                        <p class="text-on-surface-variant text-xs mb-1">منتجات متوفرة (أكثر من 3)</p>
+                        <h4 id="inv-in-stock" class="font-headline-md text-2xl text-green-500">0</h4>
+                    </div>
+                    <div class="bg-surface-container rounded-lg p-4 border-l-4 border-orange-500">
+                        <p class="text-on-surface-variant text-xs mb-1">نواقص (من 1 إلى 3)</p>
+                        <h4 id="inv-low-stock" class="font-headline-md text-2xl text-orange-500">0</h4>
+                    </div>
+                    <div class="bg-surface-container rounded-lg p-4 border-l-4 border-red-500">
+                        <p class="text-on-surface-variant text-xs mb-1">غير متوفرة (صفر)</p>
+                        <h4 id="inv-out-stock" class="font-headline-md text-2xl text-red-500">0</h4>
+                    </div>
+                </div>
+
+                <div class="flex flex-wrap gap-4 justify-start border-t border-outline-variant/30 pt-6">
+                    <button onclick="exportInventoryExcel()" class="px-6 py-3 bg-[#1D6F42] text-white font-bold rounded-lg hover:bg-[#155a34] transition-all flex items-center gap-2 text-sm shadow-lg shadow-green-900/20">
+                        <span class="material-symbols-outlined text-[18px]">table</span> تصدير شيت الأجهزة (Excel احترافي)
+                    </button>
+                    <!-- Printing is natively the best for Arabic tabular PDF -->
+                    <button onclick="printInventoryReport()" class="px-6 py-3 bg-red-600 text-white font-bold rounded-lg hover:bg-red-700 transition-all flex items-center gap-2 text-sm shadow-lg shadow-red-900/20">
+                        <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> طباعة / حفظ كـ PDF
+                    </button>
+                </div>
+            </div>
+
+            <!-- Actions Footer -->
+            <div class="flex flex-wrap gap-4 justify-end border-t border-outline-variant/30 pt-6">
+                <button onclick="exportAnalyticsPDF()" class="px-6 py-3 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary/90 transition-all flex items-center gap-2 text-sm shadow-lg shadow-primary/20">
+                    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> تصدير التقرير (PDF)
+                </button>
+                <button onclick="exportAnalyticsExcel()" class="px-6 py-3 bg-surface-container-high border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-all flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-[18px]">table</span> تصدير البيانات (Excel)
+                </button>
+                <button onclick="resetAnalytics()" class="px-6 py-3 bg-error/10 border border-error/30 text-error font-bold rounded-lg hover:bg-error hover:text-on-primary transition-all flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-[18px]">delete_sweep</span> تصفير الإحصائيات
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+
+        <!-- ========= TAB 6: Logs ========= -->
+        <div id="panel-logs" class="tab-panel hidden">
+            <div class="glass-panel p-5 md:p-6 rounded-xl border border-primary/20 flex flex-col min-h-[300px]">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-outline-variant/30 pb-4 mb-5 gap-4">
+                    <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                        <span class="material-symbols-outlined text-primary text-[24px]">manage_search</span> سجل النشاطات
+                    </h3>
+                    <div class="flex gap-2 flex-wrap">
+                        <button onclick="exportLogsToPDF()" class="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition-colors text-sm font-bold flex items-center gap-2 border border-red-500/30 shadow-sm">
+                            <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> PDF
+                        </button>
+                        <button onclick="exportLogsToCSV()" class="bg-green-500/10 text-green-500 hover:bg-green-500 hover:text-white px-4 py-2 rounded-lg transition-colors text-sm font-bold flex items-center gap-2 border border-green-500/30 shadow-sm">
+                            <span class="material-symbols-outlined text-[18px]">table_chart</span> Excel
+                        </button>
+                        <button onclick="fetchAdminLogs()" class="bg-surface-variant text-on-surface hover:bg-primary hover:text-white px-4 py-2 rounded-lg transition-colors text-sm font-bold flex items-center gap-2 border border-outline-variant/30 shadow-sm">
+                            <span class="material-symbols-outlined text-[18px]">refresh</span> تحديث السجل
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="max-h-[500px] overflow-y-auto overflow-x-auto flex-1 bg-surface-container-lowest rounded-lg border border-outline-variant/30 relative">
+                    <table class="w-full text-right border-collapse min-w-[600px]">
+                        <thead class="bg-surface-container sticky top-0 z-10 shadow-sm">
+                            <tr class="text-on-surface-variant text-sm font-bold border-b border-outline-variant/50">
+                                <th class="py-3 px-4 w-[180px]">التاريخ والوقت</th>
+                                <th class="py-3 px-4 w-[150px]">المستخدم</th>
+                                <th class="py-3 px-4 w-[180px]">الإجراء</th>
+                                <th class="py-3 px-4">التفاصيل</th>
+                            </tr>
+                        </thead>
+                        <tbody id="adminLogsTableBody" class="text-sm">
+                            <tr><td colspan="4" class="text-center py-8 text-on-surface-variant">جاري تحميل السجل...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <!-- API Management & Cleanup Panel -->
+        <div id="panel-api" class="tab-panel hidden p-4 sm:p-6">
+            <h2 class="text-2xl font-black text-on-surface mb-6 flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-[28px]">api</span> إدارة الـ API والتنظيف
+            </h2>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- API Links -->
+                <div class="glass-panel rounded-2xl p-6 border border-outline-variant/30 flex flex-col">
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="material-symbols-outlined text-primary text-[24px]">link</span>
+                        <h3 class="text-xl font-bold text-on-surface">روابط الـ API الخاصة بالمتجر</h3>
+                    </div>
+                    <p class="text-on-surface-variant text-sm mb-4">استخدم هذه الروابط في برنامج المبيعات (POS) الخاص بك لربط المخزون.</p>
+                    <div class="space-y-4">
+                        <div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/50">
+                            <span class="text-xs font-bold text-primary mb-1 block">رابط رفع ومزامنة المنتجات (POST)</span>
+                            <code class="text-sm text-on-surface-variant break-all select-all font-mono" dir="ltr">https://technology-store-eg.vercel.app/api/pos/products/sync</code>
+                        </div>
+                        <div class="bg-surface-container-lowest p-3 rounded-lg border border-outline-variant/50">
+                            <span class="text-xs font-bold text-primary mb-1 block">رابط جلب الطلبات (GET)</span>
+                            <code class="text-sm text-on-surface-variant break-all select-all font-mono" dir="ltr">https://technology-store-eg.vercel.app/api/pos/orders</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Emergency Cleanup -->
+                <div class="glass-panel rounded-2xl p-6 border border-red-500/30 bg-red-500/5 flex flex-col relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-red-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+                    <div class="flex items-center gap-3 mb-4">
+                        <span class="material-symbols-outlined text-red-500 text-[24px]">delete_forever</span>
+                        <h3 class="text-xl font-bold text-on-surface">تنظيف قاعدة البيانات (طوارئ)</h3>
+                    </div>
+                    <p class="text-on-surface-variant text-sm mb-4 flex-1">
+                        استخدم هذا الزر لمسح المنتجات الوهمية (بدون صور أو بدون أقسام) التي أضافها برنامج الـ POS بالخطأ. 
+                        <strong>تحذير:</strong> هذا سيحذف أي منتج حقيقي لا يحتوي على صورة أيضاً.
+                    </p>
+                    <button onclick="runEmergencyClean()" id="emergencyCleanBtn" class="w-full bg-red-500 text-white hover:bg-red-600 font-bold py-3 px-4 rounded-xl transition-colors shadow-lg shadow-red-500/20 flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[20px]">warning</span> بدء تنظيف المنتجات الوهمية
+                    </button>
+                </div>
+            </div>
+        </div>
+
+                </div> <!-- End Panels Wrapper -->
+            </main>
+        </div>
+    </div> <!-- End adminContainer -->
+
+    <!-- Modals moved outside of main container to prevent layout interference -->
+    <!-- Analytics Details Modal -->
+    <div id="analyticsDetailsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-surface border border-outline-variant rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden transform scale-95 transition-transform duration-300">
+            <div class="p-6 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+                <h2 id="analyticsDetailsTitle" class="font-headline-md text-xl text-on-surface flex items-center gap-2">تفاصيل الإحصائية</h2>
+                <button onclick="closeAnalyticsDetailsModal()" class="text-on-surface-variant hover:text-error transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-error/10">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="p-6 max-h-[60vh] overflow-y-auto">
+                <ul id="analyticsDetailsList" class="flex flex-col gap-3">
+                    <!-- Populated by JS -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="editProductModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
+            <!-- Header (Fixed) -->
+            <div class="p-6 pb-4 border-b border-outline-variant/30 flex justify-between items-center relative">
+                <h3 class="font-headline-md text-xl text-on-surface flex items-center gap-2">
+                    <span class="material-symbols-outlined text-primary text-[22px]">edit</span> تعديل المنتج
+                </h3>
+                <button onclick="closeEditModal()" class="text-on-surface-variant hover:text-red-500 transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            
+            <!-- Form containing scrollable body and fixed footer -->
+            <form id="editProductForm" class="flex flex-col flex-1 overflow-hidden">
+                <input type="hidden" id="editProductId">
+
+                <!-- Scrollable Fields Area -->
+                <div class="p-6 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
+                        <input type="text" id="editPTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
+                        <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
+                        <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر قبل الخصم (اختياري)</label>
+                        <input type="number" id="editPOldPrice" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">مدة الخصم</label>
+                        <select id="editPDiscountType" onchange="document.getElementById('editPDiscountValueContainer').style.display = this.value ? 'block' : 'none'" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                            <option value="">بدون وقت (مستمر)</option>
+                            <option value="days">أيام</option>
+                            <option value="hours">ساعات</option>
+                        </select>
+                    </div>
+                    <div id="editPDiscountValueContainer" style="display: none;">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">القيمة</label>
+                        <input type="number" id="editPDiscountValue" min="1" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
+                        <textarea id="editPDesc" rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
+                        <input type="number" id="editPQuantity" required min="0" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السيريال كود (SKU)</label>
+                        <input type="text" id="editPSku" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية</label>
+                        <input type="text" id="editPBrand" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
+                        <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصور الحالية <span class="text-on-surface-variant/50 text-xs">(اضغط ❌ على أي صورة لحذفها)</span></label>
+                        <div id="editCurrentImages" class="flex flex-wrap gap-3 mb-4 p-3 bg-surface-container-low rounded-lg border border-outline-variant/20 min-h-[60px]">
+                            <span class="text-on-surface-variant/50 text-xs self-center">لا توجد صور</span>
+                        </div>
+
+                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">إضافة صور جديدة <span class="text-on-surface-variant/50 text-xs">(اختياري - يمكنك تحديد أكثر من صورة)</span></label>
+                        <input type="file" id="editPImage" multiple accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                        <div class="mt-2 flex items-center gap-2">
+                            <input type="checkbox" id="editReplaceMainImage" class="accent-primary w-4 h-4 cursor-pointer">
+                            <label for="editReplaceMainImage" class="text-sm text-on-surface cursor-pointer select-none">استبدال الصورة الأساسية بالصورة الجديدة الأولى (سيتم نقل القديمة للمعرض)</label>
+                        </div>
+                        <div id="editImagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
+                    </div>
+                </div>
+
+                <!-- Footer Actions (Fixed/Sticky at bottom) -->
+                <div class="p-6 bg-surface border-t border-outline-variant/30 flex gap-3 z-10">
+                    <button type="submit" class="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
+                    </button>
+                    <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 bg-surface-container border border-outline-variant text-on-surface font-bold rounded hover:bg-surface-variant transition-all text-sm">
+                        إلغاء
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Sidebar Toggle for Mobile
+        function toggleSidebar() {
+            const sidebar = document.getElementById('adminSidebar');
+            const overlay = document.getElementById('mobileSidebarOverlay');
+            if (sidebar.classList.contains('translate-x-full')) {
+                sidebar.classList.remove('translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        // Tab Switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+            document.querySelectorAll('.admin-tab').forEach(t => {
+                t.classList.remove('text-primary', 'bg-primary/10', 'border', 'border-primary/20', 'active');
+                t.classList.add('text-on-surface-variant');
+            });
+            
+            // Scroll to top when changing tabs
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            
+            const panel = document.getElementById(`panel-${tabName}`);
+            const tab = document.getElementById(`tab-${tabName}`);
+            if (panel) panel.classList.remove('hidden');
+            if (tab) {
+                tab.classList.add('text-primary', 'bg-primary/10', 'border', 'border-primary/20', 'active');
+                tab.classList.remove('text-on-surface-variant');
+                // Update Top Header Title
+                const titleEl = document.getElementById('currentTabTitle');
+                if(titleEl) {
+                    titleEl.innerText = tab.innerText;
+                }
+            }
+            if (tabName === 'analytics' && window.loadAnalytics) {
+                window.loadAnalytics();
+            }
+            if (tabName === 'logs' && window.fetchAdminLogs) {
+                window.fetchAdminLogs();
+            }
+
+            // Close mobile sidebar if open
+            if(window.innerWidth < 1024) {
+                const sidebar = document.getElementById('adminSidebar');
+                if(sidebar && !sidebar.classList.contains('translate-x-full')) {
+                    toggleSidebar();
+                }
+            }
+        }
+    </script>
+    <script>
+        // Inline toggleTheme so login page works even before admin.js loads
+        if (!window.toggleTheme) {
+            window.toggleTheme = function() {
+                const isDark = document.documentElement.classList.toggle('dark');
+                localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            };
+        }
+    </script>
+    <script src="admin.js" defer></script>
+</body>
+</html>
