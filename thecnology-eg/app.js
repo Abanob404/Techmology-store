@@ -138,7 +138,10 @@ async function fetchProducts() {
             
             // FB Pixel injection (Lazy Load to improve PageSpeed)
             if (settings.isPixelEnabled && settings.fbPixelId) {
-                setTimeout(() => {
+                let fbLoaded = false;
+                const loadFacebookPixel = () => {
+                    if (fbLoaded) return;
+                    fbLoaded = true;
                     if (!window.fbq) {
                         !function(f,b,e,v,n,t,s)
                         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -514,6 +517,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const fbImage = getFallbackImage(p);
         const hasValidImage = p.image && !p.image.includes('placehold.co');
         const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_400,h_400,c_fill,q_auto,f_auto/') : fbImage;
+        const smallImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/') : fbImage;
         const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
         const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
         const decodeAttr = 'decoding="async"';
@@ -521,7 +525,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}">
+                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" ${hasValidImage ? `srcset="${smallImage} 200w, ${optimizedImage} 400w" sizes="(max-width: 768px) 200px, 400px"` : ''}>
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -958,7 +962,7 @@ function injectFloatingSocials() {
 // ------------------ منطق السلة (Cart Logic) ------------------
 function injectCartUI() {
     // أيقونة السلة العائمة
-    const cartIcon = document.createElement('div');
+    const cartIcon = document.createElement('button');
     cartIcon.id = 'floatingCartBtn';
     cartIcon.setAttribute('aria-label', 'عربة التسوق');
     cartIcon.className = 'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
@@ -983,7 +987,7 @@ function injectCartUI() {
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     <h2 class="font-headline-md text-2xl">عربة التسوق</h2>
                 </div>
-                <button onclick="closeCartSidebar()" class="w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
+                <button onclick="closeCartSidebar()" aria-label="إغلاق سلة التسوق" class="w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
@@ -1014,7 +1018,7 @@ function injectCartUI() {
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
                         إرسال الطلب عبر واتساب
                     </button>
-                    <button onclick="closeCartSidebar()" class="w-full py-3 rounded-xl border-2 border-primary/30 text-primary font-bold hover:bg-primary/10 transition-colors text-base flex items-center justify-center gap-2">
+                    <button onclick="closeCartSidebar()" aria-label="متابعة التسوق" class="w-full py-3 rounded-xl border-2 border-primary/30 text-primary font-bold hover:bg-primary/10 transition-colors text-base flex items-center justify-center gap-2">
                         متابعة التسوق
                     </button>
                 </div>
@@ -1471,6 +1475,7 @@ if ('serviceWorker' in navigator) {
 // Scroll to Top Button
 const scrollToTopBtn = document.createElement('button');
 scrollToTopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>';
+scrollToTopBtn.setAttribute('aria-label', 'العودة للأعلى');
 scrollToTopBtn.className = 'fixed bottom-28 right-6 z-50 bg-primary hover:bg-primary/90 text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center hover:scale-110';
 scrollToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 document.body.appendChild(scrollToTopBtn);
@@ -1497,17 +1502,36 @@ async function trackVisitor() {
             visitorId = 'vid_' + Math.random().toString(36).substr(2, 9) + Date.now();
             localStorage.setItem('tech_store_vid', visitorId);
             
-            let location = 'غير معروف';
+            let location = 'غير محدد';
             try {
-                const locRes = await fetch('https://ipapi.co/json/');
-                if (locRes.ok) {
-                    const locData = await locRes.json();
-                    if (locData && locData.city) {
-                        location = `${locData.city}, ${locData.country_name || ''}`;
+                const cachedLoc = localStorage.getItem('tech_user_country');
+                const cachedTime = localStorage.getItem('tech_user_country_time');
+                const oneDay = 24 * 60 * 60 * 1000;
+                let locData = null;
+
+                if (cachedLoc && cachedTime && (Date.now() - Number(cachedTime) < oneDay)) {
+                    locData = JSON.parse(cachedLoc);
+                } else {
+                    const locRes = await fetch('https://ipapi.co/json/');
+                    if (locRes.ok) {
+                        locData = await locRes.json();
+                        localStorage.setItem('tech_user_country', JSON.stringify(locData));
+                        localStorage.setItem('tech_user_country_time', Date.now().toString());
                     }
+                }
+                
+                if (locData && locData.city) {
+                    location = `${locData.city}, ${locData.country_name || ''}`;
                 }
             } catch(e) {
                 console.log('Location API skipped/failed due to adblock or limits');
+                const cachedLoc = localStorage.getItem('tech_user_country');
+                if (cachedLoc) {
+                    try {
+                        const locData = JSON.parse(cachedLoc);
+                        if (locData && locData.city) location = `${locData.city}, ${locData.country_name || ''}`;
+                    } catch(err){}
+                }
             }
             
             const urlParams = new URLSearchParams(window.location.search);
@@ -1615,3 +1639,4 @@ function closeQuickBuyModal() {
         setTimeout(() => m.classList.add('hidden'), 300);
     }
 }
+

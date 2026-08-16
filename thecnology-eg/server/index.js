@@ -248,6 +248,19 @@ app.get('/products', async (req, res) => {
         html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
         html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
       }
+    } else {
+      // Preload top 4 products for LCP on mobile
+      const topProducts = await Product.find({ isHidden: { $ne: true } }).limit(4).lean();
+      if (topProducts && topProducts.length > 0) {
+          let preloadTags = '';
+          topProducts.forEach(p => {
+              if (p.image && !p.image.includes('placehold.co')) {
+                  const url = p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/');
+                  preloadTags += `<link rel="preload" as="image" href="${url}" fetchpriority="high">\n`;
+              }
+          });
+          html = html.replace('</head>', `    ${preloadTags}</head>`);
+      }
     }
     res.send(html);
   } catch (err) {
