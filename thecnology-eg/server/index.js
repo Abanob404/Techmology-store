@@ -225,51 +225,74 @@ async function getOrCreateSettings() {
   return settings;
 }
 
+let topProductsCache = { data: null, timestamp: 0 };
+
 // --- SSR Route for /products ---
 app.get('/products', async (req, res) => {
   try {
-    await ensureDBConnection();
     const htmlPath = path.join(__dirname, '../products_page.html');
     let html = fs.readFileSync(htmlPath, 'utf-8');
 
     if (req.query.id) {
-      const product = await Product.findById(req.query.id).lean();
-      if (product) {
-        const title = `${product.title} | TECHNOLOGY`;
-        const description = product.category ? `قسم: ${product.category}` : `سعر المنتج: ${product.price} جنيه`;
-        let image = product.image || 'logo.webp';
-        
-        // Ensure image is absolute
-        if (image.startsWith('/')) {
-          image = `https://${req.get('host')}${image}`;
-        } else if (!image.startsWith('http')) {
-           image = `https://${req.get('host')}/${image}`;
-        }
+      try {
+        await ensureDBConnection();
+        const product = await Product.findById(req.query.id).lean();
+        if (product) {
+          const title = `${product.title} | TECHNOLOGY`;
+          const description = product.category ? `قسم: ${product.category}` : `سعر المنتج: ${product.price} جنيه`;
+          let image = product.image || 'logo.webp';
+          
+          if (image.startsWith('/')) {
+            image = `https://${req.get('host')}${image}`;
+          } else if (!image.startsWith('http')) {
+             image = `https://${req.get('host')}/${image}`;
+          }
 
-        // Replace tags in HTML
-        html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
-        html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${title}">`);
-        html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
-        html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
+          html = html.replace(/<title>.*?</title>/, `<title>${title}</title>`);
+          html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${title}">`);
+          html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
+          html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
+        }
+      } catch (e) {
+        console.error('SSR OG Tags DB Error:', e.message);
       }
     } else {
-      // Preload top 4 products for LCP on mobile
-      const topProducts = await Product.find({ isHidden: { $ne: true } }).limit(4).lean();
-      if (topProducts && topProducts.length > 0) {
-          let preloadTags = '';
-          topProducts.forEach(p => {
-              if (p.image && !p.image.includes('placehold.co')) {
-                  const url = p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/');
-                  preloadTags += `<link rel="preload" as="image" href="${url}" fetchpriority="high">\n`;
-              }
-          });
-          html = html.replace('</head>', `    ${preloadTags}</head>`);
+      // Protect FCP: Only wait up to 1.5s for DB to avoid cold start delays
+      try {
+        const fetchProducts = async () => {
+          const now = Date.now();
+          if (topProductsCache.data && (now - topProductsCache.timestamp < 60000)) {
+            return topProductsCache.data;
+          }
+          await ensureDBConnection();
+          const products = await Product.find({ isHidden: { $ne: true } }).limit(4).lean();
+          topProductsCache = { data: products, timestamp: now };
+          return products;
+        };
+
+        const topProducts = await Promise.race([
+          fetchProducts(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Cold Start Timeout')), 1500))
+        ]);
+
+        if (topProducts && topProducts.length > 0) {
+            let preloadTags = '';
+            topProducts.forEach(p => {
+                if (p.image && !p.image.includes('placehold.co')) {
+                    const url = p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/');
+                    preloadTags += `<link rel="preload" as="image" href="${url}" fetchpriority="high">\n`;
+                }
+            });
+            html = html.replace('</head>', `    ${preloadTags}</head>`);
+        }
+      } catch (e) {
+        console.log('Skipped preload to save FCP:', e.message);
       }
     }
     res.send(html);
   } catch (err) {
-    console.error('SSR Error:', err);
-    res.status(503).send('<html dir="rtl"><body><h2>?????? ????? ?? ??????? ?????? ????????. ???? ???????.</h2><button onclick="location.reload()">?????</button></body></html>');
+    console.error('SSR File Error:', err);
+    res.status(503).send('<html dir="rtl"><body><h2>عذراً، مشكلة في الخادم. يرجى التحديث.</h2><button onclick="location.reload()">تحديث</button></body></html>');
   }
 });
 
