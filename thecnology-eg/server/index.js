@@ -261,7 +261,7 @@ app.get('/products', async (req, res) => {
       try {
         const fetchProducts = async () => {
           const now = Date.now();
-          if (topProductsCache.data && (now - topProductsCache.timestamp < 60000)) {
+          if (topProductsCache.data && (now - topProductsCache.timestamp < 3600000)) {
             return topProductsCache.data;
           }
           await ensureDBConnection();
@@ -272,7 +272,7 @@ app.get('/products', async (req, res) => {
 
         const topProducts = await Promise.race([
           fetchProducts(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Cold Start Timeout')), 1500))
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Cold Start Timeout')), 2500))
         ]);
 
         if (topProducts && topProducts.length > 0) {
