@@ -30,26 +30,28 @@ cloudinary.config({
 });
 
 // الاتصال بقاعدة بيانات MongoDB
-let isConnected = false;
-const connectDB = async () => {
-  if (isConnected) return;
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
+let connectionPromise = null;
+async function ensureDBConnection() {
+  if (mongoose.connection.readyState === 1) return; // connected
+  if (!connectionPromise) {
+    connectionPromise = mongoose.connect(process.env.MONGODB_URI, {
       maxPoolSize: 5,
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 15000,
       socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
-      bufferCommands: false
+      connectTimeoutMS: 15000,
+      bufferCommands: true
+    }).then(async () => {
+      console.log('DB Connected Successfully');
+      await initDefaultAdmin();
+    }).catch(err => {
+      connectionPromise = null;
+      console.error('DB Connection Error:', err.message);
+      throw err;
     });
-    isConnected = true;
-    console.log('📦 تم الاتصال بنجاح بقاعدة البيانات MongoDB');
-    await initDefaultAdmin();
-  } catch (err) {
-    isConnected = false;
-    console.error('❌ خطأ في الاتصال بقاعدة البيانات:', err.message);
   }
-};
-connectDB();
+  await connectionPromise;
+}
+ensureDBConnection().catch(console.error);
 
 
 // تعريف موديل مديري النظام (AdminUser Schema)
@@ -225,6 +227,7 @@ async function getOrCreateSettings() {
 // --- SSR Route for /products ---
 app.get('/products', async (req, res) => {
   try {
+    await ensureDBConnection();
     const htmlPath = path.join(__dirname, '../products_page.html');
     let html = fs.readFileSync(htmlPath, 'utf-8');
 
@@ -265,7 +268,7 @@ app.get('/products', async (req, res) => {
     res.send(html);
   } catch (err) {
     console.error('SSR Error:', err);
-    res.sendFile(path.join(__dirname, '../products_page.html'));
+    res.status(503).send('<html dir="rtl"><body><h2>?????? ????? ?? ??????? ?????? ????????. ???? ???????.</h2><button onclick="location.reload()">?????</button></body></html>');
   }
 });
 
@@ -565,6 +568,7 @@ app.post('/api/orders', async (req, res) => {
 
 // جلب كل الأقسام
 app.get('/api/categories', async (req, res) => {
+  await ensureDBConnection();
   try {
     const categories = await Category.find().sort({ createdAt: 1 });
     res.json(categories);
@@ -699,7 +703,7 @@ app.post('/api/restore', async (req, res) => {
 // 1. جلب المنتجات (محمية مع دعم allowDiskUse و Pagination لمنع الـ Memory Limit)
 app.get('/api/products', async (req, res) => {
   try {
-    await connectDB();
+    await ensureDBConnection();
     const products = await Product.find()
       .sort({ createdAt: -1 })
       .limit(3000);
@@ -1082,7 +1086,7 @@ app.delete('/api/products/:id', async (req, res) => {
 // 1. جلب الإعدادات
 app.get('/api/settings', async (req, res) => {
   try {
-    await connectDB();
+    await ensureDBConnection();
     const settings = await getOrCreateSettings();
     res.json(settings);
   } catch (err) {
@@ -1189,6 +1193,7 @@ app.post('/api/settings', async (req, res) => {
 
 // --- الـ API Routes الخاصة بالإحصائيات (Centralized Analytics) ---
 app.get('/api/analytics', async (req, res) => {
+  await ensureDBConnection();
   try {
     const doc = await getOrCreateAnalytics();
     res.json(doc);
@@ -1198,6 +1203,7 @@ app.get('/api/analytics', async (req, res) => {
 });
 
 app.post('/api/analytics/track', async (req, res) => {
+  await ensureDBConnection();
   try {
     const { type, productId, productTitle, page } = req.body;
     const doc = await getOrCreateAnalytics();
@@ -1290,6 +1296,7 @@ app.get('/api/analytics/visitors', async (req, res) => {
 // --- الـ API Routes الخاصة بمديري النظام (Admin Auth) ---
 
 app.post('/api/admin/login', async (req, res) => {
+  await ensureDBConnection();
   try {
     const { username, password } = req.body;
     const user = await AdminUser.findOne({ username, password });
