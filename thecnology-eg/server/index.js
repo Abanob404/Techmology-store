@@ -248,7 +248,7 @@ app.get('/products', async (req, res) => {
              image = `https://${req.get('host')}/${image}`;
           }
 
-          html = html.replace(/<title>.*?</title>/, `<title>${title}</title>`);
+          html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
           html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${title}">`);
           html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
           html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
