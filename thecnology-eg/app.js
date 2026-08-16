@@ -154,7 +154,9 @@ async function fetchProducts() {
                         fbq('init', settings.fbPixelId);
                         fbq('track', 'PageView');
                     }
-                }, 3500); // تأخير تحميل بيكسل فيسبوك لمدة 3.5 ثواني
+                };
+                ['scroll', 'click', 'touchstart'].forEach(evt => window.addEventListener(evt, loadFacebookPixel, { once: true, passive: true }));
+                setTimeout(loadFacebookPixel, 5000);
             }
         }
 
@@ -1639,4 +1641,5 @@ function closeQuickBuyModal() {
         setTimeout(() => m.classList.add('hidden'), 300);
     }
 }
+
 

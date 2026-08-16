@@ -17,6 +17,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key', 'x-pos-api-key']
 }));
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload({
   useTempFiles: true,
   tempFileDir: '/tmp/' // مهم جداً لبيئات الـ Serverless مثل Vercel
