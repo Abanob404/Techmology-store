@@ -235,7 +235,10 @@ const productSchema = new mongoose.Schema({
   source: { type: String, default: 'website', index: true },
   lastSyncedAt: { type: Date },
   warranty: { type: String, default: '' },
+  // Legacy/internal field. Existing data may contain supplier names, so never expose it publicly.
   brand: { type: String, default: '' },
+  // Customer-facing brand. Kept separate so old supplier data is preserved but private.
+  publicBrand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
   isHidden: { type: Boolean, default: false, index: true },
   visibilityManuallySet: { type: Boolean, default: false },
@@ -889,10 +892,18 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
   try {
     await ensureDBConnection();
     const productFilter = req.adminUser ? {} : { isHidden: { $ne: true } };
-    const products = await Product.find(productFilter)
+    let query = Product.find(productFilter)
       .sort({ createdAt: -1 })
       .limit(3000);
 
+    // Public visitors must never receive the legacy/internal brand field because
+    // some existing records contain supplier names. Admins still receive it for
+    // backwards compatibility and data preservation.
+    if (!req.adminUser) {
+      query = query.select('-brand -imagePublicId -additionalImages.publicId');
+    }
+
+    const products = await query.lean();
     res.json(products);
   } catch (error) {
     console.error('GET /api/products error:', error);
@@ -947,7 +958,7 @@ app.delete('/api/emergency-clean', requireAdminAuth, requirePermission('manage_b
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', requireAdminAuth, requirePermission('add_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt } = req.body;
     if (!title || !category || !price) {
       return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
@@ -994,7 +1005,7 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
       sku: sku || '',
       warranty: warranty || '',
-      brand: brand || '',
+      publicBrand: publicBrand || '',
       discountExpiresAt: discountExpiresAt ? new Date(discountExpiresAt) : undefined
     });
 
@@ -1024,7 +1035,7 @@ app.post('/api/products/bulk', requireAdminAuth, requirePermission('manage_backu
         description: p.description ? p.description.split('\n') : [],
         stockQuantity: Number(p.stockQuantity) || 0,
         sku: p.sku || '',
-        brand: p.brand || '',
+        publicBrand: p.publicBrand || '',
         warranty: p.warranty || ''
       };
 
@@ -1073,7 +1084,7 @@ app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     
     const updateData = {
@@ -1085,7 +1096,7 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
       stockQuantity: parseInt(stockQuantity, 10) || 0,
       sku: sku || '',
       warranty: warranty || '',
-      brand: brand || ''
+      publicBrand: publicBrand || ''
     };
 
     if (discountExpiresAt !== undefined) {

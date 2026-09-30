@@ -445,7 +445,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                     ? p.description.some(spec => spec.toLowerCase().includes(keyword))
                     : (p.description || '').toLowerCase().includes(keyword);
                 const categoryMatch = (p.category || '').toLowerCase().includes(keyword);
-                const brandMatch = (p.brand || '').toLowerCase().includes(keyword);
+                const brandMatch = (p.publicBrand || '').toLowerCase().includes(keyword);
                 const skuMatch = (p.sku || '').toLowerCase().includes(keyword);
                 
                 return titleMatch || descMatch || categoryMatch || brandMatch || skuMatch;
@@ -845,7 +845,7 @@ window.openProductModal = function(id) {
     // Extra Details (SKU, Brand, Warranty)
     const extraDetailsContainer = document.getElementById('modalExtraDetails');
     let extraHtml = '';
-    if (p.brand) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">العلامة التجارية</span><span class="font-bold text-on-surface">${p.brand}</span></div>`;
+    if (p.publicBrand) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">العلامة التجارية</span><span class="font-bold text-on-surface">${p.publicBrand}</span></div>`;
     if (p.sku) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">السيريال كود (SKU)</span><span class="font-bold text-on-surface font-mono-data">${p.sku}</span></div>`;
     if (p.warranty) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">الضمان</span><span class="font-bold text-on-surface">${p.warranty}</span></div>`;
     

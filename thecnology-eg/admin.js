@@ -681,7 +681,7 @@ if (addForm) {
         const quantity = document.getElementById('pQuantity').value;
         const sku = document.getElementById('pSku').value;
         const warranty = document.getElementById('pWarranty').value;
-        const brand = document.getElementById('pBrand').value;
+        const publicBrand = document.getElementById('pPublicBrand').value;
 
         const formData = new FormData();
         formData.append('title', title);
@@ -692,7 +692,7 @@ if (addForm) {
         formData.append('stockQuantity', quantity);
         formData.append('sku', sku);
         formData.append('warranty', warranty);
-        formData.append('brand', brand);
+        formData.append('publicBrand', publicBrand);
 
         const type = document.getElementById('pDiscountType')?.value;
         const val = parseInt(document.getElementById('pDiscountValue')?.value);
@@ -1287,7 +1287,7 @@ window.openEditModal = function(id) {
     document.getElementById('editPDesc').value = product.description.join('\n');
     document.getElementById('editPQuantity').value = product.stockQuantity || 0;
     document.getElementById('editPSku').value = product.sku || '';
-    document.getElementById('editPBrand').value = product.brand || '';
+    document.getElementById('editPPublicBrand').value = product.publicBrand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
 
     if (product.discountExpiresAt) {
@@ -1492,7 +1492,7 @@ if (editForm) {
         formData.append('description', document.getElementById('editPDesc').value);
         formData.append('stockQuantity', document.getElementById('editPQuantity').value);
         formData.append('sku', document.getElementById('editPSku').value);
-        formData.append('brand', document.getElementById('editPBrand').value);
+        formData.append('publicBrand', document.getElementById('editPPublicBrand').value);
         formData.append('warranty', document.getElementById('editPWarranty').value);
 
         const type = document.getElementById('editPDiscountType')?.value;
@@ -1583,7 +1583,7 @@ window.exportCSV = function() {
         sku: p.sku || '',
         category: p.category,
         stockQuantity: p.stockQuantity || 0,
-        brand: p.brand || '',
+        publicBrand: p.publicBrand || '',
         description: p.description.join('\n'),
         warranty: p.warranty || '',
         image: p.image || ''

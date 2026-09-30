@@ -1,24 +1,20 @@
-Technology Store V3 Patch
-=========================
+Technology Store V4 - Brand Privacy Hotfix
+==========================================
 
-انسخ الملفات الموجودة داخل هذا المجلد فوق نفس الملفات في مشروعك الحالي مع Replace.
-لا تحذف ملفات .env ولا تغيّر Environment Variables الموجودة على Vercel.
+What changed:
+1) Existing legacy `brand` data is preserved in MongoDB but is no longer returned to public visitors.
+2) New `publicBrand` field added for the customer-facing brand (e.g. Hikvision / Dahua).
+3) Product modal and public search use `publicBrand` only.
+4) Admin Add/Edit forms now edit `publicBrand` only.
+5) CSV export/import uses `publicBrand` only, so old supplier names are not accidentally republished.
+6) Service-worker cache bumped to v4.
 
-الإصلاحات في هذه النسخة:
-1) تغيير رابط تليجرام إلى قناة: https://t.me/TehnologyStore
-2) إضافة زر قناة تليجرام ضمن الأزرار العائمة.
-3) إصلاح إضافة/حذف الأقسام من لوحة الإدارة (كان هناك متغيران غير معرفين).
-4) إصلاح تحديث لوجو لوحة الإدارة مباشرة بعد الحفظ.
-5) حماية صلاحيات المستخدمين من رفع الصلاحيات لأنفسهم.
-6) منع حذف الحساب الحالي ومنع حذف آخر مدير كامل الصلاحيات.
-7) جعل سجل النشاطات يسجل اسم المستخدم الفعلي في عمليات الإدارة.
-8) عدم إرجاع المنتجات المخفية للزوار، مع استمرار ظهورها داخل لوحة الإدارة.
-9) إصلاح تحميل AOS في الصفحة الرئيسية لتجنب ReferenceError.
-10) منع فهرسة صفحة الإدارة بمحركات البحث.
-11) رفع Service Worker cache إلى v3 لتحديث الملفات بعد النشر.
-12) يتضمن package.json/package-lock.json في server مع jsonwebtoken حتى لا يعود خطأ 500 السابق.
+Safety:
+- No database deletion.
+- No collection rename.
+- No migration required.
+- Existing products, prices, quantities, images, orders and legacy supplier/brand values remain untouched.
 
-مهم على Vercel:
-- JWT_SECRET يجب أن يظل موجوداً.
-- MONGODB_URI وبيانات CLOUDINARY وبيانات ADMIN يجب أن تظل كما هي.
-- بعد الرفع يفضل Redeploy ثم Hard Refresh مرة واحدة.
+Install:
+Copy these files over the current project using the same paths, commit/push, then redeploy on Vercel.
+After deploy, hard refresh once (Ctrl+F5).
