@@ -5,7 +5,11 @@ let currentPage = 1;
 const ITEMS_PER_PAGE = 16;
 let activeCategory = sessionStorage.getItem('tech_activeCategory') || "all";
 let activeSearchTerm = sessionStorage.getItem('tech_activeSearch') || "";
-let currentSort = sessionStorage.getItem('tech_currentSort') || "newest";
+let currentSort = sessionStorage.getItem('tech_currentSort') || "featured";
+let activeBrand = sessionStorage.getItem('tech_activeBrand') || '';
+let minPriceFilter = sessionStorage.getItem('tech_minPrice') || '';
+let maxPriceFilter = sessionStorage.getItem('tech_maxPrice') || '';
+let catalogFilterTimer = null;
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 
 // ==========================================
@@ -234,6 +238,13 @@ async function fetchProducts() {
             return !p.isHidden && hasValidImage;
         });
 
+        // تجهيز فلاتر الكتالوج الإضافية من نفس البيانات الحالية بدون أي تغيير في قاعدة البيانات
+        populateCatalogBrandFilter();
+        const minPriceInput = document.getElementById('minPriceFilter');
+        const maxPriceInput = document.getElementById('maxPriceFilter');
+        if (minPriceInput) minPriceInput.value = minPriceFilter;
+        if (maxPriceInput) maxPriceInput.value = maxPriceFilter;
+
         // معالجة الإحصائيات
         window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
 
@@ -243,8 +254,10 @@ async function fetchProducts() {
         // تفعيل فلتر الترتيب وإخفاء المنتجات النافدة
         const sortSelect = document.getElementById('sortSelect');
         if (sortSelect) {
+            sortSelect.value = currentSort;
             sortSelect.addEventListener('change', (e) => {
                 currentSort = e.target.value;
+                sessionStorage.setItem('tech_currentSort', currentSort);
                 renderProducts(activeCategory, activeSearchTerm);
             });
         }
@@ -425,11 +438,54 @@ async function renderDynamicCategoryFilters() {
                 }
             });
 
-            const searchBox = document.querySelector('input[placeholder="ابحث في الكتالوج..."]');
-            renderProducts(selectedCat, searchBox ? searchBox.value.trim() : "");
+            renderProducts(selectedCat, activeSearchTerm || '');
         });
     });
 }
+
+// فلاتر إضافية للكتالوج (علامة تجارية + نطاق سعر)
+function populateCatalogBrandFilter() {
+    const select = document.getElementById('brandFilter');
+    if (!select) return;
+    const brands = [...new Set(globalProducts.map(p => String(p.publicBrand || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'ar'));
+    select.innerHTML = '<option value="">كل العلامات التجارية</option>' + brands.map(brand => {
+        const safe = String(brand).replace(/[&<>\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+        return `<option value="${safe}">${safe}</option>`;
+    }).join('');
+    if (brands.includes(activeBrand)) select.value = activeBrand;
+}
+
+window.applyCatalogFilters = function() {
+    activeBrand = document.getElementById('brandFilter')?.value || '';
+    minPriceFilter = document.getElementById('minPriceFilter')?.value || '';
+    maxPriceFilter = document.getElementById('maxPriceFilter')?.value || '';
+    sessionStorage.setItem('tech_activeBrand', activeBrand);
+    sessionStorage.setItem('tech_minPrice', minPriceFilter);
+    sessionStorage.setItem('tech_maxPrice', maxPriceFilter);
+    currentPage = 1;
+    renderProducts(activeCategory, activeSearchTerm);
+};
+
+window.scheduleCatalogFilter = function() {
+    clearTimeout(catalogFilterTimer);
+    catalogFilterTimer = setTimeout(() => window.applyCatalogFilters(), 220);
+};
+
+window.clearCatalogFilters = function() {
+    activeBrand = '';
+    minPriceFilter = '';
+    maxPriceFilter = '';
+    ['brandFilter', 'minPriceFilter', 'maxPriceFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    sessionStorage.removeItem('tech_activeBrand');
+    sessionStorage.removeItem('tech_minPrice');
+    sessionStorage.removeItem('tech_maxPrice');
+    currentPage = 1;
+    renderProducts(activeCategory, activeSearchTerm);
+};
 
 // عرض المنتجات (مع دعم البحث والتصنيف والترجمة التلقائية)
 function renderProducts(categoryFilter = "all", searchTerm = "", append = false) {
@@ -454,7 +510,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         'Surveillance': ['أنظمة مراقبة', 'مراقبة', 'surveillance', 'كاميرات']
     };
 
-    let filtered = globalProducts;
+    let filtered = [...globalProducts];
     if (categoryFilter === '🔥 عروض وخصومات') {
         filtered = globalProducts.filter(p => p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date());
     } else if (categoryFilter !== "all") {
@@ -486,17 +542,37 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         });
     }
 
-    // إخفاء المنتجات المنتهية أو الصفرية (السعر = 0 أو المخزون = 0) بشكل دائم
+    // فلاتر العلامة التجارية والسعر — تعمل محلياً على نفس البيانات بدون أي تعديل في الداتا
+    if (activeBrand) {
+        filtered = filtered.filter(p => String(p.publicBrand || '') === activeBrand);
+    }
+    const minPrice = Number(minPriceFilter);
+    const maxPrice = Number(maxPriceFilter);
+    if (minPriceFilter !== '' && Number.isFinite(minPrice)) filtered = filtered.filter(p => Number(p.price) >= minPrice);
+    if (maxPriceFilter !== '' && Number.isFinite(maxPrice)) filtered = filtered.filter(p => Number(p.price) <= maxPrice);
+
+    // إخفاء المنتجات الصفرية من الكتالوج العام
     filtered = filtered.filter(p => Number(p.price) > 0 && Number(p.stockQuantity) > 0);
+
+    // تحديث عدد النتائج قبل التقسيم إلى صفحات
+    const resultCountEl = document.getElementById('productsResultCount');
+    if (resultCountEl) {
+        resultCountEl.textContent = filtered.length === 1 ? 'منتج واحد متاح' : `${filtered.length} منتج متاح`;
+    }
 
     // الترتيب
     if (currentSort === 'price_asc') {
         filtered.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     } else if (currentSort === 'price_desc') {
         filtered.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
-    } else { 
-        // الترتيب الافتراضي (newest): يتم دمج "الأكثر طلباً ومشاهدة" مع "الأحدث"
-        // إعطاء وزن لكل عملية (طلب واتساب = 10 نقاط، إضافة للسلة = 5 نقاط، مشاهدة = نقطة واحدة)
+    } else if (currentSort === 'newest') {
+        filtered.sort((a, b) => {
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
+        });
+    } else {
+        // الأكثر اهتماماً: واتساب > إضافة للسلة > المشاهدات، ثم الأحدث عند التساوي
         const getPopularityScore = (id) => {
             if (!window.globalAnalytics) return 0;
             const views = window.globalAnalytics.views?.[id]?.count || 0;
@@ -504,20 +580,12 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
             const whatsapp = window.globalAnalytics.whatsapp_orders?.[id]?.count || 0;
             return (whatsapp * 10) + (cartAdds * 5) + views;
         };
-
         filtered.sort((a, b) => {
-            const scoreA = getPopularityScore(a._id);
-            const scoreB = getPopularityScore(b._id);
-            
-            if (scoreA !== scoreB) {
-                return scoreB - scoreA; // الأعلى نقاطاً أولاً
-            }
-            
-            // في حالة التساوي، يتم ترتيبهم كـ الأحدث أولاً
-            if (a.createdAt && b.createdAt) {
-                return new Date(b.createdAt) - new Date(a.createdAt);
-            }
-            return 0;
+            const scoreDiff = getPopularityScore(b._id) - getPopularityScore(a._id);
+            if (scoreDiff !== 0) return scoreDiff;
+            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return dateB - dateA;
         });
     }
 
@@ -600,8 +668,12 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                     ${discountTimerHtml}
                 </div>
                 <div class="p-3 md:p-5 flex flex-col flex-1">
-                    <span class="text-on-surface-variant text-[9px] md:text-[10px] font-mono-data tracking-wider uppercase mb-1">${p.category}</span>
-                    <h3 class="font-headline-md text-sm md:text-lg text-on-surface leading-tight mb-2 md:mb-3 line-clamp-2 cursor-pointer hover:text-primary transition-colors" onclick="openProductModal('${p._id}')">${p.title}</h3>
+                    <div class="catalog-card-meta">
+                        <span class="catalog-card-category">${p.category}</span>
+                        ${p.publicBrand ? `<span class="catalog-card-brand">${p.publicBrand}</span>` : ''}
+                    </div>
+                    <h3 class="font-headline-md text-sm md:text-lg text-on-surface leading-tight mb-2 line-clamp-2 cursor-pointer hover:text-primary transition-colors" onclick="openProductModal('${p._id}')">${p.title}</h3>
+                    ${p.warranty ? `<div class="catalog-card-warranty"><span class="material-symbols-outlined">verified_user</span>${p.warranty}</div>` : ''}
                     <ul class="hidden md:flex text-xs text-on-surface-variant mb-4 flex-col gap-1.5 flex-1">${specsHtml}</ul>
                     
                     <div class="mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
@@ -1466,6 +1538,9 @@ window.addEventListener('beforeunload', () => {
     sessionStorage.setItem('tech_activeCategory', activeCategory);
     sessionStorage.setItem('tech_activeSearch', activeSearchTerm);
     sessionStorage.setItem('tech_currentSort', currentSort);
+    sessionStorage.setItem('tech_activeBrand', activeBrand);
+    sessionStorage.setItem('tech_minPrice', minPriceFilter);
+    sessionStorage.setItem('tech_maxPrice', maxPriceFilter);
     sessionStorage.setItem('tech_currentPage', String(currentPage));
     sessionStorage.setItem('tech_scrollPos', String(window.scrollY));
 });

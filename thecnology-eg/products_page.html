@@ -194,21 +194,42 @@
 
         <!-- Main Content Canvas -->
         <main class="flex-1 pb-24 w-full">
-            <div
-                class="flex flex-col sm:flex-row justify-between items-stretch sm:items-center mb-6 gap-3 glass-panel p-3 sm:p-4 rounded-xl w-full">
-                <div class="flex items-center gap-4 overflow-x-auto w-full sm:w-auto pb-2 sm:pb-0 scrollbar-hide"></div>
-                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                    <span class="text-xs font-mono-data text-on-surface-variant">ترتيب حسب:</span>
-                    <select id="sortSelect"
-                        aria-label="ترتيب المنتجات"
-                        class="bg-surface border border-outline-variant rounded text-xs sm:text-sm w-auto font-mono-data text-on-surface py-1.5 pl-6 pr-2 focus:ring-primary focus:border-primary outline-none"
-                        dir="rtl">
-                        <option value="newest">الأحدث</option>
-                        <option value="price_asc">السعر: الأقل للأعلى</option>
-                        <option value="price_desc">السعر: الأعلى للأقل</option>
-                    </select>
+            <section class="catalog-control-panel glass-panel" aria-label="فلاتر المنتجات">
+                <div class="catalog-control-top">
+                    <div>
+                        <h1 class="catalog-page-title">كتالوج المنتجات</h1>
+                        <p id="productsResultCount" class="catalog-result-count">جاري تحميل المنتجات...</p>
+                    </div>
+                    <button type="button" onclick="clearCatalogFilters()" class="catalog-clear-btn">
+                        <span class="material-symbols-outlined">filter_alt_off</span> مسح الفلاتر
+                    </button>
                 </div>
-            </div>
+                <div class="catalog-filter-grid">
+                    <label class="catalog-filter-field">
+                        <span>العلامة التجارية</span>
+                        <select id="brandFilter" onchange="applyCatalogFilters()" aria-label="العلامة التجارية">
+                            <option value="">كل العلامات التجارية</option>
+                        </select>
+                    </label>
+                    <label class="catalog-filter-field">
+                        <span>السعر من</span>
+                        <input id="minPriceFilter" type="number" min="0" inputmode="numeric" placeholder="0" oninput="scheduleCatalogFilter()">
+                    </label>
+                    <label class="catalog-filter-field">
+                        <span>السعر إلى</span>
+                        <input id="maxPriceFilter" type="number" min="0" inputmode="numeric" placeholder="بدون حد" oninput="scheduleCatalogFilter()">
+                    </label>
+                    <label class="catalog-filter-field catalog-filter-field--sort">
+                        <span>الترتيب</span>
+                        <select id="sortSelect" aria-label="ترتيب المنتجات" dir="rtl">
+                            <option value="featured">الأكثر اهتماماً</option>
+                            <option value="newest">الأحدث</option>
+                            <option value="price_asc">السعر: الأقل للأعلى</option>
+                            <option value="price_desc">السعر: الأعلى للأقل</option>
+                        </select>
+                    </label>
+                </div>
+            </section>
 
             <!-- Product Grid -->
             <div id="productsGrid" class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-gutter min-h-[500px]">

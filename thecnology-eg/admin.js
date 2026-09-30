@@ -354,33 +354,74 @@ window.deleteCategory = async function(cat) {
 };
 
 // ==========================================
-// Admin Products Table (with Pagination, Search, Low Stock Alerts)
+// Admin Products Table (V5.2 streamlined inventory workspace)
 // ==========================================
+function escapeAdminProductHtml(value) {
+    return String(value ?? '').replace(/[&<>\'\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+
+function productHasValidImage(p) {
+    const image = String(p?.image || '').trim();
+    if (!image) return false;
+    return !/placehold\.co|no-image|No\+Image/i.test(image) && (!window.defaultProductImage || image !== window.defaultProductImage);
+}
+
+function updateProductInventoryKpis() {
+    const products = window.adminProducts || [];
+    let inStock = 0, low = 0, out = 0, noImage = 0;
+    products.forEach(p => {
+        const qty = Number.isFinite(Number(p.stockQuantity)) ? Number(p.stockQuantity) : 0;
+        if (qty <= 0) out++;
+        else if (qty <= 3) low++;
+        else inStock++;
+        if (!productHasValidImage(p)) noImage++;
+    });
+    const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    set('productKpiTotal', products.length);
+    set('productKpiInStock', inStock);
+    set('productKpiLow', low);
+    set('productKpiOut', out);
+    set('productKpiNoImage', noImage);
+}
+
+function populateAdminBrandFilter(products) {
+    const select = document.getElementById('adminBrandFilter');
+    if (!select) return;
+    const current = select.value;
+    const brands = [...new Set((products || []).map(p => String(p.publicBrand || '').trim()).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'ar'));
+    select.innerHTML = '<option value="">كل العلامات التجارية</option>' + brands.map(b => `<option value="${escapeAdminProductHtml(b)}">${escapeAdminProductHtml(b)}</option>`).join('');
+    if (brands.includes(current)) select.value = current;
+}
+
 async function loadAdminProducts(preserveState = false) {
     const table = document.getElementById('adminProductsTable');
     if (!table) return;
 
     const savedPage = window.currentPage || 1;
-
-    // شحن الأقسام الافتراضية فوراً دون انتظار السيرفر
     populateCategoriesDatalist([]);
 
     if (!preserveState) {
-        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
+        table.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-on-surface-variant">جاري تحميل المنتجات...</td></tr>';
     }
-    
+
     try {
         await loadStoreSettings();
         const response = await adminFetch(API_URL);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const products = await response.json();
-        window.adminProducts = products;
-        
-        populateCategoriesDatalist(products);
+        window.adminProducts = Array.isArray(products) ? products : [];
 
-        if (products.length === 0) {
-            table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد منتجات بعد. ابدأ بإضافة منتج جديد.</td></tr>';
+        populateCategoriesDatalist(window.adminProducts);
+        populateAdminBrandFilter(window.adminProducts);
+        updateProductInventoryKpis();
+
+        if (window.adminProducts.length === 0) {
+            table.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-on-surface-variant">لا توجد منتجات بعد. اضغط «إضافة منتج» للبدء.</td></tr>';
             window.filteredProducts = [];
             updatePaginationControls();
+            const count = document.getElementById('adminProductsResultCount');
+            if (count) count.textContent = '0 منتج';
             return;
         }
 
@@ -391,7 +432,7 @@ async function loadAdminProducts(preserveState = false) {
         }
         if (window.loadAnalytics) window.loadAnalytics();
     } catch (error) {
-        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-red-500">فشل الاتصال بالسيرفر. تأكد من عمل السيرفر.</td></tr>';
+        table.innerHTML = '<tr><td colspan="7" class="py-12 text-center text-red-500">فشل تحميل المنتجات. حاول التحديث مرة أخرى.</td></tr>';
         console.error(error);
     }
 }
@@ -400,78 +441,85 @@ function renderProductsPage() {
     const table = document.getElementById('adminProductsTable');
     if (!table) return;
 
-    const products = window.filteredProducts;
+    const products = window.filteredProducts || [];
     const totalPages = Math.max(1, Math.ceil(products.length / ITEMS_PER_PAGE));
-
     if (window.currentPage > totalPages) window.currentPage = totalPages;
     if (window.currentPage < 1) window.currentPage = 1;
 
+    const resultCount = document.getElementById('adminProductsResultCount');
+    if (resultCount) resultCount.textContent = `${products.length} منتج`;
+
     const start = (window.currentPage - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const pageProducts = products.slice(start, end);
+    const pageProducts = products.slice(start, start + ITEMS_PER_PAGE);
 
     if (pageProducts.length === 0) {
-        table.innerHTML = '<tr><td colspan="5" class="py-10 text-center text-on-surface-variant">لا توجد نتائج مطابقة.</td></tr>';
+        table.innerHTML = '<tr><td colspan="7" class="py-14 text-center text-on-surface-variant"><span class="material-symbols-outlined block text-4xl mb-2 opacity-50">search_off</span>لا توجد نتائج مطابقة للفلاتر الحالية.</td></tr>';
         updatePaginationControls();
         return;
     }
 
-    table.innerHTML = '';
-    pageProducts.forEach(p => {
-        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
-        const isLowStock = qty <= 3 && qty > 0;
-        const isOutOfStock = qty === 0;
+    const fallbackImage = adminSafeImageUrl(window.defaultProductImage);
+    table.innerHTML = pageProducts.map(p => {
+        const qty = Math.max(0, Number(p.stockQuantity) || 0);
+        const isLowStock = qty > 0 && qty <= 3;
+        const isOutOfStock = qty <= 0;
         const isHidden = p.isHidden === true;
+        const hasImage = productHasValidImage(p);
+        const title = escapeAdminProductHtml(p.title || 'بدون اسم');
+        const category = escapeAdminProductHtml(p.category || 'غير مصنف');
+        const sku = escapeAdminProductHtml(p.sku || '—');
+        const brand = escapeAdminProductHtml(p.publicBrand || '—');
+        const price = escapeAdminProductHtml(p.price ?? '—');
+        const stockTone = isOutOfStock ? 'stock-badge--out' : (isLowStock ? 'stock-badge--low' : 'stock-badge--ok');
+        const stockLabel = isOutOfStock ? 'نفد المخزون' : (isLowStock ? 'منخفض' : 'متوفر');
+        const visibilityLabel = isHidden ? 'مخفي' : 'ظاهر';
+        const visibilityTone = isHidden ? 'status-pill--muted' : 'status-pill--live';
 
-        const fallbackImage = adminSafeImageUrl(window.defaultProductImage);
-        const isPlaceholder = !p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image') || (window.defaultProductImage && p.image === window.defaultProductImage);
-        const tr = document.createElement('tr');
-        
-        // Row styling based on stock and visibility
-        let rowClass = 'border-b border-outline-variant/30 text-sm hover:bg-surface-variant/30 transition-colors ';
-        if (isHidden) rowClass += 'opacity-50 grayscale ';
-        else if (isOutOfStock) rowClass += 'bg-red-900/10 ';
-        else if (isLowStock) rowClass += 'bg-orange-900/10 ';
-
-        tr.className = rowClass;
-        tr.innerHTML = `
-                <td class="py-4 pr-2 font-semibold text-on-surface">
-                    <div class="flex items-center gap-3">
-                        <img src="${adminSafeImageUrl(p.image || fallbackImage)}" onerror="handleAdminImageError(this)" class="w-10 h-10 rounded object-contain bg-surface/50 p-0.5 border border-outline-variant/50">
-                        <span class="flex items-center gap-2">
-                            ${p.title} 
-                            ${isHidden ? '<span class="text-[10px] bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded">مخفي</span>' : ''}
-                            ${isPlaceholder ? '<span class="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded" title="لن يظهر للعملاء حتى تضيف صورة">بدون صورة</span>' : ''}
-                        </span>
+        return `
+            <tr class="product-admin-row ${isHidden ? 'product-admin-row--hidden' : ''}">
+                <td>
+                    <div class="product-admin-cell">
+                        <div class="product-admin-thumb-wrap">
+                            <img src="${adminSafeImageUrl(p.image || fallbackImage)}" onerror="handleAdminImageError(this)" class="product-admin-thumb" alt="${title}">
+                            ${!hasImage ? '<span class="product-image-warning" title="لا توجد صورة حقيقية"><span class="material-symbols-outlined">broken_image</span></span>' : ''}
+                        </div>
+                        <div class="min-w-0">
+                            <button type="button" onclick="openEditModal('${p._id}')" class="product-admin-title">${title}</button>
+                            <div class="product-admin-subline">
+                                ${!hasImage ? '<span class="mini-pill mini-pill--amber">بدون صورة</span>' : ''}
+                                ${isHidden ? '<span class="mini-pill">مخفي</span>' : ''}
+                            </div>
+                        </div>
                     </div>
                 </td>
-                <td class="py-4 text-on-surface-variant">${p.category}</td>
-                <td class="py-4 font-mono-data text-primary">${p.price}</td>
-                <td class="py-4">
-                    <div class="flex items-center justify-center gap-2">
-                        <input type="number" id="qty-${p._id}" value="${qty}" min="0" ${hasPermission('edit_product') ? '' : 'disabled'} class="w-16 bg-surface border ${isOutOfStock ? 'border-red-500 text-red-400' : isLowStock ? 'border-orange-500 text-orange-400' : 'border-green-500 text-green-400'} rounded px-2 py-1 text-center focus:outline-none text-xs font-bold font-mono-data">
+                <td><div class="product-admin-code"><span>${sku}</span><small>${brand}</small></div></td>
+                <td><span class="product-category-pill">${category}</span></td>
+                <td><strong class="product-price-cell">${price}<small> ج.م</small></strong></td>
+                <td class="text-center">
+                    <div class="stock-stepper">
+                        ${hasPermission('edit_product') ? `<button type="button" onclick="adjustProductQuantity('${p._id}', -1)" ${qty <= 0 ? 'disabled' : ''} aria-label="إنقاص الكمية"><span class="material-symbols-outlined">remove</span></button>` : ''}
+                        <input type="number" id="qty-${p._id}" value="${qty}" min="0" ${hasPermission('edit_product') ? '' : 'disabled'} onchange="updateQuantity('${p._id}')" aria-label="كمية ${title}">
+                        ${hasPermission('edit_product') ? `<button type="button" onclick="adjustProductQuantity('${p._id}', 1)" aria-label="زيادة الكمية"><span class="material-symbols-outlined">add</span></button>` : ''}
+                    </div>
+                </td>
+                <td class="text-center">
+                    <div class="status-stack">
+                        <span class="stock-badge ${stockTone}">${stockLabel} · ${qty}</span>
+                        <span class="status-pill ${visibilityTone}">${visibilityLabel}</span>
+                    </div>
+                </td>
+                <td class="text-center">
+                    <div class="product-row-actions">
                         ${hasPermission('edit_product') ? `
-                        <button onclick="updateQuantity('${p._id}')" class="bg-primary/20 text-primary hover:bg-primary hover:text-white px-2 py-1 rounded transition-colors text-xs" title="حفظ الكمية">
-                            <span class="material-symbols-outlined text-[14px]">save</span>
-                        </button>
+                            <button type="button" onclick="openEditModal('${p._id}')" class="row-action row-action--edit" title="تعديل المنتج"><span class="material-symbols-outlined">edit</span></button>
+                            <button type="button" onclick="toggleVisibility('${p._id}', ${!isHidden})" class="row-action" title="${isHidden ? 'إظهار المنتج' : 'إخفاء المنتج'}"><span class="material-symbols-outlined">${isHidden ? 'visibility' : 'visibility_off'}</span></button>
                         ` : ''}
+                        ${hasPermission('delete_product') ? `<button type="button" onclick="deleteProduct('${p._id}')" class="row-action row-action--danger" title="حذف المنتج"><span class="material-symbols-outlined">delete</span></button>` : ''}
+                        ${!hasPermission('edit_product') && !hasPermission('delete_product') ? '<span class="text-xs text-on-surface-variant">عرض فقط</span>' : ''}
                     </div>
                 </td>
-                <td class="py-4 text-center flex items-center justify-center gap-2 h-full min-h-[73px]">
-                    ${hasPermission('edit_product') ? `
-                    <button onclick="toggleVisibility('${p._id}', ${!isHidden})" class="px-2 py-1.5 ${isHidden ? 'bg-green-500/10 text-green-400 border-green-500/30 hover:bg-green-500' : 'bg-surface-variant text-on-surface-variant border-outline-variant/30 hover:bg-surface'} hover:text-white border rounded text-xs transition-all font-bold flex items-center gap-1" title="${isHidden ? 'إظهار المنتج' : 'إخفاء المنتج'}">
-                        <span class="material-symbols-outlined text-[16px]">${isHidden ? 'visibility' : 'visibility_off'}</span>
-                    </button>
-                    <button onclick="openEditModal('${p._id}')" class="px-3 py-1.5 bg-blue-500/10 border border-blue-500/30 text-blue-400 hover:bg-blue-500 hover:text-white rounded text-xs transition-all font-bold">تعديل</button>
-                    ` : ''}
-                    ${hasPermission('delete_product') ? `
-                    <button onclick="deleteProduct('${p._id}')" class="px-3 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white rounded text-xs transition-all font-bold">حذف</button>
-                    ` : ''}
-                    ${!hasPermission('edit_product') && !hasPermission('delete_product') ? '<span class="text-xs text-on-surface-variant">لا تملك صلاحية</span>' : ''}
-                </td>
-            `;
-        table.appendChild(tr);
-    });
+            </tr>`;
+    }).join('');
 
     updatePaginationControls();
 }
@@ -486,81 +534,149 @@ function updatePaginationControls() {
     const prevBtn = document.getElementById('prevPageBtn');
     const nextBtn = document.getElementById('nextPageBtn');
 
-    if (pageIndicator) {
-        if (totalItems === 0) {
-            pageIndicator.textContent = `صفحة 0 / 0`;
-        } else {
-            pageIndicator.textContent = `صفحة ${window.currentPage} / ${totalPages}`;
-        }
-    }
+    if (pageIndicator) pageIndicator.textContent = totalItems === 0 ? 'صفحة 0 / 0' : `صفحة ${window.currentPage} / ${totalPages}`;
     if (prevBtn) prevBtn.disabled = window.currentPage <= 1 || totalItems === 0;
     if (nextBtn) nextBtn.disabled = window.currentPage >= totalPages || totalItems === 0;
 }
 
 window.goToPage = function(page) {
-    const totalPages = Math.max(1, Math.ceil(window.filteredProducts.length / ITEMS_PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil((window.filteredProducts || []).length / ITEMS_PER_PAGE));
     if (page < 1 || page > totalPages) return;
     window.currentPage = page;
     renderProductsPage();
+    const scroller = document.getElementById('adminMainScroll');
+    if (scroller) scroller.scrollTo({ top: 0, behavior: 'smooth' });
 };
 
 // ==========================================
-// Live Search / Filter
+// Search / filters / KPI shortcuts
 // ==========================================
 window.filterAdminProducts = function(preservePage = false) {
     const query = (document.getElementById('adminSearchInput')?.value || '').trim().toLowerCase();
     const categoryFilter = document.getElementById('adminCategoryFilter')?.value || '';
+    const brandFilter = document.getElementById('adminBrandFilter')?.value || '';
     const stockFilter = document.getElementById('adminStockFilter')?.value || '';
-    
-    window.filteredProducts = window.adminProducts.filter(p => {
-        const titleMatch = p.title.toLowerCase().includes(query);
-        const skuMatch = (p.sku || '').toLowerCase().includes(query);
-        const catMatch = categoryFilter ? p.category === categoryFilter : true;
-        
-        let stockMatch = true;
-        const qty = p.stockQuantity !== undefined ? p.stockQuantity : 1;
-        if (stockFilter === 'low_stock') stockMatch = qty <= 3 && qty > 0;
-        else if (stockFilter === 'out_of_stock') stockMatch = qty === 0;
-        else if (stockFilter === 'hidden') {
-            const hasValidImage = p.image && p.image.trim() !== '' && !p.image.includes('placehold.co') && !p.image.includes('no-image');
-            stockMatch = p.isHidden === true || !hasValidImage;
-        }
 
-        if (query) {
-            return (titleMatch || skuMatch) && catMatch && stockMatch;
-        }
-        return catMatch && stockMatch;
+    window.filteredProducts = (window.adminProducts || []).filter(p => {
+        const title = String(p.title || '').toLowerCase();
+        const sku = String(p.sku || '').toLowerCase();
+        const brand = String(p.publicBrand || '').toLowerCase();
+        const category = String(p.category || '');
+        const textMatch = !query || title.includes(query) || sku.includes(query) || brand.includes(query);
+        const categoryMatch = !categoryFilter || category === categoryFilter;
+        const brandMatch = !brandFilter || String(p.publicBrand || '') === brandFilter;
+        const qty = Math.max(0, Number(p.stockQuantity) || 0);
+        const hasImage = productHasValidImage(p);
+
+        let stockMatch = true;
+        if (stockFilter === 'in_stock') stockMatch = qty > 3;
+        else if (stockFilter === 'low_stock') stockMatch = qty > 0 && qty <= 3;
+        else if (stockFilter === 'out_of_stock') stockMatch = qty <= 0;
+        else if (stockFilter === 'missing_image') stockMatch = !hasImage;
+        else if (stockFilter === 'hidden') stockMatch = p.isHidden === true;
+
+        return textMatch && categoryMatch && brandMatch && stockMatch;
     });
 
-    if (!preservePage) {
-        window.currentPage = 1;
-    }
+    if (!preservePage) window.currentPage = 1;
     renderProductsPage();
+};
+
+window.setAdminStockFilter = function(value) {
+    const select = document.getElementById('adminStockFilter');
+    if (select) select.value = value;
+    filterAdminProducts();
+};
+
+window.clearAdminProductFilters = function() {
+    ['adminSearchInput', 'adminCategoryFilter', 'adminBrandFilter', 'adminStockFilter'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    filterAdminProducts();
+};
+
+window.openAddProductPanel = function() {
+    const panel = document.getElementById('addProductPanel');
+    if (!panel) return;
+    panel.classList.remove('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-panel-open');
+    requestAnimationFrame(() => panel.classList.add('is-open'));
+    setTimeout(() => document.getElementById('pTitle')?.focus(), 180);
+};
+
+window.closeAddProductPanel = function() {
+    const panel = document.getElementById('addProductPanel');
+    if (!panel) return;
+    panel.classList.remove('is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-panel-open');
+    setTimeout(() => panel.classList.add('hidden'), 180);
+};
+
+window.openCategoriesPanel = function() {
+    const panel = document.getElementById('categoriesPanel');
+    if (!panel) return;
+    renderCategoriesAdminList();
+    panel.classList.remove('hidden');
+    panel.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('admin-panel-open');
+    requestAnimationFrame(() => panel.classList.add('is-open'));
+    setTimeout(() => document.getElementById('newCategoryInput')?.focus(), 180);
+};
+
+window.closeCategoriesPanel = function() {
+    const panel = document.getElementById('categoriesPanel');
+    if (!panel) return;
+    panel.classList.remove('is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('admin-panel-open');
+    setTimeout(() => panel.classList.add('hidden'), 180);
+};
+
+window.adjustProductQuantity = async function(id, delta) {
+    const input = document.getElementById(`qty-${id}`);
+    if (!input) return;
+    const current = Math.max(0, Number(input.value) || 0);
+    input.value = Math.max(0, current + Number(delta || 0));
+    await updateQuantity(id, true);
 };
 
 // ==========================================
 // Update Stock Quantity
 // ==========================================
-window.updateQuantity = async function(id) {
+window.updateQuantity = async function(id, quiet = false) {
     const qtyInput = document.getElementById(`qty-${id}`);
-    const newQty = parseInt(qtyInput.value, 10) || 0;
+    if (!qtyInput) return;
+    const newQty = Math.max(0, parseInt(qtyInput.value, 10) || 0);
+    qtyInput.value = newQty;
+    qtyInput.disabled = true;
     try {
         const response = await adminFetch(`${API_URL}/${id}/quantity`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ stockQuantity: newQty })
         });
-        
+
         if (response.ok) {
-            showToast('✅ تم تحديث الكمية بنجاح!');
-            loadAdminProducts(true);
+            const product = (window.adminProducts || []).find(p => p._id === id);
+            if (product) product.stockQuantity = newQty;
+            updateProductInventoryKpis();
+            filterAdminProducts(true);
+            if (!quiet) showToast('✅ تم تحديث الكمية');
         } else {
-            const data = await response.json();
-            alert(`خطأ: ${data.message}`);
+            const data = await response.json().catch(() => ({}));
+            alert(`خطأ: ${data.message || 'تعذر تحديث الكمية'}`);
+            loadAdminProducts(true);
         }
     } catch (error) {
         console.error(error);
         alert('حدث خطأ أثناء الاتصال بالسيرفر.');
+        loadAdminProducts(true);
+    } finally {
+        const refreshed = document.getElementById(`qty-${id}`);
+        if (refreshed && hasPermission('edit_product')) refreshed.disabled = false;
     }
 };
 
@@ -729,7 +845,8 @@ if (addForm) {
             if (response.ok) {
                 addForm.reset();
                 if (imgPreviewContainer) imgPreviewContainer.classList.add('hidden');
-                loadAdminProducts();
+                await loadAdminProducts();
+                closeAddProductPanel();
                 showToast('✅ تم إضافة المنتج بنجاح!');
             } else {
                 const errorData = await response.json();
@@ -2970,3 +3087,11 @@ window.runEmergencyClean = async function() {
         btn.disabled = false;
     }
 };
+// V5.2 UX: close the lightweight product/category drawers with Escape.
+document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    const addPanel = document.getElementById('addProductPanel');
+    const categoriesPanel = document.getElementById('categoriesPanel');
+    if (addPanel && !addPanel.classList.contains('hidden')) closeAddProductPanel();
+    if (categoriesPanel && !categoriesPanel.classList.contains('hidden')) closeCategoriesPanel();
+});
