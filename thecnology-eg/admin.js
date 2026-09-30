@@ -71,6 +71,15 @@ async function checkAuth() {
         const userBadge = document.getElementById('currentUserBadge');
         if (userBadge) userBadge.textContent = `${user.username} (${user.role})`;
         
+        const dashboardTab = document.getElementById('tab-dashboard');
+        if (dashboardTab) dashboardTab.style.display = hasPermission('view_reports') ? 'flex' : 'none';
+
+        const ordersTab = document.getElementById('tab-orders');
+        if (ordersTab) ordersTab.style.display = hasPermission('manage_orders') ? 'flex' : 'none';
+
+        const mediaTab = document.getElementById('tab-media');
+        if (mediaTab) mediaTab.style.display = hasPermission('manage_media') ? 'flex' : 'none';
+
         const userMgmt = document.getElementById('tab-users');
         if (userMgmt) userMgmt.style.display = hasPermission('manage_users') ? 'flex' : 'none';
 
@@ -106,8 +115,8 @@ async function checkAuth() {
         renderCategoriesAdminList();
         loadStoreSettings();
         
-        // Initialize the first tab
-        switchTab('products');
+        // Initialize with the operations dashboard when permitted.
+        switchTab(hasPermission('view_reports') ? 'dashboard' : 'products');
     } else {
         document.getElementById('loginContainer').style.display = 'flex';
         document.getElementById('adminContainer').style.display = 'none';
@@ -841,6 +850,8 @@ async function loadUsersTable() {
             'manage_backup': 'نسخ احتياطي واسترجاع',
             'view_reports': 'تقارير وإحصائيات',
             'manage_users': 'مستخدمين',
+            'manage_orders': 'إدارة الطلبات',
+            'manage_media': 'مركز الصور',
             'all': 'كل الصلاحيات (مدير)'
         };
         const permsText = user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.map(p => permLabels[p] || p).join('، ');
@@ -1149,6 +1160,14 @@ async function loadStoreSettings() {
         if (shippingToggle) {
             shippingToggle.checked = settings.isShippingEnabled || false;
         }
+        const setValue = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+        setValue('socialWhatsappNumber', settings.whatsappNumber || '201515664919');
+        setValue('socialWhatsappChannel', settings.whatsappChannelUrl || '');
+        setValue('socialTelegramUrl', settings.telegramUrl || 'https://t.me/TehnologyStore');
+        setValue('socialFacebookUrl', settings.facebookUrl || '');
+        setValue('socialInstagramUrl', settings.instagramUrl || '');
+        setValue('socialTiktokUrl', settings.tiktokUrl || 'https://www.tiktok.com/@technologystore.official');
+        setValue('socialXUrl', settings.xUrl || 'https://x.com/techstoreeg');
     } catch (err) {
         console.error('Error loading store settings:', err);
     }
@@ -1737,6 +1756,172 @@ async function importBackup() {
 window.toggleTheme = function() {
     const isDark = document.documentElement.classList.toggle('dark');
     localStorage.setItem('theme', isDark ? 'dark' : 'light');
+};
+
+// ==========================================
+// Operations Dashboard / Orders / Media Center / Social Links
+// ==========================================
+const ORDER_STATUS_LABELS = {
+    pending: 'جديد',
+    received_by_pos: 'استلمه POS',
+    processing: 'جاري التجهيز',
+    completed: 'مكتمل',
+    cancelled: 'ملغي'
+};
+const ORDER_STATUS_CLASSES = {
+    pending: 'bg-surface-variant/30 text-orange-400 border-orange-500/30',
+    received_by_pos: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+    processing: 'bg-primary/10 text-primary border-primary/20',
+    completed: 'bg-green-500/10 text-green-400 border-green-500/30',
+    cancelled: 'bg-red-500/10 text-red-400 border-red-500/30'
+};
+const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const formatMoney = (value) => `${new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 }).format(Number(value) || 0)} ج.م`;
+const formatAdminDate = (value) => value ? new Date(value).toLocaleString('ar-EG', { dateStyle: 'short', timeStyle: 'short' }) : '—';
+
+window.loadDashboard = async function() {
+    const setText = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/admin/dashboard`);
+        if (!res.ok) throw new Error((await res.json()).message || 'فشل تحميل لوحة المتابعة');
+        const data = await res.json();
+        setText('dashProductsTotal', data.products?.total ?? 0);
+        setText('dashProductsVisible', data.products?.visible ?? 0);
+        setText('dashLowStock', data.products?.lowStock ?? 0);
+        setText('dashOutStock', data.products?.outOfStock ?? 0);
+        setText('dashMissingImages', data.products?.missingImages ?? 0);
+        setText('dashOrdersToday', data.orders?.today ?? 0);
+        setText('dashTodaySales', formatMoney(data.orders?.todaySales || 0));
+
+        const healthBadge = (ok, yes='متصل', no='غير متصل') => `<span class="px-2 py-1 rounded-full text-xs font-bold ${ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}">${ok ? yes : no}</span>`;
+        const db = document.getElementById('healthDb'); if (db) db.innerHTML = healthBadge(data.health?.database === 'connected');
+        const cloud = document.getElementById('healthCloudinary'); if (cloud) cloud.innerHTML = healthBadge(Boolean(data.health?.cloudinaryConfigured), 'مضبوط', 'غير مضبوط');
+        const pos = document.getElementById('healthPos'); if (pos) pos.innerHTML = healthBadge(Boolean(data.health?.posConfigured), 'مربوط', 'غير مربوط');
+
+        const ordersBox = document.getElementById('dashboardRecentOrders');
+        if (ordersBox) {
+            const orders = data.recentOrders || [];
+            ordersBox.innerHTML = orders.length ? orders.map(o => `<button onclick="switchTab('orders'); setTimeout(()=>openOrderDetails('${o._id}'),120)" class="w-full text-right grid grid-cols-[1fr_auto] gap-3 p-3 rounded-lg bg-surface-container hover:bg-surface-variant/40 border border-outline-variant/20 transition-all"><div><div class="font-bold text-sm text-on-surface">${escapeHtml(o.orderNumber)}</div><div class="text-xs text-on-surface-variant mt-1">${escapeHtml(o.customerName)} · ${formatAdminDate(o.createdAt)}</div></div><div class="text-left"><div class="font-bold text-primary font-mono-data text-sm">${formatMoney(o.total)}</div><span class="inline-block mt-1 px-2 py-0.5 rounded-full border text-[10px] ${ORDER_STATUS_CLASSES[o.status] || ''}">${ORDER_STATUS_LABELS[o.status] || o.status}</span></div></button>`).join('') : '<p class="text-sm text-on-surface-variant text-center py-6">لا توجد طلبات حتى الآن.</p>';
+        }
+
+        const logsBox = document.getElementById('dashboardRecentLogs');
+        if (logsBox) {
+            const logs = data.recentLogs || [];
+            logsBox.innerHTML = logs.length ? logs.map(l => `<div class="p-3 rounded-lg bg-surface-container border border-outline-variant/20"><p class="font-bold text-sm text-on-surface">${escapeHtml(l.action)}</p><p class="text-xs text-on-surface-variant mt-1 line-clamp-2">${escapeHtml(l.details)}</p><div class="flex justify-between gap-2 mt-2 text-[10px] text-on-surface-variant"><span>${escapeHtml(l.user || 'نظام')}</span><span>${formatAdminDate(l.timestamp)}</span></div></div>`).join('') : '<p class="text-sm text-on-surface-variant">لا توجد نشاطات مسجلة.</p>';
+        }
+    } catch (err) {
+        console.error(err);
+        showToast('❌ ' + err.message);
+    }
+};
+
+window.ordersPage = 1;
+window.ordersPages = 1;
+window.adminOrdersCache = [];
+let ordersReloadTimer = null;
+window.scheduleOrdersReload = function() {
+    clearTimeout(ordersReloadTimer);
+    ordersReloadTimer = setTimeout(() => window.loadOrders(1), 350);
+};
+
+window.loadOrders = async function(page = 1) {
+    if (!hasPermission('manage_orders')) return;
+    page = Math.max(1, Number(page) || 1);
+    const tbody = document.getElementById('ordersTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-on-surface-variant">جاري تحميل الطلبات...</td></tr>';
+    const search = document.getElementById('ordersSearchInput')?.value.trim() || '';
+    const status = document.getElementById('ordersStatusFilter')?.value || '';
+    try {
+        const qs = new URLSearchParams({ page: String(page), limit: '25' });
+        if (search) qs.set('search', search);
+        if (status) qs.set('status', status);
+        const res = await adminFetch(`${BASE_URL}/api/admin/orders?${qs}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'فشل تحميل الطلبات');
+        window.ordersPage = data.page || 1;
+        window.ordersPages = data.pages || 1;
+        window.adminOrdersCache = data.orders || [];
+        document.getElementById('ordersCountLabel').textContent = `${data.total || 0} طلب`;
+        document.getElementById('ordersPageLabel').textContent = `${window.ordersPage} / ${window.ordersPages}`;
+        document.getElementById('ordersPrevBtn').disabled = window.ordersPage <= 1;
+        document.getElementById('ordersNextBtn').disabled = window.ordersPage >= window.ordersPages;
+        if (!tbody) return;
+        if (!window.adminOrdersCache.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="p-10 text-center text-on-surface-variant">لا توجد طلبات مطابقة.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = window.adminOrdersCache.map(o => `<tr class="border-b border-outline-variant/20 hover:bg-surface-variant/20"><td class="p-3"><div class="font-bold text-on-surface text-sm">${escapeHtml(o.orderNumber)}</div><div class="text-[11px] text-on-surface-variant">${o.items?.length || 0} منتج</div></td><td class="p-3"><div class="font-semibold text-sm">${escapeHtml(o.customerName)}</div><a href="tel:${escapeHtml(o.customerPhone)}" class="text-xs text-primary" dir="ltr">${escapeHtml(o.customerPhone)}</a></td><td class="p-3 font-bold text-primary font-mono-data">${formatMoney(o.total)}</td><td class="p-3"><select onchange="updateOrderStatus('${o._id}', this.value, this)" class="bg-surface-container border border-outline-variant rounded px-2 py-1.5 text-xs text-on-surface"><option value="pending" ${o.status==='pending'?'selected':''}>جديد</option><option value="received_by_pos" ${o.status==='received_by_pos'?'selected':''}>استلمه POS</option><option value="processing" ${o.status==='processing'?'selected':''}>جاري التجهيز</option><option value="completed" ${o.status==='completed'?'selected':''}>مكتمل</option><option value="cancelled" ${o.status==='cancelled'?'selected':''}>ملغي</option></select></td><td class="p-3 text-xs text-on-surface-variant">${formatAdminDate(o.createdAt)}</td><td class="p-3 text-center"><button onclick="openOrderDetails('${o._id}')" class="px-3 py-1.5 rounded bg-primary/10 text-primary border border-primary/20 text-xs font-bold">تفاصيل</button></td></tr>`).join('');
+    } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="p-10 text-center text-red-400">${escapeHtml(err.message)}</td></tr>`;
+    }
+};
+
+window.updateOrderStatus = async function(id, status, selectEl) {
+    const previous = window.adminOrdersCache.find(o => o._id === id)?.status || 'pending';
+    if (selectEl) selectEl.disabled = true;
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/admin/orders/${id}/status`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'تعذر تحديث الطلب');
+        const found = window.adminOrdersCache.find(o => o._id === id); if (found) found.status = status;
+        showToast('✅ تم تحديث حالة الطلب');
+        if (window.loadDashboard) window.loadDashboard();
+    } catch (err) {
+        if (selectEl) selectEl.value = previous;
+        showToast('❌ ' + err.message);
+    } finally { if (selectEl) selectEl.disabled = false; }
+};
+
+window.openOrderDetails = function(id) {
+    const order = window.adminOrdersCache.find(o => o._id === id);
+    if (!order) { window.loadOrders(window.ordersPage).then(() => window.openOrderDetails(id)); return; }
+    const modal = document.getElementById('orderDetailsModal');
+    const box = document.getElementById('orderDetailsContent');
+    if (!modal || !box) return;
+    const items = (order.items || []).map(i => `<tr class="border-b border-outline-variant/20"><td class="py-2">${escapeHtml(i.title)}</td><td class="py-2 text-center">${i.quantity}</td><td class="py-2 text-left font-mono-data">${formatMoney(i.lineTotal)}</td></tr>`).join('');
+    box.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5"><div class="p-3 bg-surface-container rounded-lg"><span class="text-xs text-on-surface-variant">رقم الطلب</span><p class="font-bold mt-1">${escapeHtml(order.orderNumber)}</p></div><div class="p-3 bg-surface-container rounded-lg"><span class="text-xs text-on-surface-variant">التاريخ</span><p class="font-bold mt-1">${formatAdminDate(order.createdAt)}</p></div><div class="p-3 bg-surface-container rounded-lg"><span class="text-xs text-on-surface-variant">العميل</span><p class="font-bold mt-1">${escapeHtml(order.customerName)}</p></div><div class="p-3 bg-surface-container rounded-lg"><span class="text-xs text-on-surface-variant">الهاتف</span><p class="font-bold mt-1" dir="ltr">${escapeHtml(order.customerPhone)}</p></div><div class="p-3 bg-surface-container rounded-lg md:col-span-2"><span class="text-xs text-on-surface-variant">العنوان</span><p class="font-bold mt-1">${escapeHtml(order.customerAddress)}</p></div></div><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-on-surface-variant border-b border-outline-variant/30"><th class="py-2 text-right">المنتج</th><th class="py-2 text-center">الكمية</th><th class="py-2 text-left">الإجمالي</th></tr></thead><tbody>${items}</tbody></table></div><div class="mt-5 p-4 rounded-lg bg-primary/5 border border-primary/20 flex justify-between items-center"><span class="font-bold">إجمالي الطلب</span><span class="text-xl font-bold text-primary font-mono-data">${formatMoney(order.total)}</span></div>${order.notes ? `<div class="mt-4 p-3 rounded-lg bg-surface-container"><span class="text-xs text-on-surface-variant">ملاحظات</span><p class="mt-1 text-sm">${escapeHtml(order.notes)}</p></div>` : ''}`;
+    modal.classList.remove('hidden'); modal.classList.add('flex');
+};
+window.closeOrderDetails = function() { const m=document.getElementById('orderDetailsModal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} };
+
+window.mediaCenterData = [];
+window.loadMediaCenter = async function() {
+    if (!hasPermission('manage_media')) return;
+    const grid = document.getElementById('mediaGrid');
+    if (grid) grid.innerHTML = '<div class="col-span-full text-center text-on-surface-variant py-10">جاري فحص الصور...</div>';
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/admin/media`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'فشل تحميل الصور');
+        window.mediaCenterData = data.media || [];
+        const set = (id,v) => { const e=document.getElementById(id); if(e)e.textContent=v; };
+        set('mediaTotal', data.summary?.totalReferences || 0); set('mediaUnique', data.summary?.uniqueUrls || 0); set('mediaDuplicates', data.summary?.duplicateReferences || 0); set('mediaMissing', data.summary?.missingProducts || 0);
+        window.renderMediaCenter();
+    } catch(err) { if(grid) grid.innerHTML = `<div class="col-span-full text-center text-red-400 py-10">${escapeHtml(err.message)}</div>`; }
+};
+window.renderMediaCenter = function() {
+    const grid = document.getElementById('mediaGrid'); if(!grid) return;
+    const q=(document.getElementById('mediaSearchInput')?.value || '').trim().toLowerCase();
+    const items=(window.mediaCenterData || []).filter(m => !q || String(m.productTitle||'').toLowerCase().includes(q) || String(m.category||'').toLowerCase().includes(q)).slice(0,300);
+    grid.innerHTML = items.length ? items.map(m => `<article class="glass-panel rounded-xl border border-outline-variant/30 overflow-hidden"><div class="aspect-square bg-white/95 p-2"><img src="${escapeHtml(adminSafeImageUrl(m.url))}" onerror="handleAdminImageError(this)" class="w-full h-full object-contain" loading="lazy"></div><div class="p-3"><p class="font-bold text-xs text-on-surface line-clamp-2" title="${escapeHtml(m.productTitle)}">${escapeHtml(m.productTitle)}</p><div class="flex items-center justify-between gap-2 mt-2"><span class="text-[10px] text-on-surface-variant">${escapeHtml(m.category || '')}</span><span class="text-[9px] px-1.5 py-0.5 rounded ${m.isCloudinary?'bg-green-500/10 text-green-400':'bg-amber-500/10 text-amber-400'}">${m.isCloudinary?'Cloudinary':'خارجي/محلي'}</span></div></div></article>`).join('') : '<div class="col-span-full text-center text-on-surface-variant py-10">لا توجد صور مطابقة.</div>';
+};
+
+window.saveSocialSettings = async function() {
+    const payload = new URLSearchParams();
+    payload.set('whatsappNumber', document.getElementById('socialWhatsappNumber')?.value.trim() || '');
+    payload.set('whatsappChannelUrl', document.getElementById('socialWhatsappChannel')?.value.trim() || '');
+    payload.set('telegramUrl', document.getElementById('socialTelegramUrl')?.value.trim() || '');
+    payload.set('facebookUrl', document.getElementById('socialFacebookUrl')?.value.trim() || '');
+    payload.set('instagramUrl', document.getElementById('socialInstagramUrl')?.value.trim() || '');
+    payload.set('tiktokUrl', document.getElementById('socialTiktokUrl')?.value.trim() || '');
+    payload.set('xUrl', document.getElementById('socialXUrl')?.value.trim() || '');
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/settings`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload.toString() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'فشل حفظ الروابط');
+        showToast('✅ تم تحديث روابط التواصل على الموقع');
+        loadStoreSettings();
+    } catch(err) { showToast('❌ ' + err.message); }
 };
 
 // ==========================================

@@ -176,7 +176,8 @@ function requireSelfOrPermission(permission) {
 
 const VALID_ADMIN_PERMISSIONS = new Set([
   'all', 'add_product', 'edit_product', 'delete_product',
-  'manage_categories', 'manage_settings', 'manage_backup', 'view_reports', 'manage_users'
+  'manage_categories', 'manage_settings', 'manage_backup', 'view_reports', 'manage_users',
+  'manage_orders', 'manage_media'
 ]);
 
 function normalizePermissions(value) {
@@ -259,6 +260,13 @@ const settingsSchema = new mongoose.Schema({
   isQuickBuyEnabled: { type: Boolean, default: false },
   isPixelEnabled: { type: Boolean, default: false },
   fbPixelId: { type: String, default: '' },
+  whatsappNumber: { type: String, default: '201515664919' },
+  whatsappChannelUrl: { type: String, default: 'https://whatsapp.com/channel/0029VbCqfLn9cDDaxSaaXg3W' },
+  facebookUrl: { type: String, default: 'https://www.facebook.com/technologystore.official/' },
+  instagramUrl: { type: String, default: 'https://www.instagram.com/technologystore.official/' },
+  telegramUrl: { type: String, default: 'https://t.me/TehnologyStore' },
+  tiktokUrl: { type: String, default: 'https://www.tiktok.com/@technologystore.official' },
+  xUrl: { type: String, default: 'https://x.com/techstoreeg' },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -370,6 +378,23 @@ async function getOrCreateSettings() {
   }
   if (changed) await settings.save();
   return settings;
+}
+
+function normalizePhoneNumber(value) {
+  return String(value || '').replace(/\D/g, '').slice(0, 20);
+}
+
+function normalizePublicUrl(value, allowedHosts = []) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+    if (allowedHosts.length && !allowedHosts.some(host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`))) return '';
+    return parsed.toString();
+  } catch (_) {
+    return '';
+  }
 }
 
 let topProductsCache = { data: null, timestamp: 0 };
@@ -825,14 +850,17 @@ app.put('/api/categories/rename', requireAdminAuth, requirePermission('manage_ca
 // 1. Export Data (Backup)
 app.get('/api/backup', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
-    const categories = await Category.find();
-    const products = await Product.find();
-    const settings = await Settings.find();
+    const [categories, products, settings, orders, analytics] = await Promise.all([
+      Category.find(), Product.find(), Settings.find(), Order.find(), Analytics.find()
+    ]);
     
     const backupData = {
+      backupVersion: 2,
       categories,
       products,
       settings,
+      orders,
+      analytics,
       timestamp: new Date().toISOString()
     };
     
@@ -1382,6 +1410,50 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
       updated = true;
     }
 
+    if (req.body && req.body.whatsappNumber !== undefined) {
+      const normalized = normalizePhoneNumber(req.body.whatsappNumber);
+      if (!normalized || normalized.length < 8) return res.status(400).json({ message: 'رقم واتساب غير صالح' });
+      settings.whatsappNumber = normalized;
+      updated = true;
+      logMessage = logMessage ? logMessage + ' وروابط التواصل' : 'تحديث روابط التواصل';
+    }
+    if (req.body && req.body.whatsappChannelUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.whatsappChannelUrl, ['whatsapp.com']);
+      if (!url && String(req.body.whatsappChannelUrl || '').trim()) return res.status(400).json({ message: 'رابط قناة واتساب غير صالح' });
+      settings.whatsappChannelUrl = url;
+      updated = true;
+    }
+    if (req.body && req.body.facebookUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.facebookUrl, ['facebook.com', 'fb.com']);
+      if (!url && String(req.body.facebookUrl || '').trim()) return res.status(400).json({ message: 'رابط فيسبوك غير صالح' });
+      settings.facebookUrl = url;
+      updated = true;
+    }
+    if (req.body && req.body.instagramUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.instagramUrl, ['instagram.com']);
+      if (!url && String(req.body.instagramUrl || '').trim()) return res.status(400).json({ message: 'رابط إنستجرام غير صالح' });
+      settings.instagramUrl = url;
+      updated = true;
+    }
+    if (req.body && req.body.telegramUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.telegramUrl, ['t.me', 'telegram.me']);
+      if (!url && String(req.body.telegramUrl || '').trim()) return res.status(400).json({ message: 'رابط تليجرام غير صالح' });
+      settings.telegramUrl = url;
+      updated = true;
+    }
+    if (req.body && req.body.tiktokUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.tiktokUrl, ['tiktok.com']);
+      if (!url && String(req.body.tiktokUrl || '').trim()) return res.status(400).json({ message: 'رابط TikTok غير صالح' });
+      settings.tiktokUrl = url;
+      updated = true;
+    }
+    if (req.body && req.body.xUrl !== undefined) {
+      const url = normalizePublicUrl(req.body.xUrl, ['x.com', 'twitter.com']);
+      if (!url && String(req.body.xUrl || '').trim()) return res.status(400).json({ message: 'رابط X غير صالح' });
+      settings.xUrl = url;
+      updated = true;
+    }
+
     if (!updated) {
       return res.status(400).json({ message: 'لم يتم إرسال أي بيانات لتحديثها' });
     }
@@ -1497,6 +1569,148 @@ app.get('/api/analytics/visitors', requireAdminAuth, requirePermission('view_rep
 });
 
 // --- الـ API Routes الخاصة بمديري النظام (Admin Auth) ---
+
+
+// --- Admin Operations Center (Dashboard / Orders / Media) ---
+app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const now = new Date();
+    const todayStart = new Date(now);
+    todayStart.setHours(0, 0, 0, 0);
+    const lowStockThreshold = 5;
+
+    const [
+      totalProducts, visibleProducts, hiddenProducts, outOfStock, lowStock,
+      missingImages, totalOrders, pendingOrders, processingOrders, completedOrders,
+      cancelledOrders, todayOrders, todaySalesAgg, recentOrders, recentLogs, settings
+    ] = await Promise.all([
+      Product.countDocuments(),
+      Product.countDocuments({ isHidden: { $ne: true } }),
+      Product.countDocuments({ isHidden: true }),
+      Product.countDocuments({ stockQuantity: { $lte: 0 } }),
+      Product.countDocuments({ stockQuantity: { $gt: 0, $lte: lowStockThreshold } }),
+      Product.countDocuments({ $or: [
+        { image: { $exists: false } }, { image: null }, { image: '' },
+        { image: { $regex: /placehold\.co|no-image|No\+Image/i } }
+      ]}),
+      Order.countDocuments(),
+      Order.countDocuments({ status: 'pending' }),
+      Order.countDocuments({ status: { $in: ['received_by_pos', 'processing'] } }),
+      Order.countDocuments({ status: 'completed' }),
+      Order.countDocuments({ status: 'cancelled' }),
+      Order.countDocuments({ createdAt: { $gte: todayStart } }),
+      Order.aggregate([
+        { $match: { createdAt: { $gte: todayStart }, status: { $ne: 'cancelled' } } },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ]),
+      Order.find().select('orderNumber customerName total status createdAt').sort({ createdAt: -1 }).limit(6).lean(),
+      ActivityLog.find().sort({ timestamp: -1 }).limit(6).lean(),
+      getOrCreateSettings()
+    ]);
+
+    res.json({
+      generatedAt: now.toISOString(),
+      products: { total: totalProducts, visible: visibleProducts, hidden: hiddenProducts, outOfStock, lowStock, missingImages },
+      orders: { total: totalOrders, pending: pendingOrders, processing: processingOrders, completed: completedOrders, cancelled: cancelledOrders, today: todayOrders, todaySales: Number(todaySalesAgg?.[0]?.total || 0) },
+      recentOrders,
+      recentLogs,
+      health: {
+        database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
+        cloudinaryConfigured: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
+        posConfigured: Boolean(String(settings.posApiKey || process.env.POS_API_KEY || '').trim())
+      }
+    });
+  } catch (err) {
+    console.error('ADMIN DASHBOARD ERROR:', err);
+    res.status(500).json({ message: 'تعذر تحميل لوحة المتابعة', error: err.message });
+  }
+});
+
+app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(10, parseInt(req.query.limit, 10) || 25));
+    const status = String(req.query.status || '').trim();
+    const search = String(req.query.search || '').trim();
+    const filter = {};
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
+    if (status && validStatuses.includes(status)) filter.status = status;
+    if (search) {
+      const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = new RegExp(escaped, 'i');
+      filter.$or = [
+        { orderNumber: rx }, { customerName: rx }, { customerPhone: rx },
+        { customerAddress: rx }, { 'items.title': rx }, { 'items.sku': rx }
+      ];
+    }
+    const [orders, total] = await Promise.all([
+      Order.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      Order.countDocuments(filter)
+    ]);
+    res.json({ orders, total, page, pages: Math.max(1, Math.ceil(total / limit)), limit });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحميل الطلبات', error: err.message });
+  }
+});
+
+app.put('/api/admin/orders/:orderId/status', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
+  try {
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
+    const status = String(req.body.status || '').trim();
+    if (!validStatuses.includes(status)) return res.status(400).json({ message: 'حالة الطلب غير صالحة' });
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).json({ message: 'الطلب غير موجود' });
+    const previousStatus = order.status;
+    order.status = status;
+    await order.save();
+    await logActivity('تحديث طلب', `تم تغيير حالة الطلب ${order.orderNumber} من ${previousStatus} إلى ${status}`, req.adminUser.username);
+    res.json({ success: true, order });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحديث حالة الطلب', error: err.message });
+  }
+});
+
+app.get('/api/admin/media', requireAdminAuth, requirePermission('manage_media'), async (req, res) => {
+  try {
+    const [products, settings] = await Promise.all([
+      Product.find().select('title category image imagePublicId additionalImages createdAt').sort({ createdAt: -1 }).lean(),
+      getOrCreateSettings()
+    ]);
+    const media = [];
+    let missingProducts = 0;
+    const seenUrls = new Set();
+    let duplicateReferences = 0;
+
+    const pushMedia = (entry) => {
+      const url = String(entry.url || '').trim();
+      if (!url || /placehold\.co|no-image|No\+Image/i.test(url)) return;
+      if (seenUrls.has(url)) duplicateReferences++;
+      seenUrls.add(url);
+      media.push({ ...entry, url, isCloudinary: /^https:\/\/res\.cloudinary\.com\//i.test(url) });
+    };
+
+    for (const product of products) {
+      const mainUrl = String(product.image || '').trim();
+      if (!mainUrl || /placehold\.co|no-image|No\+Image/i.test(mainUrl)) missingProducts++;
+      else pushMedia({ kind: 'product-main', productId: product._id, productTitle: product.title, category: product.category, url: mainUrl, publicId: product.imagePublicId || '' });
+      for (const img of (product.additionalImages || [])) {
+        pushMedia({ kind: 'product-extra', productId: product._id, productTitle: product.title, category: product.category, url: img.url, publicId: img.publicId || '' });
+      }
+    }
+    pushMedia({ kind: 'store-logo', productTitle: 'لوجو المتجر', category: 'إعدادات', url: settings.storeLogo || '' });
+    pushMedia({ kind: 'hero-dark', productTitle: 'بانر الوضع الغامق', category: 'إعدادات', url: settings.darkHeroImage || '' });
+    pushMedia({ kind: 'hero-light', productTitle: 'بانر الوضع الفاتح', category: 'إعدادات', url: settings.lightHeroImage || '' });
+    pushMedia({ kind: 'fallback', productTitle: 'الصورة الافتراضية', category: 'إعدادات', url: settings.defaultProductImage || '' });
+
+    res.json({
+      summary: { totalReferences: media.length, uniqueUrls: seenUrls.size, duplicateReferences, missingProducts },
+      media: media.slice(0, 1500)
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحميل مركز الصور', error: err.message });
+  }
+});
 
 app.post('/api/admin/login', async (req, res) => {
   await ensureDBConnection();

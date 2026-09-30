@@ -89,3 +89,18 @@
 ::-webkit-scrollbar-thumb:hover {
     background: var(--scrollbar-thumb-hover) !important;
 }
+
+
+/* Technology Store V5 admin operations layout helpers.
+   Added directly so deployment does not depend on rebuilding Tailwind. */
+#dashboardRecentOrders button { grid-template-columns: minmax(0, 1fr) auto; }
+#panel-orders table { min-width: 900px; }
+#orderDetailsModal > div { max-width: 48rem; }
+#mediaGrid > div { grid-column: 1 / -1; }
+@media (min-width: 1024px) {
+  #panel-orders > div > div:first-child { flex-direction: row; align-items: center; }
+}
+@media (min-width: 1280px) {
+  #panel-dashboard > div > div:nth-child(2) { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  #mediaGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
