@@ -174,6 +174,17 @@ function requireSelfOrPermission(permission) {
   };
 }
 
+const VALID_ADMIN_PERMISSIONS = new Set([
+  'all', 'add_product', 'edit_product', 'delete_product',
+  'manage_categories', 'manage_settings', 'manage_backup', 'view_reports', 'manage_users'
+]);
+
+function normalizePermissions(value) {
+  if (!Array.isArray(value)) return [];
+  const cleaned = [...new Set(value.map(v => String(v).trim()).filter(v => VALID_ADMIN_PERMISSIONS.has(v)))];
+  return cleaned.includes('all') ? ['all'] : cleaned;
+}
+
 async function initDefaultAdmin() {
   try {
     const count = await AdminUser.countDocuments();
@@ -761,7 +772,7 @@ app.post('/api/categories', requireAdminAuth, requirePermission('manage_categori
     
     const newCategory = new Category({ name });
     await newCategory.save();
-    await logActivity('إضافة قسم', `تم إضافة قسم جديد باسم: ${name}`);
+    await logActivity('إضافة قسم', `تم إضافة قسم جديد باسم: ${name}`, req.adminUser.username);
     res.status(201).json(newCategory);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إضافة القسم', error: err.message });
@@ -773,7 +784,7 @@ app.delete('/api/categories/:name', requireAdminAuth, requirePermission('manage_
   try {
     const { name } = req.params;
     await Category.findOneAndDelete({ name });
-    await logActivity('حذف قسم', `تم حذف القسم: ${name}`);
+    await logActivity('حذف قسم', `تم حذف القسم: ${name}`, req.adminUser.username);
     res.json({ message: 'تم حذف القسم بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف القسم', error: err.message });
@@ -796,7 +807,7 @@ app.put('/api/categories/rename', requireAdminAuth, requirePermission('manage_ca
       { category: oldCategory },
       { $set: { category: newCategory } }
     );
-    await logActivity('تعديل قسم', `تم تغيير اسم القسم من "${oldCategory}" إلى "${newCategory}"`);
+    await logActivity('تعديل قسم', `تم تغيير اسم القسم من "${oldCategory}" إلى "${newCategory}"`, req.adminUser.username);
     res.json({ 
       message: `تم تحديث اسم القسم بنجاح من "${oldCategory}" إلى "${newCategory}"`,
       modifiedCount: result.modifiedCount 
@@ -863,7 +874,7 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
     if (backupData.categories && backupData.categories.length > 0) await Category.insertMany(backupData.categories);
     if (backupData.products && backupData.products.length > 0) await Product.insertMany(backupData.products);
     if (backupData.settings && backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
-    await logActivity('استعادة نسخة احتياطية', 'تم استعادة كافة بيانات الموقع من نسخة احتياطية');
+    await logActivity('استعادة نسخة احتياطية', 'تم استعادة كافة بيانات الموقع من نسخة احتياطية', req.adminUser.username);
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) {
     console.error('RESTORE ERROR:', err);
@@ -874,10 +885,11 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
 // --- الـ API Routes ---
 
 // 1. جلب المنتجات (محمية مع دعم allowDiskUse و Pagination لمنع الـ Memory Limit)
-app.get('/api/products', async (req, res) => {
+app.get('/api/products', optionalAdminAuth, async (req, res) => {
   try {
     await ensureDBConnection();
-    const products = await Product.find()
+    const productFilter = req.adminUser ? {} : { isHidden: { $ne: true } };
+    const products = await Product.find(productFilter)
       .sort({ createdAt: -1 })
       .limit(3000);
 
@@ -987,7 +999,7 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
     });
 
     await newProduct.save();
-    await logActivity('إضافة منتج', `تم إضافة منتج جديد: ${title}`);
+    await logActivity('إضافة منتج', `تم إضافة منتج جديد: ${title}`, req.adminUser.username);
     res.status(201).json(newProduct);
   } catch (err) {
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء إضافة المنتج', error: err.message });
@@ -1034,7 +1046,7 @@ app.post('/api/products/bulk', requireAdminAuth, requirePermission('manage_backu
 
     const result = await Product.bulkWrite(operations);
     const count = (result.upsertedCount || 0) + (result.modifiedCount || 0);
-    await logActivity('استيراد منتجات', `تم استيراد/تحديث ${count} منتج من ملف CSV`);
+    await logActivity('استيراد منتجات', `تم استيراد/تحديث ${count} منتج من ملف CSV`, req.adminUser.username);
     res.status(201).json({ message: 'تم استيراد/تحديث المنتجات بنجاح', count, upserted: result.upsertedCount || 0, modified: result.modifiedCount || 0 });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء استيراد المنتجات', error: err.message });
@@ -1051,7 +1063,7 @@ app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_
       { new: true }
     );
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
-    await logActivity('تعديل كمية', `تم تحديث مخزون المنتج "${updatedProduct.title}" ليصبح ${stockQuantity}`);
+    await logActivity('تعديل كمية', `تم تحديث مخزون المنتج "${updatedProduct.title}" ليصبح ${stockQuantity}`, req.adminUser.username);
     res.json(updatedProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تحديث الكمية', error: err.message });
@@ -1202,7 +1214,7 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
     );
     
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
-    await logActivity('تعديل منتج', `تم تعديل بيانات المنتج: ${updatedProduct.title}`);
+    await logActivity('تعديل منتج', `تم تعديل بيانات المنتج: ${updatedProduct.title}`, req.adminUser.username);
     res.json(updatedProduct);
   } catch (err) {
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء تحديث المنتج', error: err.message });
@@ -1220,7 +1232,7 @@ app.put('/api/products/:id/toggle-visibility', requireAdminAuth, requirePermissi
     );
     if (!updatedProduct) return res.status(404).json({ message: 'المنتج غير موجود' });
     
-    await logActivity(isHidden ? 'إخفاء منتج' : 'إظهار منتج', `تم ${isHidden ? 'إخفاء' : 'إظهار'} المنتج: ${updatedProduct.title}`);
+    await logActivity(isHidden ? 'إخفاء منتج' : 'إظهار منتج', `تم ${isHidden ? 'إخفاء' : 'إظهار'} المنتج: ${updatedProduct.title}`, req.adminUser.username);
     res.json(updatedProduct);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء تغيير حالة المنتج', error: err.message });
@@ -1246,7 +1258,7 @@ app.delete('/api/products/:id', requireAdminAuth, requirePermission('delete_prod
     }
 
     await Product.findByIdAndDelete(req.params.id);
-    await logActivity('حذف منتج', `تم حذف المنتج: ${product.title}`);
+    await logActivity('حذف منتج', `تم حذف المنتج: ${product.title}`, req.adminUser.username);
     res.json({ message: 'تم حذف المنتج وصوره بنجاح' });
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء حذف المنتج', error: err.message });
@@ -1364,7 +1376,7 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
     }
 
     await settings.save();
-    await logActivity('تعديل إعدادات', logMessage || 'تم تحديث إعدادات المتجر');
+    await logActivity('تعديل إعدادات', logMessage || 'تم تحديث إعدادات المتجر', req.adminUser.username);
     res.json(settings);
   } catch (err) {
     res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء تحديث الإعدادات', error: err.message });
@@ -1546,9 +1558,12 @@ app.post('/api/admin/users', requireAdminAuth, requirePermission('manage_users')
     if (existing) return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
     
     if (!username || !password) return res.status(400).json({ message: 'اسم المستخدم وكلمة المرور مطلوبان' });
-    const newUser = new AdminUser({ username: String(username).trim(), password: hashPassword(password), role, permissions });
+    const safePermissions = normalizePermissions(permissions);
+    if (safePermissions.length === 0) return res.status(400).json({ message: 'يجب اختيار صلاحية واحدة صحيحة على الأقل' });
+    const safeRole = safePermissions.includes('all') ? 'مدير' : 'محرر';
+    const newUser = new AdminUser({ username: String(username).trim(), password: hashPassword(password), role: safeRole, permissions: safePermissions });
     await newUser.save();
-    await logActivity('إضافة مستخدم', `تم إضافة مستخدم جديد بصلاحيات الإدارة: ${username}`);
+    await logActivity('إضافة مستخدم', `تم إضافة مستخدم جديد بصلاحيات الإدارة: ${username}`, req.adminUser.username);
     res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, permissions: newUser.permissions });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في إضافة المستخدم', error: err.message });
@@ -1559,15 +1574,28 @@ app.put('/api/admin/users/:id', requireAdminAuth, requireSelfOrPermission('manag
   try {
     const { username, password, role, permissions } = req.body;
     const updateData = {};
+    const isSelf = String(req.adminUser._id) === String(req.params.id);
+    const actorPermissions = Array.isArray(req.adminUser.permissions) ? req.adminUser.permissions : [];
+    const canManageUsers = actorPermissions.includes('all') || actorPermissions.includes('manage_users');
+
     if (username !== undefined && String(username).trim() !== '') updateData.username = String(username).trim();
-    if (role !== undefined) updateData.role = role;
-    if (permissions !== undefined) updateData.permissions = permissions;
-    if (password && String(password).trim() !== '') {
-      updateData.password = hashPassword(password);
+    if (password && String(password).trim() !== '') updateData.password = hashPassword(password);
+
+    // المستخدم العادي يستطيع تعديل بيانات دخوله فقط، ولا يستطيع منح نفسه صلاحيات إضافية.
+    if ((role !== undefined || permissions !== undefined) && !canManageUsers) {
+      return res.status(403).json({ message: 'لا يمكنك تعديل دورك أو صلاحياتك بنفسك' });
+    }
+    if (canManageUsers && permissions !== undefined) {
+      const safePermissions = normalizePermissions(permissions);
+      if (safePermissions.length === 0) return res.status(400).json({ message: 'يجب اختيار صلاحية واحدة صحيحة على الأقل' });
+      updateData.permissions = safePermissions;
+      updateData.role = safePermissions.includes('all') ? 'مدير' : 'محرر';
+    } else if (canManageUsers && role !== undefined) {
+      updateData.role = role;
     }
     const updated = await AdminUser.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'المستخدم غير موجود' });
-    await logActivity('تعديل مستخدم', `تم تعديل بيانات أو صلاحيات المستخدم: ${updated.username}`);
+    await logActivity('تعديل مستخدم', `تم تعديل بيانات أو صلاحيات المستخدم: ${updated.username}`, req.adminUser.username);
     res.json({ id: updated._id, username: updated.username, role: updated.role, permissions: updated.permissions });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في تعديل المستخدم', error: err.message });
@@ -1576,8 +1604,16 @@ app.put('/api/admin/users/:id', requireAdminAuth, requireSelfOrPermission('manag
 
 app.delete('/api/admin/users/:id', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
+    if (String(req.adminUser._id) === String(req.params.id)) {
+      return res.status(400).json({ message: 'لا يمكن حذف حسابك الحالي أثناء تسجيل الدخول به' });
+    }
     const user = await AdminUser.findById(req.params.id);
-    if(user) await logActivity('حذف مستخدم', `تم حذف المستخدم: ${user.username}`);
+    if (!user) return res.status(404).json({ message: 'المستخدم غير موجود' });
+    if (Array.isArray(user.permissions) && user.permissions.includes('all')) {
+      const fullAdmins = await AdminUser.countDocuments({ permissions: 'all' });
+      if (fullAdmins <= 1) return res.status(400).json({ message: 'لا يمكن حذف آخر مدير كامل الصلاحيات' });
+    }
+    await logActivity('حذف مستخدم', `تم حذف المستخدم: ${user.username}`, req.adminUser.username);
     await AdminUser.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'تم حذف المستخدم بنجاح' });
   } catch (err) {

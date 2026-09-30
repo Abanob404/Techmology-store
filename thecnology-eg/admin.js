@@ -86,6 +86,9 @@ async function checkAuth() {
         const logsTab = document.getElementById('tab-logs');
         if (logsTab) logsTab.style.display = hasPermission('view_reports') ? 'flex' : 'none';
 
+        const apiTab = document.getElementById('tab-api');
+        if (apiTab) apiTab.style.display = hasPermission('manage_backup') ? 'flex' : 'none';
+
         const csvActionsWrapper = document.getElementById('csvActionsWrapper');
         if (csvActionsWrapper) csvActionsWrapper.style.display = hasPermission('manage_backup') ? 'flex' : 'none';
 
@@ -296,9 +299,9 @@ window.addNewCategory = async function() {
     }
 
     try {
-        const response = await adminFetch(`${API_BASE_URL}/categories`, {
+        const response = await adminFetch(`${BASE_URL}/api/categories`, {
             method: 'POST',
-            headers: getAuthHeaders(),
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: newCat })
         });
 
@@ -323,9 +326,8 @@ window.deleteCategory = async function(cat) {
     }
 
     try {
-        const response = await adminFetch(`${API_BASE_URL}/categories/${encodeURIComponent(cat)}`, {
-            method: 'DELETE',
-            headers: getAuthHeaders()
+        const response = await adminFetch(`${BASE_URL}/api/categories/${encodeURIComponent(cat)}`, {
+            method: 'DELETE'
         });
 
         if (response.ok) {
@@ -977,7 +979,7 @@ function loadCurrentLogo() {
                     preview.src = settings.storeLogo;
                     preview.classList.remove('hidden');
                 }
-                const adminLogoImg = document.querySelector('header img[alt="Technology Store"]');
+                const adminLogoImg = document.getElementById('adminLogoImg');
                 if (adminLogoImg) adminLogoImg.src = settings.storeLogo;
             }
             if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.webp') {
@@ -1109,7 +1111,7 @@ window.saveBrandingSettings = async function() {
 
         // تحديث اللوجو فوراً في لوحة الإدارة
         if (result.storeLogo) {
-            const adminLogoImg = document.querySelector('header img[alt="Technology Store"]');
+            const adminLogoImg = document.getElementById('adminLogoImg');
             if (adminLogoImg) adminLogoImg.src = result.storeLogo;
         }
 
