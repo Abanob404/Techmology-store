@@ -62,6 +62,47 @@ function trackPageVisit() {
 }
 
 window.defaultProductImage = '';
+const LOCAL_FALLBACK_IMAGE = './assets/no-image.svg';
+
+function isPlaceholderImage(url) {
+    if (!url || typeof url !== 'string') return true;
+    return /placehold\.co|no-image|No\+Image/i.test(url);
+}
+
+function getSafeImageUrl(url, fallback = LOCAL_FALLBACK_IMAGE) {
+    const value = typeof url === 'string' ? url.trim() : '';
+    return value && !isPlaceholderImage(value) ? value : fallback;
+}
+
+function getOptimizedImageUrl(url, width = 400, height = 400) {
+    const safeUrl = getSafeImageUrl(url);
+    // Add Cloudinary transformations only to actual Cloudinary upload URLs.
+    if (/^https:\/\/res\.cloudinary\.com\//i.test(safeUrl) && safeUrl.includes('/image/upload/')) {
+        return safeUrl.replace('/image/upload/', `/image/upload/w_${width},h_${height},c_fit,q_auto,f_auto/`);
+    }
+    return safeUrl;
+}
+
+window.handleProductImageError = function(img) {
+    if (!img) return;
+    img.removeAttribute('srcset');
+
+    const configuredFallback = getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE);
+    const currentSrc = img.getAttribute('src') || '';
+    const stage = img.dataset.fallbackApplied || '';
+
+    // First try the configured default product image, then always fall back locally.
+    if (stage === '' && configuredFallback !== LOCAL_FALLBACK_IMAGE && currentSrc !== configuredFallback) {
+        img.dataset.fallbackApplied = 'default';
+        img.src = configuredFallback;
+        return;
+    }
+
+    img.dataset.fallbackApplied = 'local';
+    img.removeAttribute('onerror');
+    img.onerror = null;
+    img.src = LOCAL_FALLBACK_IMAGE;
+};
 
 async function loadStoreSettings() {
     try {
@@ -77,17 +118,10 @@ async function loadStoreSettings() {
 }
 
 function getFallbackImage(product) {
-    if (window.defaultProductImage && !window.defaultProductImage.includes('placehold')) return window.defaultProductImage;
-    const cat = (product.category || '').toLowerCase();
-    let text = 'Product';
-    if (cat.includes('laptop') || cat.includes('لاب')) text = 'Laptop';
-    else if (cat.includes('desktop') || cat.includes('تجميع')) text = 'PC';
-    else if (cat.includes('monitor') || cat.includes('شاش')) text = 'Monitor';
-    else if (cat.includes('network') || cat.includes('شبك')) text = 'Network';
-    else if (cat.includes('surveillance') || cat.includes('مراقبة') || cat.includes('كاميرا')) text = 'Camera';
-    else if (cat.includes('access') || cat.includes('اكسسوار')) text = 'Accessories';
-    
-    return `https://placehold.co/400x400/1e293b/82cfff?text=${text}`;
+    if (window.defaultProductImage && !isPlaceholderImage(window.defaultProductImage)) {
+        return window.defaultProductImage;
+    }
+    return LOCAL_FALLBACK_IMAGE;
 }
 
 // جلب المنتجات وتفعيل البحث
@@ -163,7 +197,7 @@ async function fetchProducts() {
         // معالجة المنتجات (إخفاء المنتجات المخفية والوهمية التي ليس لها صورة حقيقية)
         const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
         globalProducts = allFetchedProducts.filter(p => {
-            const hasValidImage = p.image && p.image.trim() !== '' && !p.image.includes('placehold.co') && !p.image.includes('no-image');
+            const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
             return !p.isHidden && hasValidImage;
         });
 
@@ -517,9 +551,9 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const whatsappLink = `https://wa.me/201515664919?text=أريد الاستفسار عن منتج: ${encodeURIComponent(p.title)}`;
 
         const fbImage = getFallbackImage(p);
-        const hasValidImage = p.image && !p.image.includes('placehold.co');
-        const optimizedImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_400,h_400,c_fill,q_auto,f_auto/') : fbImage;
-        const smallImage = hasValidImage ? p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/') : fbImage;
+        const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
+        const optimizedImage = hasValidImage ? getOptimizedImageUrl(p.image, 400, 400) : fbImage;
+        const smallImage = hasValidImage ? getOptimizedImageUrl(p.image, 200, 200) : fbImage;
         const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
         const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
         const decodeAttr = 'decoding="async"';
@@ -527,7 +561,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
+                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" onerror="handleProductImageError(this)" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
@@ -706,11 +740,14 @@ window.openProductModal = function(id) {
     // Analytics: track product view
     trackEvent('views', p._id, p.title);
 
-    const fallbackImage = window.defaultProductImage || './assets/no-image.svg';
-    const hasValidImage = p.image && !p.image.includes('placehold.co');
-    const finalImage = hasValidImage ? p.image : fallbackImage;
-    document.getElementById('modalImage').src = finalImage;
-    document.getElementById('modalImage').style.opacity = 1;
+    const fallbackImage = getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE);
+    const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
+    const finalImage = hasValidImage ? getSafeImageUrl(p.image, fallbackImage) : fallbackImage;
+    const modalMainImage = document.getElementById('modalImage');
+    modalMainImage.dataset.fallbackApplied = '';
+    modalMainImage.onerror = () => window.handleProductImageError(modalMainImage);
+    modalMainImage.src = finalImage;
+    modalMainImage.style.opacity = 1;
     document.getElementById('modalCategory').textContent = p.category;
     document.getElementById('modalTitle').textContent = p.title;
     const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
@@ -744,7 +781,7 @@ window.openProductModal = function(id) {
         // Add main image to gallery
         const mainImgBtn = document.createElement('button');
         mainImgBtn.className = 'w-16 h-16 rounded-xl border-2 border-primary overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0 flex items-center justify-center';
-        mainImgBtn.innerHTML = `<img src="${finalImage}" alt="Main Thumbnail" width="100" height="100" loading="lazy" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
+        mainImgBtn.innerHTML = `<img src="${finalImage}" onerror="handleProductImageError(this)" alt="Main Thumbnail" width="100" height="100" loading="lazy" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
         mainImgBtn.onclick = () => {
             const mainImageEl = document.getElementById('modalImage');
             mainImageEl.style.opacity = 0;
@@ -761,7 +798,7 @@ window.openProductModal = function(id) {
             p.additionalImages.forEach(img => {
                 const btn = document.createElement('button');
                 btn.className = 'w-16 h-16 rounded-xl border-2 border-transparent hover:border-primary/50 overflow-hidden flex-shrink-0 transition-all hover:scale-105 bg-surface/50 p-0 flex items-center justify-center';
-                btn.innerHTML = `<img src="${img.url}" alt="Thumbnail" width="100" height="100" loading="lazy" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
+                btn.innerHTML = `<img src="${getSafeImageUrl(img.url, fallbackImage)}" onerror="handleProductImageError(this)" alt="Thumbnail" width="100" height="100" loading="lazy" class="max-w-full max-h-full w-auto h-auto object-contain p-1">`;
                 btn.onclick = () => {
                     const mainImageEl = document.getElementById('modalImage');
                     mainImageEl.style.opacity = 0;
@@ -903,10 +940,10 @@ window.openProductModal = function(id) {
         const shuffled = related.slice(0, 4);
         if (shuffled.length > 0) {
             relatedContainer.innerHTML = shuffled.map(prod => {
-                const img = (prod.image && !prod.image.includes('placehold.co')) ? prod.image : getFallbackImage(prod);
+                const img = (prod.image && !isPlaceholderImage(prod.image)) ? getSafeImageUrl(prod.image, getFallbackImage(prod)) : getFallbackImage(prod);
                 return `
                     <div class="bg-surface-variant/30 p-2 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-surface-variant/70 transition-colors border border-outline-variant/30" onclick="closeProductModal(); setTimeout(() => openProductModal('${prod._id}'), 300)">
-                        <img src="${img}" class="w-16 h-16 object-contain rounded-lg">
+                        <img src="${img}" onerror="handleProductImageError(this)" class="w-16 h-16 object-contain rounded-lg">
                         <span class="text-[10px] text-center text-on-surface line-clamp-2">${prod.title}</span>
                         <span class="text-primary font-bold text-xs">${prod.price} ج.م</span>
                     </div>
@@ -1207,9 +1244,11 @@ function renderCart() {
     cart.forEach(item => {
         const itemTotal = item.price * item.quantity;
         total += itemTotal;
+        const latestProduct = globalProducts.find(p => p._id === item._id);
+        const cartImage = getSafeImageUrl(latestProduct?.image || item.image, getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE));
         html += `
             <div class="flex items-center gap-4 bg-surface/50 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/20 transition-colors">
-                <img src="${item.image}" alt="${item.title}" width="64" height="64" loading="lazy" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
+                <img src="${cartImage}" onerror="handleProductImageError(this)" alt="${item.title}" width="64" height="64" loading="lazy" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
                 <div class="flex-1 min-w-0">
                     <h4 class="text-sm font-bold text-on-surface line-clamp-2">${item.title}</h4>
                     <span class="text-xs font-bold text-primary font-mono-data">${item.price} ج.م</span>
@@ -1372,11 +1411,11 @@ async function loadStoreBranding() {
         }
 
         // تطبيق صورة البانر
-        if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
+        if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.webp') {
             const lightBannerImg = document.getElementById('light-banner');
             if (lightBannerImg) lightBannerImg.src = settings.lightHeroImage;
         }
-        if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.png') {
+        if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.webp') {
             const darkBannerImg = document.getElementById('dark-banner');
             if (darkBannerImg) darkBannerImg.src = settings.darkHeroImage;
         }
@@ -1605,7 +1644,10 @@ function openQuickBuyModal(id) {
         document.body.appendChild(m);
     }
     
-    document.getElementById('qbImage').src = p.image || window.defaultProductImage || 'https://placehold.co/400?text=No+Image';
+    const qbImage = document.getElementById('qbImage');
+    qbImage.dataset.fallbackApplied = '';
+    qbImage.onerror = () => window.handleProductImageError(qbImage);
+    qbImage.src = getSafeImageUrl(p.image, getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE));
     document.getElementById('qbTitle').innerText = p.title;
     document.getElementById('qbPrice').innerText = p.price + ' ج.م';
     

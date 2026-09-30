@@ -1,6 +1,29 @@
 const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : '';
 const API_URL = `${BASE_URL}/api/products`;
 const ITEMS_PER_PAGE = 20;
+const nativeFetch = window.fetch.bind(window);
+
+async function adminFetch(input, init = {}) {
+    const options = { ...init };
+    const headers = new Headers(options.headers || {});
+    const token = sessionStorage.getItem('tech_admin_token');
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    options.headers = headers;
+    return nativeFetch(input, options);
+}
+const ADMIN_IMAGE_FALLBACK = './assets/no-image.svg';
+
+function adminSafeImageUrl(url) {
+    const value = typeof url === 'string' ? url.trim() : '';
+    if (!value || /placehold\.co|no-image|No\+Image/i.test(value)) return ADMIN_IMAGE_FALLBACK;
+    return value;
+}
+
+window.handleAdminImageError = function(img) {
+    if (!img || img.dataset.fallbackApplied === '1') return;
+    img.dataset.fallbackApplied = '1';
+    img.src = ADMIN_IMAGE_FALLBACK;
+};
 
 // ==========================================
 // State
@@ -25,8 +48,22 @@ function getCurrentUser() {
 }
 
 async function checkAuth() {
-    const user = getCurrentUser();
-    if (user) {
+    let user = getCurrentUser();
+    const token = sessionStorage.getItem('tech_admin_token');
+    if (user && token) {
+        try {
+            const authCheck = await adminFetch(`${BASE_URL}/api/admin/me`);
+            if (!authCheck.ok) throw new Error('invalid session');
+            const authData = await authCheck.json();
+            user = authData.user;
+            sessionStorage.setItem('tech_current_user', JSON.stringify(user));
+        } catch (_) {
+            sessionStorage.removeItem('tech_current_user');
+            sessionStorage.removeItem('tech_admin_token');
+            user = null;
+        }
+    }
+    if (user && token) {
         document.getElementById('loginContainer').style.display = 'none';
         document.getElementById('adminContainer').classList.remove('hidden');
         document.getElementById('adminContainer').style.display = 'flex';
@@ -62,7 +99,7 @@ async function checkAuth() {
         
         loadCurrentLogo();
         loadCurrentBg();
-        loadUsersTable();
+        if (hasPermission('manage_users')) loadUsersTable();
         renderCategoriesAdminList();
         loadStoreSettings();
         
@@ -90,7 +127,7 @@ async function login() {
     }
 
     try {
-        const response = await fetch(`${BASE_URL}/api/admin/login`, {
+        const response = await adminFetch(`${BASE_URL}/api/admin/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password })
@@ -99,6 +136,7 @@ async function login() {
         
         if (response.ok) {
             sessionStorage.setItem('tech_current_user', JSON.stringify(data.user));
+            sessionStorage.setItem('tech_admin_token', data.token);
             checkAuth();
             showToast(`مرحباً ${data.user.username}!`);
         } else {
@@ -113,6 +151,7 @@ window.login = login;
 
 function logout() {
     sessionStorage.removeItem('tech_current_user');
+    sessionStorage.removeItem('tech_admin_token');
     checkAuth();
 }
 window.logout = logout;
@@ -138,7 +177,7 @@ function showToast(message) {
 
 async function fetchCategoriesAPI() {
     try {
-        const response = await fetch(`${BASE_URL}/api/categories`);
+        const response = await adminFetch(`${BASE_URL}/api/categories`);
         const data = await response.json();
         return data.map(c => c.name);
     } catch (err) {
@@ -227,7 +266,7 @@ window.renameCategoryPrompt = async function(oldCat) {
 
     // تحديث الاسم في السيرفر لجميع المنتجات المنتمية لهذا القسم وتحديث جدول الأقسام
     try {
-        const response = await fetch(`${BASE_URL}/api/categories/rename`, {
+        const response = await adminFetch(`${BASE_URL}/api/categories/rename`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ oldCategory: oldCat, newCategory: trimmedNewCat })
@@ -257,7 +296,7 @@ window.addNewCategory = async function() {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/categories`, {
+        const response = await adminFetch(`${API_BASE_URL}/categories`, {
             method: 'POST',
             headers: getAuthHeaders(),
             body: JSON.stringify({ name: newCat })
@@ -284,7 +323,7 @@ window.deleteCategory = async function(cat) {
     }
 
     try {
-        const response = await fetch(`${API_BASE_URL}/categories/${encodeURIComponent(cat)}`, {
+        const response = await adminFetch(`${API_BASE_URL}/categories/${encodeURIComponent(cat)}`, {
             method: 'DELETE',
             headers: getAuthHeaders()
         });
@@ -321,7 +360,7 @@ async function loadAdminProducts(preserveState = false) {
     
     try {
         await loadStoreSettings();
-        const response = await fetch(API_URL);
+        const response = await adminFetch(API_URL);
         const products = await response.json();
         window.adminProducts = products;
         
@@ -373,7 +412,7 @@ function renderProductsPage() {
         const isOutOfStock = qty === 0;
         const isHidden = p.isHidden === true;
 
-        const fallbackImage = window.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+        const fallbackImage = adminSafeImageUrl(window.defaultProductImage);
         const isPlaceholder = !p.image || p.image.includes('placehold.co') || p.image.includes('no-image') || p.image.includes('No+Image') || (window.defaultProductImage && p.image === window.defaultProductImage);
         const tr = document.createElement('tr');
         
@@ -387,7 +426,7 @@ function renderProductsPage() {
         tr.innerHTML = `
                 <td class="py-4 pr-2 font-semibold text-on-surface">
                     <div class="flex items-center gap-3">
-                        <img src="${p.image || fallbackImage}" class="w-10 h-10 rounded object-contain bg-surface/50 p-0.5 border border-outline-variant/50">
+                        <img src="${adminSafeImageUrl(p.image || fallbackImage)}" onerror="handleAdminImageError(this)" class="w-10 h-10 rounded object-contain bg-surface/50 p-0.5 border border-outline-variant/50">
                         <span class="flex items-center gap-2">
                             ${p.title} 
                             ${isHidden ? '<span class="text-[10px] bg-surface-variant text-on-surface-variant px-1.5 py-0.5 rounded">مخفي</span>' : ''}
@@ -495,7 +534,7 @@ window.updateQuantity = async function(id) {
     const qtyInput = document.getElementById(`qty-${id}`);
     const newQty = parseInt(qtyInput.value, 10) || 0;
     try {
-        const response = await fetch(`${API_URL}/${id}/quantity`, {
+        const response = await adminFetch(`${API_URL}/${id}/quantity`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ stockQuantity: newQty })
@@ -520,7 +559,7 @@ window.updateQuantity = async function(id) {
 window.deleteProduct = async function(id) {
     if (confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
         try {
-            const response = await fetch(`${API_URL}/${id}`, {
+            const response = await adminFetch(`${API_URL}/${id}`, {
                 method: 'DELETE'
             });
             if (response.ok) {
@@ -541,7 +580,7 @@ window.deleteProduct = async function(id) {
 // ==========================================
 window.toggleVisibility = async function(id, shouldHide) {
     try {
-        const response = await fetch(`${API_URL}/${id}/toggle-visibility`, {
+        const response = await adminFetch(`${API_URL}/${id}/toggle-visibility`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ isHidden: shouldHide })
@@ -671,7 +710,7 @@ if (addForm) {
         submitBtn.disabled = true;
 
         try {
-            const response = await fetch(API_URL, {
+            const response = await adminFetch(API_URL, {
                 method: 'POST',
                 body: formData
             });
@@ -720,7 +759,7 @@ if (settingsForm) {
                 const updateData = { username: newUser || currentUser.username };
                 if (newPass) updateData.password = newPass;
                 
-                const response = await fetch(`${BASE_URL}/api/admin/users/${currentUser.id}`, {
+                const response = await adminFetch(`${BASE_URL}/api/admin/users/${currentUser.id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(updateData)
@@ -742,7 +781,7 @@ if (settingsForm) {
                 const fd = new FormData();
                 fd.append('posApiKey', posApiKey);
                 
-                const resSettings = await fetch(`${BASE_URL}/api/settings`, {
+                const resSettings = await adminFetch(`${BASE_URL}/api/settings`, {
                     method: 'POST',
                     body: fd
                 });
@@ -771,7 +810,7 @@ if (settingsForm) {
 // ==========================================
 async function fetchAllUsers() {
     try {
-        const res = await fetch(`${BASE_URL}/api/admin/users`);
+        const res = await adminFetch(`${BASE_URL}/api/admin/users`);
         if (res.ok) {
             allUsersCache = await res.json();
             return allUsersCache;
@@ -867,13 +906,13 @@ window.addNewUser = async function() {
     try {
         let response;
         if (editingId) {
-            response = await fetch(`${BASE_URL}/api/admin/users/${editingId}`, {
+            response = await adminFetch(`${BASE_URL}/api/admin/users/${editingId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, role, permissions })
             });
         } else {
-            response = await fetch(`${BASE_URL}/api/admin/users`, {
+            response = await adminFetch(`${BASE_URL}/api/admin/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ username, password, role, permissions })
@@ -904,7 +943,7 @@ window.addNewUser = async function() {
 window.deleteUser = async function(id) {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return;
     try {
-        const response = await fetch(`${BASE_URL}/api/admin/users/${id}`, { method: 'DELETE' });
+        const response = await adminFetch(`${BASE_URL}/api/admin/users/${id}`, { method: 'DELETE' });
         if (response.ok) {
             showToast('🗑️ تم حذف المستخدم!');
             loadUsersTable();
@@ -927,28 +966,34 @@ let tempLightBgFile = null;
 
 function loadCurrentLogo() {
     // تحميل اللوجو من إعدادات السيرفر (Cloudinary)
-    fetch(`${BASE_URL}/api/settings`)
+    adminFetch(`${BASE_URL}/api/settings`)
         .then(r => r.json())
         .then(settings => {
             if (settings.storeLogo) {
                 const preview = document.getElementById('currentLogoPreview');
                 if (preview) {
+                    preview.dataset.fallbackApplied = '0';
+                    preview.onerror = () => window.handleAdminImageError(preview);
                     preview.src = settings.storeLogo;
                     preview.classList.remove('hidden');
                 }
                 const adminLogoImg = document.querySelector('header img[alt="Technology Store"]');
                 if (adminLogoImg) adminLogoImg.src = settings.storeLogo;
             }
-            if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.png') {
+            if (settings.lightHeroImage && settings.lightHeroImage !== 'main-banner.webp') {
                 const lightBgPreview = document.getElementById('currentLightBgPreview');
                 if (lightBgPreview) {
+                    lightBgPreview.dataset.fallbackApplied = '0';
+                    lightBgPreview.onerror = () => window.handleAdminImageError(lightBgPreview);
                     lightBgPreview.src = settings.lightHeroImage;
                     lightBgPreview.classList.remove('hidden');
                 }
             }
-            if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.png') {
+            if (settings.darkHeroImage && settings.darkHeroImage !== 'main-banner.webp') {
                 const darkBgPreview = document.getElementById('currentBgPreview');
                 if (darkBgPreview) {
+                    darkBgPreview.dataset.fallbackApplied = '0';
+                    darkBgPreview.onerror = () => window.handleAdminImageError(darkBgPreview);
                     darkBgPreview.src = settings.darkHeroImage;
                     darkBgPreview.classList.remove('hidden');
                 }
@@ -1050,7 +1095,7 @@ window.saveBrandingSettings = async function() {
     if (tempLightBgFile) formData.append('lightHeroImage', tempLightBgFile);
 
     try {
-        const response = await fetch(`${BASE_URL}/api/settings`, {
+        const response = await adminFetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             body: formData
         });
@@ -1087,12 +1132,14 @@ let tempDefaultProductImageFile = null;
 
 async function loadStoreSettings() {
     try {
-        const response = await fetch(`${BASE_URL}/api/settings`);
+        const response = await adminFetch(`${BASE_URL}/api/settings`);
         const settings = await response.json();
         defaultProductImage = settings.defaultProductImage;
         const preview = document.getElementById('defaultProductImagePreview');
         if (preview && defaultProductImage) {
-            preview.src = defaultProductImage;
+            preview.dataset.fallbackApplied = '0';
+            preview.onerror = () => window.handleAdminImageError(preview);
+            preview.src = adminSafeImageUrl(defaultProductImage);
             preview.classList.remove('hidden');
         }
         
@@ -1112,7 +1159,7 @@ window.saveShippingSettings = async function() {
         const formData = new FormData();
         formData.append('isShippingEnabled', isEnabled);
         
-        const response = await fetch(`${BASE_URL}/api/settings`, {
+        const response = await adminFetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             body: formData
         });
@@ -1161,7 +1208,7 @@ window.saveMarketingSettings = async function(showSuccess = false) {
     fd.append('fbPixelId', fbPixelId);
 
     try {
-        const response = await fetch(`${BASE_URL}/api/settings`, {
+        const response = await adminFetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded'
@@ -1195,7 +1242,7 @@ window.saveStoreSettings = async function() {
     formData.append('defaultProductImage', tempDefaultProductImageFile);
 
     try {
-        const response = await fetch(`${BASE_URL}/api/settings`, {
+        const response = await adminFetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             body: formData
         });
@@ -1265,8 +1312,12 @@ window.openEditModal = function(id) {
         window.currentEditingImages.push({ url: product.image, publicId: product.imagePublicId || `main_${product._id}`, isMain: true });
     }
     if (product.additionalImages && product.additionalImages.length > 0) {
-        product.additionalImages.forEach(imgData => {
-            window.currentEditingImages.push({ url: imgData.url, publicId: imgData.publicId, isMain: false });
+        product.additionalImages.forEach((imgData, index) => {
+            window.currentEditingImages.push({
+                url: imgData.url,
+                publicId: imgData.publicId || `legacy_add_${index}`,
+                isMain: false
+            });
         });
     }
     renderEditCurrentImages();
@@ -1309,7 +1360,8 @@ window.renderEditCurrentImages = function() {
         wrapper.dataset.publicId = img.publicId;
 
         const imgEl = document.createElement('img');
-        imgEl.src = img.url;
+        imgEl.src = adminSafeImageUrl(img.url);
+        imgEl.onerror = () => window.handleAdminImageError(imgEl);
         imgEl.className = 'w-24 h-24 object-contain bg-surface/50 p-1 rounded-md mb-2 border border-outline-variant/30';
         wrapper.appendChild(imgEl);
 
@@ -1491,7 +1543,7 @@ if (editForm) {
         submitBtn.disabled = true;
 
         try {
-            const response = await fetch(`${API_URL}/${id}`, {
+            const response = await adminFetch(`${API_URL}/${id}`, {
                 method: 'PUT',
                 body: formData
             });
@@ -1567,7 +1619,7 @@ window.importCSV = function(input) {
             }
 
             try {
-                const response = await fetch(`${API_URL}/bulk`, {
+                const response = await adminFetch(`${API_URL}/bulk`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(products)
@@ -1622,7 +1674,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function exportBackup() {
     try {
         showToast('جاري تحضير النسخة الاحتياطية...');
-        const res = await fetch(`${BASE_URL}/api/backup`);
+        const res = await adminFetch(`${BASE_URL}/api/backup`);
         if (!res.ok) throw new Error('فشل تحميل النسخة الاحتياطية');
         
         const blob = await res.blob();
@@ -1660,7 +1712,7 @@ async function importBackup() {
         const formData = new FormData();
         formData.append('backupFile', file);
         
-        const res = await fetch(`${BASE_URL}/api/restore`, {
+        const res = await adminFetch(`${BASE_URL}/api/restore`, {
             method: 'POST',
             body: formData
         });
@@ -1797,7 +1849,7 @@ window.loadAnalytics = async function() {
 
     // جلب الإحصائيات المركزية من السيرفر (لتشمل زيارات وطلبات الهواتف والأجهزة الأخرى)
     try {
-        const res = await fetch(`${BASE_URL}/api/analytics`);
+        const res = await adminFetch(`${BASE_URL}/api/analytics`);
         if (res.ok) {
             const serverAnalytics = await res.json();
             localStorage.setItem('tech_store_analytics', JSON.stringify(serverAnalytics));
@@ -1813,7 +1865,7 @@ window.loadAnalytics = async function() {
 
 window.loadUniqueVisitors = async function() {
     try {
-        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        const res = await adminFetch(`${BASE_URL}/api/analytics/visitors`);
         if (res.ok) {
             const data = await res.json();
             document.getElementById('stat-unique-visitors').textContent = data.uniqueCount || 0;
@@ -1853,7 +1905,7 @@ window.resetAnalytics = async function() {
     if (confirm('هل أنت متأكد من رغبتك في تصفير جميع الإحصائيات؟ لا يمكن التراجع عن هذا الإجراء.')) {
         localStorage.setItem('tech_store_analytics', '{"views":{},"cart_adds":{},"whatsapp_orders":{},"page_visits":{},"total_visits":0,"daily_visits":{}}');
         try {
-            await fetch(`${BASE_URL}/api/analytics/reset`, { method: 'POST' });
+            await adminFetch(`${BASE_URL}/api/analytics/reset`, { method: 'POST' });
         } catch (err) {}
         window.loadAnalytics();
         showToast('تم تصفير الإحصائيات بنجاح');
@@ -1940,7 +1992,7 @@ window.exportAnalyticsExcel = async function() {
 
     // 5. Unique Visitors
     try {
-        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        const res = await adminFetch(`${BASE_URL}/api/analytics/visitors`);
         if (res.ok) {
             const data = await res.json();
             if (data.visitors && data.visitors.length > 0) {
@@ -1993,7 +2045,7 @@ window.exportAnalyticsPDF = async function() {
     // زوار فريدين
     let visitorsHtml = '';
     try {
-        const res = await fetch(`${BASE_URL}/api/analytics/visitors`);
+        const res = await adminFetch(`${BASE_URL}/api/analytics/visitors`);
         if (res.ok) {
             const data = await res.json();
             if (data.visitors && data.visitors.length > 0) {
@@ -2528,7 +2580,7 @@ async function fetchAdminLogs() {
         const tbody = document.getElementById('adminLogsTableBody');
         if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant"><span class="material-symbols-outlined animate-spin inline-block text-[24px]">sync</span> جاري تحميل السجل...</td></tr>`;
 
-        const response = await fetch(`${BASE_URL}/api/admin/logs?limit=100&_t=${Date.now()}`, {
+        const response = await adminFetch(`${BASE_URL}/api/admin/logs?limit=100&_t=${Date.now()}`, {
             cache: 'no-store'
         });
         
@@ -2712,11 +2764,8 @@ window.runEmergencyClean = async function() {
     btn.disabled = true;
 
     try {
-        const response = await fetch(`${BASE_URL}/api/emergency-clean`, {
-            method: 'DELETE', // Route is defined as app.delete('/api/emergency-clean') in backend
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('tech_token')}`
-            }
+        const response = await adminFetch(`${BASE_URL}/api/emergency-clean`, {
+            method: 'DELETE'
         });
 
         if (response.ok) {

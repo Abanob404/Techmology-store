@@ -6,6 +6,8 @@ const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const fileUpload = require('express-fileupload');
 const serverless = require('serverless-http'); // تم تصحيح المكتبة للـ Serverless
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 require('dotenv').config();
 
 const app = express();
@@ -20,8 +22,32 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload({
   useTempFiles: true,
-  tempFileDir: '/tmp/' // مهم جداً لبيئات الـ Serverless مثل Vercel
+  tempFileDir: '/tmp/', // مهم جداً لبيئات الـ Serverless مثل Vercel
+  limits: { fileSize: 50 * 1024 * 1024 },
+  abortOnLimit: true
 }));
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set(['image/webp', 'image/jpeg', 'image/png']);
+function normalizeUploadedFiles(fileOrFiles) {
+  if (!fileOrFiles) return [];
+  return Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+}
+function validateImageFiles(fileOrFiles) {
+  const files = normalizeUploadedFiles(fileOrFiles);
+  for (const file of files) {
+    if (!file || !ALLOWED_IMAGE_MIME_TYPES.has(String(file.mimetype || '').toLowerCase())) {
+      const err = new Error('نوع الصورة غير مدعوم. الصيغ المسموحة: WEBP, JPG, PNG');
+      err.statusCode = 400;
+      throw err;
+    }
+    if (Number(file.size || 0) > 10 * 1024 * 1024) {
+      const err = new Error('حجم الصورة أكبر من 10 MB');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
+  return files;
+}
 
 // إعدادات Cloudinary لرفع الصور
 cloudinary.config({
@@ -65,18 +91,107 @@ const adminUserSchema = new mongoose.Schema({
 });
 const AdminUser = mongoose.model('AdminUser', adminUserSchema);
 
+function hashPassword(password) {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(String(password), salt, 64).toString('hex');
+  return `scrypt$${salt}$${hash}`;
+}
+
+function verifyPassword(storedPassword, suppliedPassword) {
+  const stored = String(storedPassword || '');
+  const supplied = String(suppliedPassword || '');
+  if (!stored.startsWith('scrypt$')) return stored === supplied; // legacy migration path
+  const parts = stored.split('$');
+  if (parts.length !== 3) return false;
+  const [, salt, expectedHex] = parts;
+  try {
+    const actual = crypto.scryptSync(supplied, salt, 64);
+    const expected = Buffer.from(expectedHex, 'hex');
+    return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+  } catch (_) {
+    return false;
+  }
+}
+
+function getJwtSecret() {
+  const secret = String(process.env.JWT_SECRET || '').trim();
+  if (!secret) throw new Error('JWT_SECRET غير مضبوط في إعدادات السيرفر');
+  return secret;
+}
+
+function issueAdminToken(user) {
+  return jwt.sign(
+    { sub: user._id.toString(), username: user.username },
+    getJwtSecret(),
+    { expiresIn: '12h' }
+  );
+}
+
+async function requireAdminAuth(req, res, next) {
+  try {
+    const authHeader = String(req.headers.authorization || '');
+    if (!authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ message: 'يرجى تسجيل الدخول أولاً' });
+    }
+    const token = authHeader.slice(7).trim();
+    const payload = jwt.verify(token, getJwtSecret());
+    const user = await AdminUser.findById(payload.sub).select('-password');
+    if (!user) return res.status(401).json({ message: 'جلسة غير صالحة' });
+    req.adminUser = user;
+    next();
+  } catch (err) {
+    return res.status(401).json({ message: 'انتهت أو لم تعد جلسة الإدارة صالحة' });
+  }
+}
+
+async function optionalAdminAuth(req, _res, next) {
+  try {
+    const authHeader = String(req.headers.authorization || '');
+    if (authHeader.startsWith('Bearer ')) {
+      const payload = jwt.verify(authHeader.slice(7).trim(), getJwtSecret());
+      req.adminUser = await AdminUser.findById(payload.sub).select('-password');
+    }
+  } catch (_) {
+    req.adminUser = null;
+  }
+  next();
+}
+
+function requirePermission(permission) {
+  return (req, res, next) => {
+    const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
+    if (permissions.includes('all') || permissions.includes(permission)) return next();
+    return res.status(403).json({ message: 'ليس لديك صلاحية لتنفيذ هذا الإجراء' });
+  };
+}
+
+function requireSelfOrPermission(permission) {
+  return (req, res, next) => {
+    const isSelf = req.adminUser && String(req.adminUser._id) === String(req.params.id);
+    const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
+    if (isSelf || permissions.includes('all') || permissions.includes(permission)) return next();
+    return res.status(403).json({ message: 'ليس لديك صلاحية لتنفيذ هذا الإجراء' });
+  };
+}
+
 async function initDefaultAdmin() {
   try {
     const count = await AdminUser.countDocuments();
     if (count === 0) {
+      const username = String(process.env.ADMIN_USERNAME || '').trim();
+      const password = String(process.env.ADMIN_PASSWORD || '');
+      if (!username || !password) {
+        console.warn('⚠️ لم يتم إنشاء مدير افتراضي: اضبط ADMIN_USERNAME و ADMIN_PASSWORD في متغيرات البيئة.');
+        return;
+      }
       const admin = new AdminUser({
-        username: 'admin',
-        password: '1234',
+        username,
+        password: hashPassword(password),
         role: 'مدير',
         permissions: ['all']
       });
       await admin.save();
-      console.log('✅ تم إنشاء المدير الافتراضي: admin / 1234');
+      console.log('✅ تم إنشاء حساب المدير الافتراضي من متغيرات البيئة');
     }
   } catch (err) {
     console.error('Error initializing default admin:', err);
@@ -121,11 +236,11 @@ const Product = mongoose.model('Product', productSchema);
 // تعريف موديل إعدادات المتجر (Settings Schema)
 const settingsSchema = new mongoose.Schema({
   defaultProductImage: { type: String, default: '' },
-  lightHeroImage: { type: String, default: 'main-banner.png' },
-  darkHeroImage: { type: String, default: 'main-banner.png' },
+  lightHeroImage: { type: String, default: 'main-banner.webp' },
+  darkHeroImage: { type: String, default: 'main-banner.webp' },
   storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
-  posApiKey: { type: String, default: 'technology2309' },
+  posApiKey: { type: String, default: () => String(process.env.POS_API_KEY || '').trim() },
   isCrossSellEnabled: { type: Boolean, default: false },
   isQuickBuyEnabled: { type: Boolean, default: false },
   isPixelEnabled: { type: Boolean, default: false },
@@ -217,11 +332,29 @@ async function getOrCreateSettings() {
   let settings = await Settings.findOne();
   if (!settings) {
     settings = new Settings({ 
-      defaultProductImage: 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image',
-      lightHeroImage: 'main-banner.png'
+      defaultProductImage: '',
+      lightHeroImage: 'main-banner.webp',
+      darkHeroImage: 'main-banner.webp'
     });
     await settings.save();
+    return settings;
   }
+
+  // ترحيل القيم القديمة التي كانت تشير إلى ملف PNG غير موجود.
+  let changed = false;
+  if (!settings.lightHeroImage || settings.lightHeroImage === 'main-banner.png') {
+    settings.lightHeroImage = 'main-banner.webp';
+    changed = true;
+  }
+  if (!settings.darkHeroImage || settings.darkHeroImage === 'main-banner.png') {
+    settings.darkHeroImage = 'main-banner.webp';
+    changed = true;
+  }
+  if (settings.defaultProductImage && /placehold\.co|No\+Image/i.test(settings.defaultProductImage)) {
+    settings.defaultProductImage = '';
+    changed = true;
+  }
+  if (changed) await settings.save();
   return settings;
 }
 
@@ -301,9 +434,12 @@ app.get('/products', async (req, res) => {
 async function requirePosApiKey(req, res, next) {
   try {
     const settings = await Settings.findOne().maxTimeMS(5000).lean();
-    const configured = (settings && settings.posApiKey) ? String(settings.posApiKey).trim() : "technology2309";
+    const configured = (settings && settings.posApiKey) ? String(settings.posApiKey).trim() : String(process.env.POS_API_KEY || '').trim();
     const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
-    
+
+    if (!configured) {
+      return res.status(503).json({ message: "لم يتم إعداد مفتاح ربط الـ POS على السيرفر" });
+    }
     if (!supplied || supplied !== configured) {
       return res.status(401).json({ message: "غير صحيح POS مفتاح ربط الـ" });
     }
@@ -508,9 +644,15 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
 app.post('/api/orders', async (req, res) => {
   try {
     const { customerName, customerPhone, customerAddress, notes, shippingAmount, paymentMethod, items } = req.body;
-    
-    if (!items || items.length === 0) {
+
+    if (!String(customerName || '').trim() || !String(customerPhone || '').trim() || !String(customerAddress || '').trim()) {
+      return res.status(400).json({ success: false, message: 'بيانات العميل الأساسية مطلوبة' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ success: false, message: 'السلة فارغة' });
+    }
+    if (items.length > 100) {
+      return res.status(400).json({ success: false, message: 'عدد عناصر الطلب أكبر من الحد المسموح' });
     }
 
     let subtotal = 0;
@@ -531,8 +673,14 @@ app.post('/api/orders', async (req, res) => {
       }
 
       // حساب السعر الفعلي من الداتابيز فقط
-      const itemPrice = product.price || 0;
-      const qty = item.quantity || 1;
+      const itemPrice = Number(product.price) || 0;
+      const qty = Number(item.quantity);
+      if (!Number.isInteger(qty) || qty < 1) {
+        return res.status(400).json({ success: false, message: `كمية غير صالحة للمنتج: ${product.title}` });
+      }
+      if (Number(product.stockQuantity) < qty) {
+        return res.status(409).json({ success: false, message: `الكمية المطلوبة غير متاحة للمنتج: ${product.title}` });
+      }
       const lineTotal = itemPrice * qty;
       subtotal += lineTotal;
 
@@ -547,7 +695,8 @@ app.post('/api/orders', async (req, res) => {
       });
     }
 
-    const total = subtotal + (Number(shippingAmount) || 0);
+    const safeShippingAmount = Math.max(0, Number(shippingAmount) || 0);
+    const total = subtotal + safeShippingAmount;
     const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const order = new Order({
@@ -556,7 +705,7 @@ app.post('/api/orders', async (req, res) => {
       customerPhone,
       customerAddress,
       notes,
-      shippingAmount: Number(shippingAmount) || 0,
+      shippingAmount: safeShippingAmount,
       paymentMethod,
       items: orderItems,
       subtotal,
@@ -602,7 +751,7 @@ app.get('/api/categories', async (req, res) => {
 });
 
 // إضافة قسم جديد
-app.post('/api/categories', async (req, res) => {
+app.post('/api/categories', requireAdminAuth, requirePermission('manage_categories'), async (req, res) => {
   try {
     const { name } = req.body;
     if (!name) return res.status(400).json({ message: 'اسم القسم مطلوب' });
@@ -620,7 +769,7 @@ app.post('/api/categories', async (req, res) => {
 });
 
 // حذف قسم
-app.delete('/api/categories/:name', async (req, res) => {
+app.delete('/api/categories/:name', requireAdminAuth, requirePermission('manage_categories'), async (req, res) => {
   try {
     const { name } = req.params;
     await Category.findOneAndDelete({ name });
@@ -632,7 +781,7 @@ app.delete('/api/categories/:name', async (req, res) => {
 });
 
 // تعديل اسم قسم وتحديث كل منتجاته
-app.put('/api/categories/rename', async (req, res) => {
+app.put('/api/categories/rename', requireAdminAuth, requirePermission('manage_categories'), async (req, res) => {
   try {
     const { oldCategory, newCategory } = req.body;
     if (!oldCategory || !newCategory) {
@@ -653,14 +802,14 @@ app.put('/api/categories/rename', async (req, res) => {
       modifiedCount: result.modifiedCount 
     });
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
+    res.status(500).json({ message: 'خطأ أثناء تعديل اسم القسم', error: err.message });
   }
 });
 
 // --- Backup & Restore ---
 
 // 1. Export Data (Backup)
-app.get('/api/backup', async (req, res) => {
+app.get('/api/backup', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
     const categories = await Category.find();
     const products = await Product.find();
@@ -682,7 +831,7 @@ app.get('/api/backup', async (req, res) => {
 });
 
 // 2. Import Data (Restore)
-app.post('/api/restore', async (req, res) => {
+app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
     if (!req.files || !req.files.backupFile) {
       return res.status(400).json({ message: 'الرجاء إرفاق ملف النسخة الاحتياطية' });
@@ -705,7 +854,7 @@ app.post('/api/restore', async (req, res) => {
     if (backupData.products && backupData.products.length > 0) {
       backupData.products = backupData.products.map(p => ({
         ...p,
-        image: p.image || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image',
+        image: p.image || '/assets/no-image.svg',
         category: p.category || 'غير مصنف'
       }));
     }
@@ -780,17 +929,11 @@ const handleEmergencyClean = async (req, res) => {
 };
 
 // مسار الطوارئ - محمي بمفتاح سري في الـ header
-app.delete('/api/emergency-clean', async (req, res, next) => {
-  const secret = req.headers['x-admin-secret'] || req.query['secret'];
-  if (secret !== process.env.ADMIN_SECRET && secret !== 'tech2309admin') {
-    return res.status(403).json({ ok: false, message: 'غير مصرح' });
-  }
-  next();
-}, handleEmergencyClean);
+app.delete('/api/emergency-clean', requireAdminAuth, requirePermission('manage_backup'), handleEmergencyClean);
 
 
 // 2. إضافة منتج جديد مع رفع الصور
-app.post('/api/products', async (req, res) => {
+app.post('/api/products', requireAdminAuth, requirePermission('add_product'), async (req, res) => {
   try {
     const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
     if (!title || !category || !price) {
@@ -802,10 +945,7 @@ app.post('/api/products', async (req, res) => {
     const additionalImages = [];
 
     if (req.files && req.files.images) {
-      let uploadedFiles = req.files.images;
-      if (!Array.isArray(uploadedFiles)) {
-        uploadedFiles = [uploadedFiles];
-      }
+      const uploadedFiles = validateImageFiles(req.files.images);
 
       const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
         folder: 'technology_store',
@@ -825,7 +965,7 @@ app.post('/api/products', async (req, res) => {
       }
     } else {
       const settings = await getOrCreateSettings();
-      image = settings.defaultProductImage || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image';
+      image = settings.defaultProductImage || '/assets/no-image.svg';
     }
 
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
@@ -850,12 +990,12 @@ app.post('/api/products', async (req, res) => {
     await logActivity('إضافة منتج', `تم إضافة منتج جديد: ${title}`);
     res.status(201).json(newProduct);
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء إضافة المنتج', error: err.message });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء إضافة المنتج', error: err.message });
   }
 });
 
 // إضافة/تحديث منتجات متعددة (Bulk CSV Upsert)
-app.post('/api/products/bulk', async (req, res) => {
+app.post('/api/products/bulk', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
     const productsArray = req.body;
     if (!Array.isArray(productsArray) || productsArray.length === 0) {
@@ -873,13 +1013,20 @@ app.post('/api/products/bulk', async (req, res) => {
         stockQuantity: Number(p.stockQuantity) || 0,
         sku: p.sku || '',
         brand: p.brand || '',
-        warranty: p.warranty || '',
-        image: p.image || 'https://placehold.co/600x400/0f172a/0ea5e9?text=No+Image'
+        warranty: p.warranty || ''
       };
+
+      // لا تكتب Placeholder فوق صورة موجودة عند استيراد CSV بدون عمود image.
+      const incomingImage = typeof p.image === 'string' ? p.image.trim() : '';
+      if (incomingImage) update.image = incomingImage;
+
       return {
         updateOne: {
           filter,
-          update: { $set: update },
+          update: {
+            $set: update,
+            $setOnInsert: { image: incomingImage || '/assets/no-image.svg' }
+          },
           upsert: true
         }
       };
@@ -895,7 +1042,7 @@ app.post('/api/products/bulk', async (req, res) => {
 });
 
 // 3. تعديل كمية المخزون
-app.put('/api/products/:id/quantity', async (req, res) => {
+app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
     const { stockQuantity } = req.body;
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -912,7 +1059,7 @@ app.put('/api/products/:id/quantity', async (req, res) => {
 });
 
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
-app.put('/api/products/:id', async (req, res) => {
+app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
     const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, brand, discountExpiresAt } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
@@ -941,18 +1088,21 @@ app.put('/api/products/:id', async (req, res) => {
       if (idsToDelete.length > 0) {
         const oldProduct = await Product.findById(req.params.id);
         if (oldProduct) {
-          // حذف من Cloudinary
+          // حذف من Cloudinary فقط عندما يكون لدينا public_id حقيقي.
           for (const pid of idsToDelete) {
+            if (!pid || pid === 'main' || String(pid).startsWith('main_') || String(pid).startsWith('legacy_add_')) continue;
             try { await cloudinary.uploader.destroy(pid); } catch(e) {}
           }
 
-          // هل الصورة الأساسية ضمن المحذوفة؟
-          const mainDeleted = idsToDelete.includes(oldProduct.imagePublicId) || idsToDelete.includes('main');
+          // هل الصورة الأساسية ضمن المحذوفة؟ (يدعم المنتجات القديمة بدون imagePublicId)
+          const legacyMainId = `main_${oldProduct._id}`;
+          const mainDeleted = idsToDelete.includes(oldProduct.imagePublicId) || idsToDelete.includes('main') || idsToDelete.includes(legacyMainId);
 
-          // تصفية الصور الإضافية المتبقية
-          const remainingAdditional = (oldProduct.additionalImages || []).filter(
-            img => !idsToDelete.includes(img.publicId)
-          );
+          // تصفية الصور الإضافية المتبقية، بما فيها الصور القديمة التي ليس لها publicId.
+          const remainingAdditional = (oldProduct.additionalImages || []).filter((img, index) => {
+            const imageId = img.publicId || `legacy_add_${index}`;
+            return !idsToDelete.includes(imageId);
+          });
 
           if (mainDeleted) {
             // ترقية أول صورة إضافية متبقية لتكون الأساسية
@@ -989,13 +1139,11 @@ app.put('/api/products/:id', async (req, res) => {
 
     // إذا تم رفع صور جديدة (إضافتها للصور الحالية)
     if (req.files && (req.files.image || req.files.images)) {
-      let uploadedFiles = req.files.images || req.files.image;
-      if (!Array.isArray(uploadedFiles)) {
-        uploadedFiles = [uploadedFiles];
-      }
+      const uploadedFiles = validateImageFiles(req.files.images || req.files.image);
 
       const currentProduct = await Product.findById(req.params.id);
-      const isPlaceholder = currentProduct && (!currentProduct.imagePublicId || currentProduct.image.includes('placehold.co'));
+      const currentImage = String(currentProduct?.image || '');
+      const isPlaceholder = !currentImage || /placehold\.co|no-image|No\+Image/i.test(currentImage);
       const hasMainImage = updateData.image || (currentProduct && currentProduct.image);
 
       if (!hasMainImage || isPlaceholder || req.body.replaceMain === 'true') {
@@ -1057,12 +1205,12 @@ app.put('/api/products/:id', async (req, res) => {
     await logActivity('تعديل منتج', `تم تعديل بيانات المنتج: ${updatedProduct.title}`);
     res.json(updatedProduct);
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث المنتج', error: err.message });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء تحديث المنتج', error: err.message });
   }
 });
 
 // 5. تبديل حالة إخفاء/إظهار منتج
-app.put('/api/products/:id/toggle-visibility', async (req, res) => {
+app.put('/api/products/:id/toggle-visibility', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
     const { isHidden } = req.body;
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -1080,7 +1228,7 @@ app.put('/api/products/:id/toggle-visibility', async (req, res) => {
 });
 
 // 6. حذف منتج نهائياً وحذف صوره من Cloudinary
-app.delete('/api/products/:id', async (req, res) => {
+app.delete('/api/products/:id', requireAdminAuth, requirePermission('delete_product'), async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ message: 'المنتج غير موجود' });
@@ -1108,11 +1256,15 @@ app.delete('/api/products/:id', async (req, res) => {
 // --- الـ API Routes الخاصة بإعدادات المتجر ---
 
 // 1. جلب الإعدادات
-app.get('/api/settings', async (req, res) => {
+app.get('/api/settings', optionalAdminAuth, async (req, res) => {
   try {
     await ensureDBConnection();
     const settings = await getOrCreateSettings();
-    res.json(settings);
+    const data = settings.toObject();
+    const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
+    const canViewPrivateSettings = permissions.includes('all') || permissions.includes('manage_settings');
+    if (!canViewPrivateSettings) delete data.posApiKey;
+    res.json(data);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في جلب الإعدادات', error: err.message });
   }
@@ -1120,7 +1272,7 @@ app.get('/api/settings', async (req, res) => {
 
 
 // 2. تحديث الإعدادات العامة (الصور، تفعيل الشحن، الخ)
-app.post('/api/settings', async (req, res) => {
+app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings'), async (req, res) => {
   try {
     const settings = await getOrCreateSettings();
     let updated = false;
@@ -1128,7 +1280,8 @@ app.post('/api/settings', async (req, res) => {
 
     // رفع اللوجو الخاص بالمتجر
     if (req.files && req.files.storeLogo) {
-      const result = await cloudinary.uploader.upload(req.files.storeLogo.tempFilePath, {
+      const [storeLogoFile] = validateImageFiles(req.files.storeLogo);
+      const result = await cloudinary.uploader.upload(storeLogoFile.tempFilePath, {
         folder: 'technology_store_settings',
         format: 'webp',
         quality: 'auto'
@@ -1139,7 +1292,8 @@ app.post('/api/settings', async (req, res) => {
     }
 
     if (req.files && req.files.defaultProductImage) {
-      const result = await cloudinary.uploader.upload(req.files.defaultProductImage.tempFilePath, {
+      const [defaultProductImageFile] = validateImageFiles(req.files.defaultProductImage);
+      const result = await cloudinary.uploader.upload(defaultProductImageFile.tempFilePath, {
         folder: 'technology_store_settings',
         format: 'webp',
         quality: 'auto'
@@ -1150,7 +1304,8 @@ app.post('/api/settings', async (req, res) => {
     }
 
     if (req.files && req.files.lightHeroImage) {
-      const result = await cloudinary.uploader.upload(req.files.lightHeroImage.tempFilePath, {
+      const [lightHeroImageFile] = validateImageFiles(req.files.lightHeroImage);
+      const result = await cloudinary.uploader.upload(lightHeroImageFile.tempFilePath, {
         folder: 'technology_store_settings',
         format: 'webp',
         quality: 'auto'
@@ -1161,7 +1316,8 @@ app.post('/api/settings', async (req, res) => {
     }
 
     if (req.files && req.files.darkHeroImage) {
-      const result = await cloudinary.uploader.upload(req.files.darkHeroImage.tempFilePath, {
+      const [darkHeroImageFile] = validateImageFiles(req.files.darkHeroImage);
+      const result = await cloudinary.uploader.upload(darkHeroImageFile.tempFilePath, {
         folder: 'technology_store_settings',
         format: 'webp',
         quality: 'auto'
@@ -1211,7 +1367,7 @@ app.post('/api/settings', async (req, res) => {
     await logActivity('تعديل إعدادات', logMessage || 'تم تحديث إعدادات المتجر');
     res.json(settings);
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تحديث الإعدادات', error: err.message });
+    res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'خطأ أثناء تحديث الإعدادات', error: err.message });
   }
 });
 
@@ -1267,7 +1423,7 @@ app.post('/api/analytics/track', async (req, res) => {
   }
 });
 
-app.post('/api/analytics/reset', async (req, res) => {
+app.post('/api/analytics/reset', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
     let doc = await Analytics.findOne({ key: 'main' });
     if (doc) {
@@ -1307,7 +1463,7 @@ app.post('/api/analytics/visitor', async (req, res) => {
   }
 });
 
-app.get('/api/analytics/visitors', async (req, res) => {
+app.get('/api/analytics/visitors', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
     const visitors = await Visitor.find().sort({ timestamp: -1 }).limit(100);
     const uniqueCount = await Visitor.countDocuments();
@@ -1322,18 +1478,43 @@ app.get('/api/analytics/visitors', async (req, res) => {
 app.post('/api/admin/login', async (req, res) => {
   await ensureDBConnection();
   try {
-    const { username, password } = req.body;
-    const user = await AdminUser.findOne({ username, password });
-    if (!user) {
+    const username = String(req.body?.username || '').trim();
+    const password = String(req.body?.password || '');
+    const user = await AdminUser.findOne({ username });
+    if (!user || !verifyPassword(user.password, password)) {
       return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
     }
-    res.json({ message: 'تم تسجيل الدخول بنجاح', user: { id: user._id, username: user.username, role: user.role, permissions: user.permissions } });
+
+    // ترقية كلمات المرور القديمة المخزنة كنص صريح بدون تعطيل المستخدم الحالي.
+    if (!String(user.password || '').startsWith('scrypt$')) {
+      user.password = hashPassword(password);
+      await user.save();
+    }
+
+    const token = issueAdminToken(user);
+    res.json({
+      message: 'تم تسجيل الدخول بنجاح',
+      token,
+      user: { id: user._id, username: user.username, role: user.role, permissions: user.permissions }
+    });
   } catch (err) {
-    res.status(500).json({ message: 'خطأ أثناء تسجيل الدخول', error: err.message });
+    const status = /JWT_SECRET/.test(err.message) ? 503 : 500;
+    res.status(status).json({ message: err.message || 'خطأ أثناء تسجيل الدخول' });
   }
 });
 
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/me', requireAdminAuth, async (req, res) => {
+  res.json({
+    user: {
+      id: req.adminUser._id,
+      username: req.adminUser.username,
+      role: req.adminUser.role,
+      permissions: req.adminUser.permissions
+    }
+  });
+});
+
+app.get('/api/admin/users', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
     const users = await AdminUser.find().select('-password');
     const mappedUsers = users.map(u => ({
@@ -1348,7 +1529,7 @@ app.get('/api/admin/users', async (req, res) => {
   }
 });
 
-app.get('/api/admin/logs', async (req, res) => {
+app.get('/api/admin/logs', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 100;
     const logs = await ActivityLog.find().sort({ timestamp: -1 }).limit(limit);
@@ -1358,13 +1539,14 @@ app.get('/api/admin/logs', async (req, res) => {
   }
 });
 
-app.post('/api/admin/users', async (req, res) => {
+app.post('/api/admin/users', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
     const { username, password, role, permissions } = req.body;
     const existing = await AdminUser.findOne({ username });
     if (existing) return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
     
-    const newUser = new AdminUser({ username, password, role, permissions });
+    if (!username || !password) return res.status(400).json({ message: 'اسم المستخدم وكلمة المرور مطلوبان' });
+    const newUser = new AdminUser({ username: String(username).trim(), password: hashPassword(password), role, permissions });
     await newUser.save();
     await logActivity('إضافة مستخدم', `تم إضافة مستخدم جديد بصلاحيات الإدارة: ${username}`);
     res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, permissions: newUser.permissions });
@@ -1373,12 +1555,15 @@ app.post('/api/admin/users', async (req, res) => {
   }
 });
 
-app.put('/api/admin/users/:id', async (req, res) => {
+app.put('/api/admin/users/:id', requireAdminAuth, requireSelfOrPermission('manage_users'), async (req, res) => {
   try {
     const { username, password, role, permissions } = req.body;
-    const updateData = { username, role, permissions };
-    if (password && password.trim() !== '') {
-      updateData.password = password;
+    const updateData = {};
+    if (username !== undefined && String(username).trim() !== '') updateData.username = String(username).trim();
+    if (role !== undefined) updateData.role = role;
+    if (permissions !== undefined) updateData.permissions = permissions;
+    if (password && String(password).trim() !== '') {
+      updateData.password = hashPassword(password);
     }
     const updated = await AdminUser.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'المستخدم غير موجود' });
@@ -1389,7 +1574,7 @@ app.put('/api/admin/users/:id', async (req, res) => {
   }
 });
 
-app.delete('/api/admin/users/:id', async (req, res) => {
+app.delete('/api/admin/users/:id', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
     const user = await AdminUser.findById(req.params.id);
     if(user) await logActivity('حذف مستخدم', `تم حذف المستخدم: ${user.username}`);

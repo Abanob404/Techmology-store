@@ -1,0 +1,18 @@
+Technology Store fixed patch
+
+Copy these files over the corresponding files in your existing project:
+- admin.html
+- admin.js
+- app.js
+- index.html
+- manifest.json
+- products_page.html
+- services.html
+- sw.js
+- vercel.json
+- icon-180.png
+- icon-192.png
+- icon-512.png
+- server/index.js
+
+PROJECT_AUDIT_FIXES.md contains the audit details and required environment variables.

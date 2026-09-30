@@ -11,7 +11,7 @@
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
     <title>TECHNOLOGY | لوحة الإدارة</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
-    <link rel="apple-touch-icon" href="logo.webp">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
     <link rel="manifest" href="manifest.json">
 
     <!-- Preconnect to Google Fonts -->
@@ -213,7 +213,7 @@
                             </div>
                             <div>
                                 <label class="block text-on-surface-variant text-sm font-semibold mb-1">صور المنتج <span class="text-xs text-on-surface-variant/50">(يمكنك تحديد أكثر من صورة)</span></label>
-                                <input type="file" id="pImage" multiple accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                                <input type="file" id="pImage" multiple accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
                                 <div id="imagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
                             </div>
                             <button type="submit" class="mt-2 w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 hover:glow-primary transition-all text-sm flex items-center justify-center gap-2">
@@ -325,7 +325,7 @@
                         <hr class="border-outline-variant/30 my-2">
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-1">مفتاح ربط الكاشير (POS API Key)</label>
-                            <input type="text" id="posApiKeyInput" placeholder="technology2309" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
+                            <input type="text" id="posApiKeyInput" placeholder="أدخل مفتاح POS API" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface focus:outline-none focus:border-primary text-sm font-mono-data">
                         </div>
                         <button type="submit" class="w-full py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2 mt-2">
                             <span class="material-symbols-outlined text-[18px]">save</span> حفظ الإعدادات
@@ -341,17 +341,17 @@
                     <div class="flex flex-col gap-5">
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-2">لوجو المتجر <span class="text-on-surface-variant/50 text-xs">(48×48px مثالي)</span></label>
-                            <input type="file" id="storeLogoInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-secondary/20 file:text-secondary hover:file:bg-secondary/30 transition-all">
+                            <input type="file" id="storeLogoInput" accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-secondary/20 file:text-secondary hover:file:bg-secondary/30 transition-all">
                             <img id="currentLogoPreview" src="" alt="Logo" class="hidden h-14 object-contain mt-3 rounded bg-surface p-2 border border-outline-variant/30">
                         </div>
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الغامق)</label>
-                            <input type="file" id="storeBgInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
+                            <input type="file" id="storeBgInput" accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
                             <img id="currentBgPreview" src="" alt="Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-2">صورة البانر (الوضع الفاتح)</label>
-                            <input type="file" id="storeLightBgInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
+                            <input type="file" id="storeLightBgInput" accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-tertiary/20 file:text-tertiary hover:file:bg-tertiary/30 transition-all">
                             <img id="currentLightBgPreview" src="" alt="Light Bg" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
                         <button onclick="saveBrandingSettings()" class="w-full mt-2 py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded hover:bg-primary/20 transition-all text-sm flex items-center justify-center gap-2">
@@ -368,7 +368,7 @@
                     <div class="flex flex-col gap-5">
                         <div>
                             <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصورة الافتراضية للمنتجات</label>
-                            <input type="file" id="defaultProductImageInput" accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                            <input type="file" id="defaultProductImageInput" accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
                             <img id="defaultProductImagePreview" src="" alt="Default Product" class="hidden w-full h-24 object-cover mt-3 rounded border border-outline-variant/30">
                         </div>
                         <div class="flex items-center justify-between p-4 rounded bg-surface border border-outline-variant/30 mt-2">
@@ -897,7 +897,7 @@
                         </div>
 
                         <label class="block text-on-surface-variant text-sm font-semibold mb-1">إضافة صور جديدة <span class="text-on-surface-variant/50 text-xs">(اختياري - يمكنك تحديد أكثر من صورة)</span></label>
-                        <input type="file" id="editPImage" multiple accept=".webp,image/webp" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
+                        <input type="file" id="editPImage" multiple accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
                         <div class="mt-2 flex items-center gap-2">
                             <input type="checkbox" id="editReplaceMainImage" class="accent-primary w-4 h-4 cursor-pointer">
                             <label for="editReplaceMainImage" class="text-sm text-on-surface cursor-pointer select-none">استبدال الصورة الأساسية بالصورة الجديدة الأولى (سيتم نقل القديمة للمعرض)</label>
