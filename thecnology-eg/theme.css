@@ -767,3 +767,188 @@ body { overflow-x:hidden; }
 }
 
 @media (max-width:767px){ .product-detail-modal.scale-95{transform:translateY(48px) scale(.985)!important;} }
+
+/* =========================================================
+   Technology Store V6.1 — Final Mobile Polish
+   Smart chrome, safer iPhone spacing, compact dock/footer.
+   ========================================================= */
+@media (max-width:767px) {
+    :root {
+        --mobile-dock-h: 58px;
+        --mobile-dock-gap: 8px;
+        --mobile-dock-clearance: calc(var(--mobile-dock-h) + var(--mobile-dock-gap) + env(safe-area-inset-bottom, 0px));
+    }
+
+    /* Keep touch navigation smooth and prevent accidental horizontal drift. */
+    html, body { overscroll-behavior-x:none; }
+    body { -webkit-tap-highlight-color:transparent; }
+    button, a { touch-action:manipulation; }
+
+    /* Category rail: compact, edge-faded, and smart-hidden by JS while scrolling down. */
+    .mobile-category-shell {
+        padding:6px 10px 5px!important;
+        box-shadow:0 8px 22px rgba(0,0,0,.045)!important;
+        transition:transform .26s var(--tech-ease),opacity .2s ease,box-shadow .2s ease!important;
+        will-change:transform,opacity;
+    }
+    .mobile-category-shell.is-hidden {
+        transform:translate3d(0,calc(-100% - 8px),0);
+        opacity:0;
+        pointer-events:none;
+        box-shadow:none!important;
+    }
+    #mobileCategoryFilters {
+        gap:7px!important;
+        padding:1px 3px 3px!important;
+        scrollbar-width:none;
+        -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%);
+        mask-image:linear-gradient(90deg,transparent 0,#000 16px,#000 calc(100% - 16px),transparent 100%);
+    }
+    #mobileCategoryFilters::-webkit-scrollbar { display:none; }
+    #mobileCategoryFilters .filter-btn {
+        min-height:34px!important;
+        padding:6px 12px!important;
+        font-size:11px!important;
+        border-color:rgb(var(--color-outline-variant) / .48)!important;
+    }
+
+    /* Bottom navigation: slimmer, centered and non-obstructive. */
+    .mobile-site-dock {
+        left:50%!important;
+        right:auto!important;
+        width:calc(100% - 22px)!important;
+        max-width:430px;
+        bottom:max(var(--mobile-dock-gap),env(safe-area-inset-bottom,0px))!important;
+        height:var(--mobile-dock-h)!important;
+        padding:5px 6px!important;
+        align-items:center!important;
+        border-radius:18px!important;
+        border-color:rgb(var(--color-outline-variant) / .30)!important;
+        background:rgb(var(--color-surface-container-lowest) / .88)!important;
+        box-shadow:0 12px 34px rgba(0,0,0,.22),inset 0 1px 0 rgb(255 255 255 / .04)!important;
+        transform:translate3d(-50%,0,0);
+        transition:transform .27s var(--tech-ease),opacity .2s ease,box-shadow .2s ease!important;
+        will-change:transform,opacity;
+        contain:layout paint;
+    }
+    .mobile-site-dock.is-hidden,
+    .mobile-site-dock.is-keyboard-hidden {
+        transform:translate3d(-50%,calc(100% + 28px),0)!important;
+        opacity:0;
+        pointer-events:none;
+    }
+    .mobile-dock-item {
+        height:46px!important;
+        gap:2px!important;
+        border-radius:12px!important;
+        font-size:8px!important;
+        line-height:1!important;
+        padding:3px 1px!important;
+    }
+    .mobile-dock-item svg { width:19px!important;height:19px!important; }
+    .mobile-dock-item.is-active {
+        background:rgb(var(--color-primary) / .085)!important;
+        box-shadow:inset 0 0 0 1px rgb(var(--color-primary) / .08);
+    }
+    .mobile-dock-item.is-active::before {
+        content:"";
+        position:absolute;
+        top:2px;
+        width:18px;
+        height:2px;
+        border-radius:999px;
+        background:rgb(var(--color-primary));
+        opacity:.9;
+    }
+    .mobile-dock-cart-icon {
+        width:30px!important;
+        height:26px!important;
+        margin-top:0!important;
+        border-radius:9px!important;
+        box-shadow:0 5px 13px rgb(var(--color-primary) / .20)!important;
+    }
+    .mobile-dock-cart-icon svg { width:18px!important;height:18px!important; }
+    #mobileCartBadge {
+        right:-6px!important;
+        top:-6px!important;
+        min-width:17px!important;
+        height:17px!important;
+        font-size:8px!important;
+        border-width:1px!important;
+    }
+
+    /* Let the dock get out of the way while reading product cards. */
+    body.mobile-dock-hidden .scroll-top-btn {
+        bottom:18px!important;
+    }
+    .scroll-top-btn {
+        right:12px!important;
+        bottom:calc(var(--mobile-dock-clearance) + 12px)!important;
+        width:40px!important;
+        height:40px!important;
+        padding:8px!important;
+        z-index:48!important;
+        box-shadow:0 10px 26px rgb(var(--color-primary) / .22)!important;
+    }
+
+    /* Product catalog gets enough final clearance without a permanent giant gap. */
+    .products-main { padding-bottom:calc(var(--mobile-dock-clearance) + 34px)!important; }
+
+    /* Mobile footer: shorter and never covered by the dock / iPhone home area. */
+    .site-footer > div {
+        grid-template-columns:1fr 1fr!important;
+        gap:20px 14px!important;
+        padding:30px 18px calc(var(--mobile-dock-clearance) + 32px)!important;
+    }
+    .site-footer > div > div:nth-child(1),
+    .site-footer > div > div:nth-child(4) { grid-column:1 / -1; }
+    .site-footer > div > div:nth-child(1) { align-items:center;text-align:center;gap:10px!important; }
+    .site-footer > div > div:nth-child(1) p { font-size:12px!important;line-height:1.75!important;margin-top:0!important; }
+    .site-footer > div > div:nth-child(2),
+    .site-footer > div > div:nth-child(3) { gap:9px!important; }
+    .site-footer h4 { font-size:15px!important;margin-bottom:3px!important; }
+    .site-footer a.text-base { font-size:12px!important;line-height:1.55!important; }
+    .site-footer ul { margin-bottom:10px!important; }
+    .site-footer ul li + li { margin-top:9px!important; }
+    .site-footer ul a { gap:9px!important; }
+    .site-footer ul a > div { width:34px!important;height:34px!important; }
+    .site-footer ul a span { font-size:12px!important; }
+    .site-footer > div > div:nth-child(4) .flex.flex-wrap { justify-content:center!important;gap:8px!important; }
+    .site-footer > div > div:nth-child(4) .flex.flex-wrap > a { width:36px!important;height:36px!important; }
+    .site-footer > div > div:nth-child(4) .mt-4 { margin-top:10px!important;text-align:center!important; }
+
+    /* Product details: fit real mobile browser chrome and avoid bottom clipping. */
+    .product-detail-modal {
+        max-height:calc(100dvh - max(6px,env(safe-area-inset-top,0px)))!important;
+        scroll-padding-bottom:calc(env(safe-area-inset-bottom,0px) + 18px);
+    }
+    .product-detail-info {
+        padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))!important;
+    }
+
+    /* Cart: respect dynamic Safari viewport; checkout remains reachable without fighting browser UI. */
+    .cart-shell {
+        max-height:calc(100dvh - max(6px,env(safe-area-inset-top,0px)))!important;
+    }
+    .cart-items { overscroll-behavior:contain; }
+    .cart-checkout {
+        padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;
+        overscroll-behavior:contain;
+    }
+
+    /* When an overlay is open, navigation chrome should not visually compete with it. */
+    body.ui-overlay-open .mobile-site-dock,
+    body.ui-overlay-open .mobile-category-shell,
+    body.ui-overlay-open .scroll-top-btn {
+        opacity:0!important;
+        pointer-events:none!important;
+    }
+}
+
+@media (max-width:360px) {
+    .mobile-site-dock { width:calc(100% - 14px)!important;padding-inline:4px!important; }
+    .mobile-dock-item { font-size:7.5px!important; }
+    .mobile-dock-item svg { width:18px!important;height:18px!important; }
+    #mobileCategoryFilters .filter-btn { padding-inline:10px!important;font-size:10px!important; }
+    .site-footer > div { gap:18px 10px!important;padding-inline:14px!important; }
+}

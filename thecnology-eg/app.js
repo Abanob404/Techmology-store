@@ -1095,6 +1095,7 @@ window.openProductModal = function(id) {
     modal.classList.remove('opacity-0');
     content.classList.remove('scale-95');
     document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    document.body.classList.add('ui-overlay-open');
 };
 
 window.closeProductModal = function() {
@@ -1108,6 +1109,7 @@ window.closeProductModal = function() {
     
     setTimeout(() => {
         modal.classList.add('hidden');
+        document.body.classList.remove('ui-overlay-open');
     }, 300);
 };
 
@@ -1154,6 +1156,90 @@ function injectMobileDock() {
         </a>
     `;
     document.body.appendChild(dock);
+}
+
+function initSmartMobileChrome() {
+    const mobileQuery = window.matchMedia('(max-width: 767px)');
+    if (!mobileQuery.matches) return;
+
+    const dock = document.getElementById('mobileSiteDock');
+    const categoryRail = document.querySelector('.mobile-category-shell');
+    if (!dock && !categoryRail) return;
+
+    let lastY = Math.max(0, window.scrollY || 0);
+    let ticking = false;
+    let dockIdleTimer = null;
+
+    const showDock = () => {
+        if (!dock || document.body.classList.contains('ui-overlay-open')) return;
+        dock.classList.remove('is-hidden');
+        document.body.classList.remove('mobile-dock-hidden');
+    };
+
+    const hideDock = () => {
+        if (!dock) return;
+        dock.classList.add('is-hidden');
+        document.body.classList.add('mobile-dock-hidden');
+    };
+
+    const showCategories = () => categoryRail?.classList.remove('is-hidden');
+    const hideCategories = () => categoryRail?.classList.add('is-hidden');
+
+    const processScroll = () => {
+        const y = Math.max(0, window.scrollY || 0);
+        const delta = y - lastY;
+        const doc = document.documentElement;
+        const nearTop = y < 120;
+        const nearBottom = (y + window.innerHeight) >= (doc.scrollHeight - 180);
+        const overlayOpen = document.body.classList.contains('ui-overlay-open');
+
+        if (!overlayOpen && Math.abs(delta) >= 5) {
+            if (delta > 0 && y > 220 && !nearBottom) {
+                hideDock();
+                if (categoryRail && y > 155) hideCategories();
+            } else if (delta < 0 || nearTop || nearBottom) {
+                showDock();
+                showCategories();
+            }
+        } else if (!overlayOpen && (nearTop || nearBottom)) {
+            showDock();
+            showCategories();
+        }
+
+        lastY = y;
+        ticking = false;
+
+        clearTimeout(dockIdleTimer);
+        dockIdleTimer = setTimeout(() => {
+            // Keep the category rail out of the way until the user scrolls upward,
+            // but restore the primary bottom navigation after scrolling stops.
+            showDock();
+        }, 650);
+    };
+
+    window.addEventListener('scroll', () => {
+        if (!ticking) {
+            ticking = true;
+            requestAnimationFrame(processScroll);
+        }
+    }, { passive: true });
+
+    // Hide the dock when the on-screen keyboard is open (iOS/Android).
+    if (window.visualViewport) {
+        const onViewportResize = () => {
+            if (!dock) return;
+            const layoutHeight = document.documentElement.clientHeight || window.innerHeight;
+            const keyboardLikelyOpen = window.visualViewport.height < layoutHeight * 0.72;
+            dock.classList.toggle('is-keyboard-hidden', keyboardLikelyOpen);
+            if (keyboardLikelyOpen) document.body.classList.add('mobile-dock-hidden');
+            else if (!dock.classList.contains('is-hidden')) document.body.classList.remove('mobile-dock-hidden');
+        };
+        window.visualViewport.addEventListener('resize', onViewportResize, { passive: true });
+        onViewportResize();
+    }
+
+    // Tapping the category rail should keep it visible while choosing a filter.
+    categoryRail?.addEventListener('pointerdown', showCategories, { passive: true });
 }
 
 // ------------------ منطق السلة (Cart Logic) ------------------
@@ -1241,6 +1327,7 @@ function openCartSidebar() {
     sidebar.classList.remove('cart-sidebar-closed');
     sidebar.classList.add('cart-sidebar-open');
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('ui-overlay-open');
 
     // إظهار حقول العميل بناءً على تفعيل الشحن
     const customerForm = document.getElementById('cartCustomerForm');
@@ -1272,6 +1359,7 @@ function closeCartSidebar() {
     document.body.style.overflow = '';
     setTimeout(() => {
         overlay.classList.add('hidden');
+        document.body.classList.remove('ui-overlay-open');
     }, 300);
 }
 
@@ -1630,6 +1718,7 @@ document.addEventListener('DOMContentLoaded', () => {
     injectProductModal();
     injectCartUI();
     injectMobileDock();
+    initSmartMobileChrome();
     setupMobileCatalogSearch();
     initLightweightMotion();
     fetchProducts();
@@ -1865,6 +1954,8 @@ function openQuickBuyModal(id) {
     };
     
     m.classList.remove('hidden');
+    document.body.classList.add('ui-overlay-open');
+    document.body.style.overflow = 'hidden';
     setTimeout(() => {
         m.classList.remove('opacity-0');
         m.querySelector('.transform').classList.remove('scale-95');
@@ -1878,7 +1969,11 @@ function closeQuickBuyModal() {
         m.classList.add('opacity-0');
         m.querySelector('.transform').classList.remove('scale-100');
         m.querySelector('.transform').classList.add('scale-95');
-        setTimeout(() => m.classList.add('hidden'), 300);
+        setTimeout(() => {
+            m.classList.add('hidden');
+            document.body.classList.remove('ui-overlay-open');
+            document.body.style.overflow = '';
+        }, 300);
     }
 }
 
