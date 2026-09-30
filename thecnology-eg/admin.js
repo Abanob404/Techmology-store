@@ -1405,6 +1405,7 @@ window.saveExperienceSettings = async function() {
         tempPromoBannerFile = null;
         showToast('✅ تم حفظ البانر وتأثير المناسبة');
         loadStoreSettings();
+        if (window.loadDashboard) window.loadDashboard();
     } catch(err) { showToast('❌ ' + err.message); }
 };
 
@@ -1416,7 +1417,7 @@ window.saveGrowthSettings = async function() {
     try {
         const res = await adminFetch(`${BASE_URL}/api/settings`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload.toString() });
         const data = await res.json(); if(!res.ok) throw new Error(data.message || 'فشل الحفظ');
-        showToast('✅ تم حفظ تجربة التسوق'); loadStoreSettings();
+        showToast('✅ تم حفظ تجربة التسوق'); loadStoreSettings(); if (window.loadDashboard) window.loadDashboard();
     } catch(err) { showToast('❌ ' + err.message); }
 };
 
@@ -2027,20 +2028,41 @@ window.loadDashboard = async function() {
         setText('dashOrdersToday', data.orders?.today ?? 0);
         setText('dashTodaySales', formatMoney(data.orders?.todaySales || 0));
 
-        const healthBadge = (ok, yes='متصل', no='غير متصل') => `<span class="px-2 py-1 rounded-full text-xs font-bold ${ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}">${ok ? yes : no}</span>`;
-        const db = document.getElementById('healthDb'); if (db) db.innerHTML = healthBadge(data.health?.database === 'connected');
-        const cloud = document.getElementById('healthCloudinary'); if (cloud) cloud.innerHTML = healthBadge(Boolean(data.health?.cloudinaryConfigured), 'مضبوط', 'غير مضبوط');
-        const pos = document.getElementById('healthPos'); if (pos) pos.innerHTML = healthBadge(Boolean(data.health?.posConfigured), 'مربوط', 'غير مربوط');
-        const push = document.getElementById('healthPush'); if (push) push.innerHTML = healthBadge(Boolean(data.health?.pushConfigured), 'جاهز', 'غير مضبوط');
-        const promo = document.getElementById('healthPromo'); if (promo) promo.innerHTML = healthBadge(Boolean(data.health?.promoBannerActive), 'فعال', 'متوقف');
-        const season = document.getElementById('healthSeason'); if (season) season.innerHTML = healthBadge(Boolean(data.health?.seasonalEffectActive), 'فعال', 'متوقف');
+        const statusBadge = (label, tone='green') => {
+            const tones = {
+                green:'bg-green-500/10 text-green-400',
+                amber:'bg-amber-500/10 text-amber-400',
+                red:'bg-red-500/10 text-red-400',
+                slate:'bg-slate-500/10 text-slate-300'
+            };
+            return `<span class="px-2 py-1 rounded-full text-xs font-bold ${tones[tone] || tones.slate}">${label}</span>`;
+        };
+        const db = document.getElementById('healthDb'); if (db) db.innerHTML = data.health?.database === 'connected' ? statusBadge('متصل','green') : statusBadge('غير متصل','red');
+        const cloud = document.getElementById('healthCloudinary'); if (cloud) cloud.innerHTML = data.health?.cloudinaryConfigured ? statusBadge('مضبوط','green') : statusBadge('غير مضبوط','red');
+        const pos = document.getElementById('healthPos'); if (pos) pos.innerHTML = data.health?.posConfigured ? statusBadge('مربوط','green') : statusBadge('غير مربوط','amber');
+        const push = document.getElementById('healthPush'); if (push) {
+            if (!data.health?.pushConfigured) push.innerHTML = statusBadge('يحتاج إعداد','red');
+            else if (!data.health?.pushEnabled) push.innerHTML = statusBadge('جاهز — غير مفعل','amber');
+            else push.innerHTML = statusBadge('مفعل','green');
+        }
+        const promo = document.getElementById('healthPromo'); if (promo) {
+            if (data.health?.promoBannerActive) promo.innerHTML = statusBadge('فعال','green');
+            else if (data.health?.promoBannerEnabled) promo.innerHTML = statusBadge('مجدول / خارج المدة','amber');
+            else promo.innerHTML = statusBadge('غير مفعل','slate');
+        }
+        const season = document.getElementById('healthSeason'); if (season) {
+            if (data.health?.seasonalEffectActive) season.innerHTML = statusBadge('فعال','green');
+            else if (data.health?.seasonalEffectEnabled) season.innerHTML = statusBadge('مجدول / خارج المدة','amber');
+            else season.innerHTML = statusBadge('غير مفعل','slate');
+        }
         const alerts = document.getElementById('dashboardAlerts');
         if (alerts) {
             const items = [];
             if ((data.products?.lowStock || 0) > 0) items.push({icon:'warning', tone:'amber', title:`${data.products.lowStock} منتج بمخزون منخفض`, text:'راجع الكميات قبل نفاد المنتجات.'});
             if ((data.products?.missingImages || 0) > 0) items.push({icon:'broken_image', tone:'red', title:`${data.products.missingImages} منتج بدون صورة`, text:'مركز الصور يوضح المنتجات التي تحتاج صورة.'});
             if ((data.orders?.pending || 0) > 0) items.push({icon:'receipt_long', tone:'blue', title:`${data.orders.pending} طلب جديد`, text:'يوجد طلبات تحتاج متابعة.'});
-            if (!data.health?.pushConfigured) items.push({icon:'notifications_off', tone:'slate', title:'Push Notifications غير مضبوط', text:'اختياري: أضف مفاتيح VAPID عند الحاجة.'});
+            if (!data.health?.pushConfigured) items.push({icon:'notifications_off', tone:'slate', title:'Push Notifications يحتاج إعداد', text:'أضف مفاتيح VAPID في Vercel ثم أعد النشر.'});
+            else if (!data.health?.pushEnabled) items.push({icon:'notifications_active', tone:'blue', title:'Push Notifications جاهز', text:'فعّله من إعدادات المتجر لإظهار الاشتراك للعملاء.'});
             alerts.innerHTML = items.slice(0,6).map(i => `<div class="glass-panel p-4 rounded-xl border border-outline-variant/30"><div class="flex items-start gap-3"><span class="material-symbols-outlined text-primary">${i.icon}</span><div><p class="font-bold text-sm text-on-surface">${i.title}</p><p class="text-xs text-on-surface-variant mt-1">${i.text}</p></div></div></div>`).join('');
         }
 

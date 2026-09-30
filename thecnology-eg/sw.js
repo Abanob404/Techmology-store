@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v7-growth-seasonal';
+const CACHE_NAME = 'technology-store-v7-1-growth-seasonal';
 const APP_SHELL = [
   '/',
   '/products',

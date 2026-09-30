@@ -830,9 +830,8 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         if (p.stockQuantity === 0) {
             isOutOfStock = true;
             availabilityBadge = `<div class="catalog-stock-badge catalog-stock-badge--out">نفدت الكمية</div>`;
-        } else if (Number(p.stockQuantity) <= lowStockThreshold()) {
-            availabilityBadge = `<div class="catalog-stock-badge catalog-stock-badge--low">باقي ${Number(p.stockQuantity)} فقط</div>`;
         } else {
+            // لا نعرض عدد القطع المتبقية للعميل؛ أي مخزون موجب يظهر فقط كـ "متوفر".
             availabilityBadge = `<div class="catalog-stock-badge catalog-stock-badge--in">متوفر</div>`;
         }
         const autoBadges = [];

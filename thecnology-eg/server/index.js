@@ -1931,12 +1931,13 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
     const now = new Date();
     const todayStart = new Date(now);
     todayStart.setHours(0, 0, 0, 0);
-    const lowStockThreshold = 5;
+    const settings = await getOrCreateSettings();
+    const lowStockThreshold = Math.max(1, Math.min(99, Number(settings.lowStockThreshold || 3)));
 
     const [
       totalProducts, visibleProducts, hiddenProducts, outOfStock, lowStock,
       missingImages, totalOrders, pendingOrders, processingOrders, completedOrders,
-      cancelledOrders, todayOrders, todaySalesAgg, recentOrders, recentLogs, settings
+      cancelledOrders, todayOrders, todaySalesAgg, recentOrders, recentLogs
     ] = await Promise.all([
       Product.countDocuments(),
       Product.countDocuments({ isHidden: { $ne: true } }),
@@ -1958,8 +1959,7 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
         { $group: { _id: null, total: { $sum: '$total' } } }
       ]),
       Order.find().select('orderNumber customerName total status createdAt').sort({ createdAt: -1 }).limit(6).lean(),
-      ActivityLog.find().sort({ timestamp: -1 }).limit(6).lean(),
-      getOrCreateSettings()
+      ActivityLog.find().sort({ timestamp: -1 }).limit(6).lean()
     ]);
 
     res.json({
@@ -1973,8 +1973,12 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
         cloudinaryConfigured: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
         posConfigured: Boolean(String(settings.posApiKey || process.env.POS_API_KEY || '').trim()),
         pushConfigured: pushConfigured(),
+        pushEnabled: Boolean(settings.pushEnabled),
+        promoBannerEnabled: Boolean(settings.promoBannerEnabled),
         promoBannerActive: Boolean(settings.promoBannerEnabled && isWindowActive(settings.promoBannerStartsAt, settings.promoBannerEndsAt)),
-        seasonalEffectActive: Boolean(settings.seasonalEffectEnabled && settings.seasonalEffect !== 'off' && isWindowActive(settings.seasonalEffectStartsAt, settings.seasonalEffectEndsAt))
+        seasonalEffectEnabled: Boolean(settings.seasonalEffectEnabled && settings.seasonalEffect !== 'off'),
+        seasonalEffectActive: Boolean(settings.seasonalEffectEnabled && settings.seasonalEffect !== 'off' && isWindowActive(settings.seasonalEffectStartsAt, settings.seasonalEffectEndsAt)),
+        lowStockThreshold
       }
     });
   } catch (err) {
