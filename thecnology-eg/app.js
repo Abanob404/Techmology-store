@@ -81,6 +81,30 @@ function buildWhatsappUrl(message = '') {
     const number = String(socialSettings().whatsappNumber || DEFAULT_SOCIAL_SETTINGS.whatsappNumber).replace(/\D/g, '');
     return `https://wa.me/${number}${message ? `?text=${encodeURIComponent(message)}` : ''}`;
 }
+
+function encodeProductShareCode(productId = '') {
+    const id = String(productId || '').trim();
+    if (!/^[a-f0-9]{24}$/i.test(id)) return id;
+    try {
+        const bytes = id.match(/.{2}/g).map(hex => parseInt(hex, 16));
+        let binary = '';
+        bytes.forEach(byte => { binary += String.fromCharCode(byte); });
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    } catch (_) { return id; }
+}
+function decodeProductShareCode(code = '') {
+    const value = String(code || '').trim();
+    if (/^[a-f0-9]{24}$/i.test(value)) return value;
+    if (!/^[A-Za-z0-9_-]{16}$/.test(value)) return '';
+    try {
+        const base64 = value.replace(/-/g, '+').replace(/_/g, '/') + '==';
+        const binary = atob(base64);
+        return Array.from(binary, ch => ch.charCodeAt(0).toString(16).padStart(2, '0')).join('');
+    } catch (_) { return ''; }
+}
+function getProductShareUrl(productId) {
+    return `${window.location.origin}/p/${encodeProductShareCode(productId)}`;
+}
 function applyDynamicSocialLinks(settings = {}) {
     window.storeSettings = { ...(window.storeSettings || {}), ...settings };
     const cfg = socialSettings();
@@ -263,7 +287,8 @@ async function fetchProducts() {
 
         const urlParams = new URLSearchParams(window.location.search);
         const initialSearch = urlParams.get('q');
-        const initialId = urlParams.get('id');
+        const shortPathMatch = window.location.pathname.match(/^\/p\/([^/]+)\/?$/i);
+        const initialId = urlParams.get('id') || (shortPathMatch ? decodeProductShareCode(shortPathMatch[1]) : '');
         const initialCategory = urlParams.get('category');
 
         if (initialId) {
@@ -698,7 +723,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                     <div class="catalog-product-footer mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
                         <div class="flex items-center justify-between gap-2">
                             ${priceHtml}
-                            <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}')" class="text-on-surface-variant hover:text-primary transition-colors p-2 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
+                            <button onclick="event.stopPropagation(); shareProductById('${p._id}')" class="text-on-surface-variant hover:text-primary transition-colors p-2 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
                                 </svg>
@@ -774,15 +799,25 @@ window.changePage = function(page) {
     }
 };
 
-// دالة المشاركة
+// مشاركة المنتج برابط قصير ونظيف
 window.shareProduct = async (title, price, url) => {
+    const cleanTitle = String(title || 'منتج من TECHNOLOGY').trim();
+    const numericPrice = Number(price);
+    const priceText = Number.isFinite(numericPrice) ? `${numericPrice.toLocaleString('ar-EG')} ج.م` : '';
+    const shareText = priceText ? `${cleanTitle} — ${priceText}` : cleanTitle;
     if (navigator.share) {
-        try { await navigator.share({ title: title, text: `شوف العرض ده من Technology: ${title} بسعر ${price} ج.م!`, url: url }); }
-        catch (err) { console.log('إلغاء المشاركة'); }
-    } else {
-        navigator.clipboard.writeText(`${title} - ${price} ج.م\\n${url}`);
-        alert('تم نسخ رابط المنتج بنجاح لمشاركته!');
+        try { await navigator.share({ title: cleanTitle, text: shareText, url }); return; }
+        catch (err) { if (err && err.name === 'AbortError') return; }
     }
+    const fallbackText = `${shareText}
+${url}`;
+    try { await navigator.clipboard.writeText(fallbackText); alert('تم نسخ رابط المنتج القصير!'); }
+    catch (_) { window.prompt('انسخ رابط المنتج:', url); }
+};
+window.shareProductById = (productId) => {
+    const product = globalProducts.find(item => String(item._id) === String(productId));
+    if (!product) return;
+    return shareProduct(product.title, product.price, getProductShareUrl(product._id));
 };
 
 // دالة فارغة لمنع أخطاء oninput في الـ HTML حيث أن البحث يتم التعامل معه عبر المستمعات أدناه
@@ -1022,7 +1057,7 @@ window.openProductModal = function(id) {
     }
 
     const shareBtn = document.getElementById('modalShareBtn');
-    shareBtn.onclick = () => shareProduct(p.title, p.price, `${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}`);
+    shareBtn.onclick = () => shareProduct(p.title, p.price, getProductShareUrl(p._id));
     
     // Quick Buy Button Injection
     const container = addToCartBtn.parentElement;
@@ -1120,7 +1155,7 @@ function injectFloatingSocials() {
     div.className = 'desktop-floating-socials';
     div.innerHTML = `
         <a href="${socialSettings().whatsappChannelUrl}" target="_blank" rel="noopener noreferrer" class="desktop-social-btn desktop-social-btn--whatsapp" aria-label="قناة واتساب" title="قناة واتساب">
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326z"/></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
         </a>
         <a href="${socialSettings().facebookUrl}" target="_blank" rel="noopener noreferrer" class="desktop-social-btn desktop-social-btn--facebook" aria-label="فيسبوك" title="فيسبوك">
             <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg>
@@ -1136,7 +1171,7 @@ function injectMobileDock() {
     dock.className = 'mobile-site-dock';
     dock.setAttribute('aria-label', 'التنقل السريع');
     const homeActive = path === '/' || path.endsWith('/index.html');
-    const productsActive = path.includes('products');
+    const productsActive = path.includes('products') || /^\/p\//.test(path);
     const servicesActive = path.includes('services');
     dock.innerHTML = `
         <a href="/" class="mobile-dock-item ${homeActive ? 'is-active' : ''}" aria-label="الرئيسية">
@@ -1148,11 +1183,11 @@ function injectMobileDock() {
         <button type="button" onclick="openCartSidebar()" class="mobile-dock-item mobile-dock-cart" aria-label="السلة">
             <span class="mobile-dock-cart-icon"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.5h9.8L20 7H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg><b id="mobileCartBadge" class="${cart.length ? '' : 'hidden'}">${cart.reduce((n,i)=>n+i.quantity,0)}</b></span><span>السلة</span>
         </button>
-        <a href="${socialSettings().whatsappChannelUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="واتساب">
-            <svg viewBox="0 0 16 16"><path d="M13.6 2.3A7.85 7.85 0 0 0 8 0 7.93 7.93 0 0 0 1.1 11.9L0 16l4.2-1.1A7.9 7.9 0 0 0 8 15.9 7.93 7.93 0 0 0 13.6 2.3Z"/></svg><span>واتساب</span>
+        <a href="${socialSettings().whatsappChannelUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="قناة واتساب" title="قناة واتساب">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg><span>قناة واتساب</span>
         </a>
-        <a href="${socialSettings().telegramUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="تليجرام">
-            <svg viewBox="0 0 24 24"><path d="m21.7 3.4-3.2 15c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6 12.1 1.2 10.6c-1-.3-1.1-1 .2-1.5L20 2c.9-.3 1.6.2 1.7 1.4Z"/></svg><span>تليجرام</span>
+        <a href="${socialSettings().facebookUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="فيسبوك" title="فيسبوك">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg><span>فيسبوك</span>
         </a>
     `;
     document.body.appendChild(dock);

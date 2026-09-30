@@ -399,39 +399,47 @@ function normalizePublicUrl(value, allowedHosts = []) {
 
 let topProductsCache = { data: null, timestamp: 0 };
 
-// --- SSR Route for /products ---
-app.get('/products', async (req, res) => {
+// --- SSR product routes: /products (legacy) + clean short share links /p/:code ---
+function decodeProductShareCode(value = '') {
+  const raw = String(value || '').trim();
+  if (/^[a-f0-9]{24}$/i.test(raw)) return raw;
+  if (!/^[A-Za-z0-9_-]{16}$/.test(raw)) return '';
+  try {
+    let base64 = raw.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const hex = Buffer.from(base64, 'base64').toString('hex');
+    return /^[a-f0-9]{24}$/i.test(hex) ? hex : '';
+  } catch (_) { return ''; }
+}
+function escapeHtmlAttr(value = '') {
+  return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+async function renderProductsPage(req, res, productIdOverride = '') {
   try {
     const htmlPath = path.join(__dirname, '../products_page.html');
     let html = fs.readFileSync(htmlPath, 'utf-8');
-
-    if (req.query.id) {
+    const productId = productIdOverride || String(req.query.id || '');
+    if (productId && mongoose.isValidObjectId(productId)) {
       try {
         await ensureDBConnection();
-        const product = await Product.findById(req.query.id).lean();
+        const product = await Product.findById(productId).lean();
         if (product) {
-          const title = `${product.title} | TECHNOLOGY`;
-          const description = product.category ? `قسم: ${product.category}` : `سعر المنتج: ${product.price} جنيه`;
+          const safeTitle = escapeHtmlAttr(`${product.title} | TECHNOLOGY`);
+          const priceText = Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('en-US')} ج.م` : '';
+          const safeDescription = escapeHtmlAttr([priceText ? `السعر: ${priceText}` : '', product.category ? `قسم: ${product.category}` : ''].filter(Boolean).join(' • '));
           let image = product.image || 'logo.webp';
-          
-          if (image.startsWith('/')) {
-            image = `https://${req.get('host')}${image}`;
-          } else if (!image.startsWith('http')) {
-             image = `https://${req.get('host')}/${image}`;
-          }
-
-          html = html.replace(/<title>.*?<\/title>/, `<title>${title}</title>`);
-          html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${title}">`);
-          html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${description}">`);
-          html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${image}">`);
+          if (image.startsWith('/')) image = `https://${req.get('host')}${image}`;
+          else if (!image.startsWith('http')) image = `https://${req.get('host')}/${image}`;
+          const canonicalUrl = `https://${req.get('host')}${req.path}`;
+          html = html.replace(/<title>.*?<\/title>/, `<title>${safeTitle}</title>`);
+          html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${safeTitle}">`);
+          html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${safeDescription}">`);
+          html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${escapeHtmlAttr(image)}">`);
+          if (/<meta property="og:url"/.test(html)) html = html.replace(/<meta property="og:url" content=".*?">/, `<meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">`);
+          else html = html.replace('</head>', `    <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">\n</head>`);
         }
-      } catch (e) {
-        console.error('SSR OG Tags DB Error:', e.message);
-      }
-    } else {
-      // V6 performance: never block the HTML response on MongoDB for the normal catalog page.
-      // Product images are requested by app.js using Cloudinary-sized URLs after first paint.
-      // If a warm in-memory list already exists we may preload it, but we never wait for DB here.
+      } catch (e) { console.error('SSR OG Tags DB Error:', e.message); }
+    } else if (!productId) {
       const topProducts = topProductsCache.data || [];
       if (topProducts.length > 0) {
         let preloadTags = '';
@@ -449,7 +457,9 @@ app.get('/products', async (req, res) => {
     console.error('SSR File Error:', err);
     res.status(503).send('<html dir="rtl"><body><h2>عذراً، مشكلة في الخادم. يرجى التحديث.</h2><button onclick="location.reload()">تحديث</button></body></html>');
   }
-});
+}
+app.get('/products', (req, res) => renderProductsPage(req, res));
+app.get('/p/:code', (req, res) => renderProductsPage(req, res, decodeProductShareCode(req.params.code)));
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
 

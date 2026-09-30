@@ -69,6 +69,10 @@
             "dest": "/assets/$1"
         },
         {
+            "src": "/p/(.*)",
+            "dest": "server/index.js"
+        },
+        {
             "src": "/products",
             "dest": "server/index.js"
         },
@@ -88,6 +92,15 @@
     "headers": [
         {
             "source": "/",
+            "headers": [
+                {
+                    "key": "Cache-Control",
+                    "value": "public, max-age=0, must-revalidate"
+                }
+            ]
+        },
+        {
+            "source": "/p/(.*)",
             "headers": [
                 {
                     "key": "Cache-Control",
