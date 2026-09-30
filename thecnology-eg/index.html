@@ -21,10 +21,7 @@
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="theme.css">
-    <!-- AOS Animations CSS (Non-Blocking) -->
-    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet" media="print" onload="this.media='all'">
-    
-    <!-- Preconnect to Google Fonts -->
+<!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
@@ -44,12 +41,12 @@
     </script>
 </head>
 
-<body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
+<body data-page="home" class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
     dir="rtl">
 
     <!-- TopNavBar -->
     <header
-        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
+        class="site-header bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
         <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
             <div class="flex items-center gap-4 md:gap-8">
                 <a class="flex items-center gap-2" href="/">
@@ -112,9 +109,9 @@
         </div>
     </header>
 
-    <main class="flex-1 pt-24 w-full">
+    <main class="site-main home-main flex-1 pt-24 w-full">
         <!-- Hero Section -->
-        <section class="relative pt-40 pb-20 overflow-hidden flex flex-col items-center justify-center min-h-[70vh]">
+        <section class="home-hero relative pt-40 pb-20 overflow-hidden flex flex-col items-center justify-center min-h-[70vh]">
             <div class="absolute inset-0 bg-surface-container-low/50 opacity-20 dark:opacity-100"></div>
             
             <div class="absolute inset-0 z-0 flex items-center justify-center opacity-15 dark:opacity-30 dark:mix-blend-screen p-4 md:p-0">
@@ -124,7 +121,7 @@
             
             <div class="absolute inset-0 bg-gradient-to-t from-background via-transparent to-background z-0"></div>
 
-            <div class="relative z-10 max-w-container-max mx-auto px-gutter text-center flex flex-col items-center">
+            <div class="home-hero-content relative z-10 max-w-container-max mx-auto px-gutter text-center flex flex-col items-center">
                 <span
                     class="px-5 py-2 rounded-full bg-primary/10 border border-primary/30 text-primary text-sm font-mono-data tracking-widest mb-6">مرحباً
                     بك في عالم التكنولوجيا</span>
@@ -133,7 +130,7 @@
                 <p class="text-on-surface-variant max-w-2xl text-xl mb-10 leading-relaxed">تصفح الكتالوج الشامل لأجهزة
                     اللابتوب، تجميعات الألعاب، وأنظمة المراقبة. قم بزيارة معرضنا للاستلام والتركيب أو تواصل معنا مباشرة
                     للاستفسار.</p>
-                <div class="flex gap-4">
+                <div class="home-hero-actions flex gap-4">
                     <a href="/products"
                         class="px-8 py-4 bg-primary text-on-primary font-bold text-lg rounded hover:bg-primary/90 hover:glow-primary transition-all flex items-center gap-2">
                         تصفح الكتالوج
@@ -148,7 +145,7 @@
         </section>
 
         <!-- Featured Section -->
-        <div class="max-w-container-max mx-auto px-gutter md:px-margin-desktop py-20">
+        <div class="home-featured max-w-container-max mx-auto px-gutter md:px-margin-desktop py-20">
             <div class="flex justify-between items-end mb-10 border-b border-outline-variant/30 pb-4">
                 <div>
                     <h2 class="font-headline-md text-2xl text-primary">أقسام مميزة</h2>
@@ -156,9 +153,9 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div class="home-feature-grid grid grid-cols-1 md:grid-cols-3 gap-8">
                 <a href="/products?category=Desktops"
-                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    class="home-feature-card glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
@@ -167,7 +164,7 @@
                     <p class="text-on-surface-variant text-base">أقوى أجهزة الجيمنج والمونتاج المجهزة بالكامل لك.</p>
                 </a>
                 <a href="/products?category=Networking"
-                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    class="home-feature-card glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.858 15.355-5.858 21.213 0"></path></svg>
@@ -176,7 +173,7 @@
                     <p class="text-on-surface-variant text-base">راوترات وسويتشات وكابلات عالية الجودة جاهزة للتركيب.</p>
                 </a>
                 <a href="/products?category=Surveillance"
-                    class="glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
+                    class="home-feature-card glass-panel p-8 rounded-xl card-hover-effect flex flex-col items-center text-center group cursor-pointer transition-all">
                     <div
                         class="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                         <svg class="w-12 h-12 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
@@ -190,7 +187,7 @@
 
     <!-- Footer -->
     <footer
-        class="bg-surface-container-lowest text-secondary font-mono-data text-mono-data w-full mt-auto border-t border-outline-variant">
+        class="site-footer bg-surface-container-lowest text-secondary font-mono-data text-mono-data w-full mt-auto border-t border-outline-variant">
         <div
             class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-gutter md:px-margin-desktop py-12 w-full max-w-container-max mx-auto">
             <div class="md:col-span-1 flex flex-col gap-4">
@@ -270,13 +267,7 @@
             </div>
         </div>
     </footer>
-    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js" defer></script>
-    <script>
-        window.addEventListener('DOMContentLoaded', () => {
-            if (window.AOS) AOS.init({ once: true, offset: 50, duration: 600 });
-        });
-    </script>
-    <script src="app.js" defer></script>
+<script src="app.js" defer></script>
 </body>
 
 </html>

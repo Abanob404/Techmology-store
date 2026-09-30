@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v5-3';
+const CACHE_NAME = 'technology-store-v6-mobile';
 const APP_SHELL = [
   '/',
   '/products',

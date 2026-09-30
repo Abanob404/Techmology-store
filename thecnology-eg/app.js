@@ -192,22 +192,37 @@ async function fetchProducts() {
     }
 
     try {
-        // تشغيل طلبات API بشكل متوازٍ لتسريع التحميل
-        const [settingsRes, productsRes, analyticsRes] = await Promise.allSettled([
-            fetch(`${BASE_URL}/api/settings`).then(r => r.json()),
-            fetch(API_URL).then(r => r.json()),
-            fetch(`${BASE_URL}/api/analytics`).then(r => r.json())
-        ]);
+        // Mobile-first performance: المنتجات هي أهم محتوى مرئي، لذلك لا نؤخر عرضها بسبب
+        // الإحصائيات أو الأقسام أو إعدادات إضافية يمكن تحميلها بعد أول رسم للصفحة.
+        const productsPromise = fetch(API_URL).then(r => {
+            if (!r.ok) throw new Error(`Products API ${r.status}`);
+            return r.json();
+        });
+        const settingsPromise = fetch(`${BASE_URL}/api/settings`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
+        let analyticsPromise = null;
 
-        // معالجة الإعدادات
-        if (settingsRes.status === 'fulfilled' && settingsRes.value) {
-            const settings = settingsRes.value;
+        const allFetchedProducts = await productsPromise;
+        globalProducts = (Array.isArray(allFetchedProducts) ? allFetchedProducts : []).filter(p => {
+            const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
+            return !p.isHidden && hasValidImage;
+        });
+
+        populateCatalogBrandFilter();
+        const minPriceInput = document.getElementById('minPriceFilter');
+        const maxPriceInput = document.getElementById('maxPriceFilter');
+        if (minPriceInput) minPriceInput.value = minPriceFilter;
+        if (maxPriceInput) maxPriceInput.value = maxPriceFilter;
+
+        // اعرض المنتجات فوراً. البيانات الثانوية تُحمّل بعد ذلك بدون تعطيل أول رسم.
+        window.globalAnalytics = window.globalAnalytics || {};
+
+        settingsPromise.then(settings => {
+            if (!settings) return;
             window.storeSettings = settings;
             if (settings.defaultProductImage) window.defaultProductImage = settings.defaultProductImage;
             window.isShippingEnabled = settings.isShippingEnabled || false;
             applyDynamicSocialLinks(settings);
-            
-            // FB Pixel injection (Lazy Load to improve PageSpeed)
+
             if (settings.isPixelEnabled && settings.fbPixelId) {
                 let fbLoaded = false;
                 const loadFacebookPixel = () => {
@@ -218,38 +233,22 @@ async function fetchProducts() {
                         {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
                         n.callMethod.apply(n,arguments):n.queue.push(arguments)};
                         if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-                        n.queue=[];t=b.createElement(e);t.async=!0; t.defer=!0;
+                        n.queue=[];t=b.createElement(e);t.async=!0;t.defer=!0;
                         t.src=v;s=b.getElementsByTagName(e)[0];
-                        s.parentNode.insertBefore(t,s)}(window, document,'script',
-                        'https://connect.facebook.net/en_US/fbevents.js');
+                        s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
                         fbq('init', settings.fbPixelId);
                         fbq('track', 'PageView');
                     }
                 };
-                ['scroll', 'click', 'touchstart'].forEach(evt => window.addEventListener(evt, loadFacebookPixel, { once: true, passive: true }));
-                setTimeout(loadFacebookPixel, 5000);
+                ['scroll','click','touchstart'].forEach(evt => window.addEventListener(evt, loadFacebookPixel, { once:true, passive:true }));
+                setTimeout(loadFacebookPixel, 6500);
             }
-        }
-
-        // معالجة المنتجات (إخفاء المنتجات المخفية والوهمية التي ليس لها صورة حقيقية)
-        const allFetchedProducts = productsRes.status === 'fulfilled' ? productsRes.value : [];
-        globalProducts = allFetchedProducts.filter(p => {
-            const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
-            return !p.isHidden && hasValidImage;
         });
 
-        // تجهيز فلاتر الكتالوج الإضافية من نفس البيانات الحالية بدون أي تغيير في قاعدة البيانات
-        populateCatalogBrandFilter();
-        const minPriceInput = document.getElementById('minPriceFilter');
-        const maxPriceInput = document.getElementById('maxPriceFilter');
-        if (minPriceInput) minPriceInput.value = minPriceFilter;
-        if (maxPriceInput) maxPriceInput.value = maxPriceFilter;
-
-        // معالجة الإحصائيات
-        window.globalAnalytics = analyticsRes.status === 'fulfilled' ? analyticsRes.value : {};
-
-        // إنشاء فلاتر الأقسام ديناميكياً بناءً على الأقسام المركزية
-        await renderDynamicCategoryFilters();
+        analyticsPromise = fetch(`${BASE_URL}/api/analytics`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
+        analyticsPromise.then(data => { window.globalAnalytics = data || {}; });
+        // تحديث الأقسام في الخلفية ولا نمنع ظهور الكتالوج أثناء انتظارها.
+        renderDynamicCategoryFilters().catch(() => {});
 
         // تفعيل فلتر الترتيب وإخفاء المنتجات النافدة
         const sortSelect = document.getElementById('sortSelect');
@@ -487,6 +486,25 @@ window.clearCatalogFilters = function() {
     renderProducts(activeCategory, activeSearchTerm);
 };
 
+window.toggleCatalogFilters = function() {
+    const panel = document.getElementById('catalogControls');
+    const btn = panel?.querySelector('.catalog-filter-toggle');
+    if (!panel) return;
+    const open = panel.classList.toggle('filters-open');
+    if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+};
+
+function setupMobileCatalogSearch() {
+    const input = document.getElementById('mobileCatalogSearch');
+    if (!input) return;
+    input.value = activeSearchTerm;
+    input.addEventListener('input', (e) => {
+        activeSearchTerm = e.target.value.trim();
+        document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."]').forEach(other => { other.value = activeSearchTerm; });
+        renderProducts(activeCategory, activeSearchTerm);
+    });
+}
+
 // عرض المنتجات (مع دعم البحث والتصنيف والترجمة التلقائية)
 function renderProducts(categoryFilter = "all", searchTerm = "", append = false) {
     const grid = document.getElementById('productsGrid');
@@ -655,28 +673,29 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const hasValidImage = !!(p.image && !isPlaceholderImage(p.image));
         const optimizedImage = hasValidImage ? getOptimizedImageUrl(p.image, 400, 400) : fbImage;
         const smallImage = hasValidImage ? getOptimizedImageUrl(p.image, 200, 200) : fbImage;
-        const loadingAttr = index < 4 && !append ? 'eager' : 'lazy';
-        const priorityAttr = index < 4 && !append ? 'fetchpriority="high"' : '';
+        const priorityCount = window.matchMedia('(max-width: 767px)').matches ? 2 : 4;
+        const loadingAttr = index < priorityCount && !append ? 'eager' : 'lazy';
+        const priorityAttr = index < priorityCount && !append ? 'fetchpriority="high"' : '';
         const decodeAttr = 'decoding="async"';
 
         const cardHtml = `
-            <article data-aos="fade-up" class="glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
-                <div class="relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" onerror="handleProductImageError(this)" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
+            <article class="catalog-product-card glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
+                <div class="catalog-product-media relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
+                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="catalog-product-image max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" onerror="handleProductImageError(this)" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
                     ${availabilityBadge}
                     ${hasDiscount ? `<div class="absolute top-3 left-3 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg">خصم ${discountPercentage}%</div>` : ''}
                     ${discountTimerHtml}
                 </div>
-                <div class="p-3 md:p-5 flex flex-col flex-1">
+                <div class="catalog-product-body p-3 md:p-5 flex flex-col flex-1">
                     <div class="catalog-card-meta">
                         <span class="catalog-card-category">${p.category}</span>
                         ${p.publicBrand ? `<span class="catalog-card-brand">${p.publicBrand}</span>` : ''}
                     </div>
-                    <h3 class="font-headline-md text-sm md:text-lg text-on-surface leading-tight mb-2 line-clamp-2 cursor-pointer hover:text-primary transition-colors" onclick="openProductModal('${p._id}')">${p.title}</h3>
+                    <h3 class="catalog-product-title font-headline-md text-sm md:text-lg text-on-surface leading-tight mb-2 line-clamp-2 cursor-pointer hover:text-primary transition-colors" onclick="openProductModal('${p._id}')">${p.title}</h3>
                     ${p.warranty ? `<div class="catalog-card-warranty"><span class="material-symbols-outlined">verified_user</span>${p.warranty}</div>` : ''}
                     <ul class="hidden md:flex text-xs text-on-surface-variant mb-4 flex-col gap-1.5 flex-1">${specsHtml}</ul>
                     
-                    <div class="mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
+                    <div class="catalog-product-footer mt-auto pt-3 md:pt-4 flex flex-col gap-2 border-t border-outline-variant/30">
                         <div class="flex items-center justify-between gap-2">
                             ${priceHtml}
                             <button onclick="shareProduct('${p.title}', '${p.price}', '${window.location.origin}/products?id=${p._id}&name=${encodeURIComponent(p.title.replace(/\\s+/g, '-'))}')" class="text-on-surface-variant hover:text-primary transition-colors p-2 bg-surface rounded-full border border-outline-variant/30 shrink-0" title="مشاركة">
@@ -685,7 +704,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
                                 </svg>
                             </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-1.5 sm:gap-2">
+                        <div class="catalog-product-actions grid grid-cols-2 gap-1.5 sm:gap-2">
                             <button onclick="addToCart('${p._id}'); event.stopPropagation();" class="${!isOutOfStock ? 'bg-primary/20 hover:bg-primary/30 border border-primary/30 text-primary' : 'bg-primary/10 border border-primary/10 text-primary/40 pointer-events-none'} w-full rounded h-10 px-1 sm:px-2 text-[10px] sm:text-[11px] md:text-xs font-bold transition-all flex items-center justify-center gap-1 sm:gap-2" title="أضف للسلة">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 sm:w-5 sm:h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                                 <span class="whitespace-nowrap">أضف للسلة</span>
@@ -706,6 +725,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
 
     // إضافة جميع الكروت للـ DOM في عملية واحدة
     grid.appendChild(fragment);
+    if (window.applyTechReveal) window.applyTechReveal(grid);
 
     updatePaginationControls(filtered.length);
 }
@@ -944,7 +964,10 @@ window.openProductModal = function(id) {
         }
     }
     
-    const specsHtml = p.description.map(spec => `<li class="product-detail-spec-item"><span class="material-symbols-outlined">check_circle</span><span>${spec}</span></li>`).join('');
+    const modalSpecs = Array.isArray(p.description) ? p.description : String(p.description || '').split(/\r?\n/).filter(Boolean);
+    const specsHtml = modalSpecs.length
+        ? modalSpecs.map(spec => `<li class="product-detail-spec-item"><span class="material-symbols-outlined">check_circle</span><span>${spec}</span></li>`).join('')
+        : '<li class="product-detail-spec-item"><span class="material-symbols-outlined">info</span><span>لا توجد مواصفات إضافية مسجلة لهذا المنتج.</span></li>';
     document.getElementById('modalSpecs').innerHTML = specsHtml;
 
     // Extra Details (SKU, Brand, Warranty)
@@ -1090,20 +1113,47 @@ window.closeProductModal = function() {
 
 // أيقونات السوشيال ميديا العائمة
 function injectFloatingSocials() {
+    // على الهاتف نعتمد على شريط التنقل السفلي حتى لا تتداخل الأزرار مع المنتجات.
     const div = document.createElement('div');
-    div.className = 'fixed bottom-6 left-6 z-40 flex flex-col gap-3';
+    div.className = 'desktop-floating-socials';
     div.innerHTML = `
-        <a href="${socialSettings().whatsappChannelUrl}" target="_blank" class="w-12 h-12 bg-[#25D366] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform" aria-label="تواصل معنا عبر واتساب" title="قناة الواتساب">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232"/></svg>
+        <a href="${socialSettings().whatsappChannelUrl}" target="_blank" rel="noopener noreferrer" class="desktop-social-btn desktop-social-btn--whatsapp" aria-label="قناة واتساب" title="قناة واتساب">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326z"/></svg>
         </a>
-        <a href="${socialSettings().telegramUrl}" target="_blank" rel="noopener noreferrer" class="w-12 h-12 bg-[#229ED9] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(34,158,217,0.3)] hover:scale-110 transition-transform" aria-label="قناة تليجرام" title="قناة تليجرام">
-            <i class="fa-brands fa-telegram text-[22px]"></i>
+        <a href="${socialSettings().facebookUrl}" target="_blank" rel="noopener noreferrer" class="desktop-social-btn desktop-social-btn--facebook" aria-label="فيسبوك" title="فيسبوك">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg>
+        </a>`;
+    document.body.appendChild(div);
+}
+
+function injectMobileDock() {
+    if (document.getElementById('mobileSiteDock')) return;
+    const path = window.location.pathname.toLowerCase();
+    const dock = document.createElement('nav');
+    dock.id = 'mobileSiteDock';
+    dock.className = 'mobile-site-dock';
+    dock.setAttribute('aria-label', 'التنقل السريع');
+    const homeActive = path === '/' || path.endsWith('/index.html');
+    const productsActive = path.includes('products');
+    const servicesActive = path.includes('services');
+    dock.innerHTML = `
+        <a href="/" class="mobile-dock-item ${homeActive ? 'is-active' : ''}" aria-label="الرئيسية">
+            <svg viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5V21h-6v-6H9v6H3z"/></svg><span>الرئيسية</span>
         </a>
-        <a href="${socialSettings().facebookUrl}" target="_blank" class="w-12 h-12 bg-[#1877F2] rounded-full flex items-center justify-center text-white shadow-[0_0_15px_rgba(24,119,242,0.3)] hover:scale-110 transition-transform" aria-label="صفحتنا على فيسبوك" title="صفحتنا على فيسبوك">
-            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" fill="currentColor" viewBox="0 0 16 16"><path d="M16 8.049c0-4.446-3.582-8.05-8-8.05C3.58 0-.002 3.603-.002 8.05c0 4.017 2.926 7.347 6.75 7.951v-5.625h-2.03V8.05H6.75V6.275c0-2.017 1.195-3.131 3.022-3.131.876 0 1.791.157 1.791.157v1.98h-1.009c-.993 0-1.303.621-1.303 1.258v1.51h2.218l-.354 2.326H9.25V16c3.824-.604 6.75-3.934 6.75-7.951z"/></svg>
+        <a href="/products" class="mobile-dock-item ${productsActive ? 'is-active' : ''}" aria-label="المنتجات">
+            <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 9h16M9 9v10"/></svg><span>المنتجات</span>
+        </a>
+        <button type="button" onclick="openCartSidebar()" class="mobile-dock-item mobile-dock-cart" aria-label="السلة">
+            <span class="mobile-dock-cart-icon"><svg viewBox="0 0 24 24"><path d="M3 4h2l2.2 10.5h9.8L20 7H6M9 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Zm8 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/></svg><b id="mobileCartBadge" class="${cart.length ? '' : 'hidden'}">${cart.reduce((n,i)=>n+i.quantity,0)}</b></span><span>السلة</span>
+        </button>
+        <a href="${socialSettings().whatsappChannelUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="واتساب">
+            <svg viewBox="0 0 16 16"><path d="M13.6 2.3A7.85 7.85 0 0 0 8 0 7.93 7.93 0 0 0 1.1 11.9L0 16l4.2-1.1A7.9 7.9 0 0 0 8 15.9 7.93 7.93 0 0 0 13.6 2.3Z"/></svg><span>واتساب</span>
+        </a>
+        <a href="${socialSettings().telegramUrl}" target="_blank" rel="noopener noreferrer" class="mobile-dock-item" aria-label="تليجرام">
+            <svg viewBox="0 0 24 24"><path d="m21.7 3.4-3.2 15c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.4-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6 12.1 1.2 10.6c-1-.3-1.1-1 .2-1.5L20 2c.9-.3 1.6.2 1.7 1.4Z"/></svg><span>تليجرام</span>
         </a>
     `;
-    document.body.appendChild(div);
+    document.body.appendChild(dock);
 }
 
 // ------------------ منطق السلة (Cart Logic) ------------------
@@ -1112,7 +1162,7 @@ function injectCartUI() {
     const cartIcon = document.createElement('button');
     cartIcon.id = 'floatingCartBtn';
     cartIcon.setAttribute('aria-label', 'عربة التسوق');
-    cartIcon.className = 'fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
+    cartIcon.className = 'desktop-cart-fab fixed bottom-6 right-6 z-50 flex items-center justify-center w-14 h-14 bg-primary text-on-primary rounded-full shadow-[0_0_20px_rgba(130,207,255,0.4)] hover:scale-110 transition-transform cursor-pointer';
     cartIcon.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
         <div id="cartBadge" class="absolute -top-1 -right-1 w-6 h-6 bg-error text-white rounded-full flex items-center justify-center text-xs font-bold font-mono-data shadow-md border border-background ${cart.length === 0 ? 'hidden' : ''}">
@@ -1128,8 +1178,8 @@ function injectCartUI() {
         <div id="cartOverlay" class="fixed inset-0 bg-background/60 backdrop-blur-sm z-[90] hidden opacity-0 transition-opacity duration-300" onclick="closeCartSidebar()"></div>
         
         <!-- Sidebar -->
-        <div id="cartSidebar" class="fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed">
-            <div class="flex items-center justify-between p-6 border-b border-outline-variant/30">
+        <div id="cartSidebar" class="cart-shell fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed">
+            <div class="cart-header flex items-center justify-between p-6 border-b border-outline-variant/30">
                 <div class="flex items-center gap-3 text-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
                     <h2 class="font-headline-md text-2xl">عربة التسوق</h2>
@@ -1139,12 +1189,12 @@ function injectCartUI() {
                 </button>
             </div>
             
-            <div id="cartItemsContainer" class="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+            <div id="cartItemsContainer" class="cart-items flex-1 overflow-y-auto p-6 flex flex-col gap-4">
                 <!-- المنتجات تضاف هنا -->
             </div>
             
-            <div class="p-6 border-t border-outline-variant/30 bg-surface/50">
-                <div class="flex items-center justify-between mb-4">
+            <div class="cart-checkout p-6 border-t border-outline-variant/30 bg-surface/50">
+                <div class="cart-total flex items-center justify-between mb-4">
                     <span class="text-on-surface-variant text-lg">الإجمالي:</span>
                     <span id="cartTotalPrice" class="font-display-lg text-2xl text-primary text-glow font-bold">0 ج.م</span>
                 </div>
@@ -1305,16 +1355,17 @@ function saveCart() {
 }
 
 function updateCartBadge() {
-    const badge = document.getElementById('cartBadge');
-    if (badge) {
-        const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+    ['cartBadge', 'mobileCartBadge'].forEach(id => {
+        const badge = document.getElementById(id);
+        if (!badge) return;
         if (totalItems > 0) {
             badge.textContent = totalItems;
             badge.classList.remove('hidden');
         } else {
             badge.classList.add('hidden');
         }
-    }
+    });
 }
 
 function showToast() {
@@ -1355,7 +1406,7 @@ function renderCart() {
         const latestProduct = globalProducts.find(p => p._id === item._id);
         const cartImage = getSafeImageUrl(latestProduct?.image || item.image, getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE));
         html += `
-            <div class="flex items-center gap-4 bg-surface/50 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/20 transition-colors">
+            <div class="cart-line-item flex items-center gap-4 bg-surface/50 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/20 transition-colors">
                 <img src="${cartImage}" onerror="handleProductImageError(this)" alt="${item.title}" width="64" height="64" loading="lazy" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
                 <div class="flex-1 min-w-0">
                     <h4 class="text-sm font-bold text-on-surface line-clamp-2">${item.title}</h4>
@@ -1545,10 +1596,42 @@ window.addEventListener('beforeunload', () => {
     sessionStorage.setItem('tech_scrollPos', String(window.scrollY));
 });
 
+function initLightweightMotion() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const reveal = (root = document) => {
+        const nodes = root.querySelectorAll('.home-feature-card, .service-card, .catalog-product-card');
+        if (!('IntersectionObserver' in window)) {
+            nodes.forEach(el => el.classList.add('is-revealed'));
+            return;
+        }
+        if (!window.__techRevealObserver) {
+            window.__techRevealObserver = new IntersectionObserver(entries => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('is-revealed');
+                        window.__techRevealObserver.unobserve(entry.target);
+                    }
+                });
+            }, { rootMargin: '80px 0px', threshold: 0.05 });
+        }
+        nodes.forEach(el => {
+            if (!el.dataset.revealBound) {
+                el.dataset.revealBound = '1';
+                window.__techRevealObserver.observe(el);
+            }
+        });
+    };
+    window.applyTechReveal = reveal;
+    reveal();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     trackPageVisit();
     injectProductModal();
     injectCartUI();
+    injectMobileDock();
+    setupMobileCatalogSearch();
+    initLightweightMotion();
     fetchProducts();
     injectFloatingSocials();
     loadStoreBranding();
@@ -1628,7 +1711,7 @@ if ('serviceWorker' in navigator) {
 const scrollToTopBtn = document.createElement('button');
 scrollToTopBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"></path></svg>';
 scrollToTopBtn.setAttribute('aria-label', 'العودة للأعلى');
-scrollToTopBtn.className = 'fixed bottom-28 right-6 z-50 bg-primary hover:bg-primary/90 text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center hover:scale-110';
+scrollToTopBtn.className = 'scroll-top-btn fixed bottom-28 right-6 z-50 bg-primary hover:bg-primary/90 text-white p-3 rounded-full shadow-xl transition-all duration-300 translate-y-16 opacity-0 flex items-center justify-center hover:scale-110';
 scrollToTopBtn.onclick = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 document.body.appendChild(scrollToTopBtn);
 
@@ -1719,7 +1802,11 @@ async function trackVisitor() {
     }
 }
 // Execute on load
-document.addEventListener('DOMContentLoaded', trackVisitor);
+window.addEventListener('load', () => {
+    const run = () => trackVisitor();
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 5000 });
+    else setTimeout(run, 2500);
+});
 
 function openQuickBuyModal(id) {
     const p = globalProducts.find(x => x._id === id);

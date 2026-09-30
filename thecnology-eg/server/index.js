@@ -429,36 +429,19 @@ app.get('/products', async (req, res) => {
         console.error('SSR OG Tags DB Error:', e.message);
       }
     } else {
-      // Protect FCP: Only wait up to 1.5s for DB to avoid cold start delays
-      try {
-        const fetchProducts = async () => {
-          const now = Date.now();
-          if (topProductsCache.data && (now - topProductsCache.timestamp < 3600000)) {
-            return topProductsCache.data;
+      // V6 performance: never block the HTML response on MongoDB for the normal catalog page.
+      // Product images are requested by app.js using Cloudinary-sized URLs after first paint.
+      // If a warm in-memory list already exists we may preload it, but we never wait for DB here.
+      const topProducts = topProductsCache.data || [];
+      if (topProducts.length > 0) {
+        let preloadTags = '';
+        topProducts.slice(0, 2).forEach(p => {
+          if (p.image && !p.image.includes('placehold.co')) {
+            const url = p.image.replace('/upload/', '/upload/w_220,h_220,c_fit,q_auto,f_auto/');
+            preloadTags += `<link rel="preload" as="image" href="${url}" fetchpriority="high">\n`;
           }
-          await ensureDBConnection();
-          const products = await Product.find({ isHidden: { $ne: true } }).limit(4).lean();
-          topProductsCache = { data: products, timestamp: now };
-          return products;
-        };
-
-        const topProducts = await Promise.race([
-          fetchProducts(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Cold Start Timeout')), 2500))
-        ]);
-
-        if (topProducts && topProducts.length > 0) {
-            let preloadTags = '';
-            topProducts.forEach(p => {
-                if (p.image && !p.image.includes('placehold.co')) {
-                    const url = p.image.replace('/upload/', '/upload/w_200,h_200,c_fill,q_auto,f_auto/');
-                    preloadTags += `<link rel="preload" as="image" href="${url}" fetchpriority="high">\n`;
-                }
-            });
-            html = html.replace('</head>', `    ${preloadTags}</head>`);
-        }
-      } catch (e) {
-        console.log('Skipped preload to save FCP:', e.message);
+        });
+        html = html.replace('</head>', `    ${preloadTags}</head>`);
       }
     }
     res.send(html);
@@ -928,10 +911,15 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
     // some existing records contain supplier names. Admins still receive it for
     // backwards compatibility and data preservation.
     if (!req.adminUser) {
-      query = query.select('-brand -imagePublicId -additionalImages.publicId');
+      // Send only fields used by the public storefront. This keeps mobile payloads small
+      // and also guarantees internal supplier/Cloudinary management fields stay private.
+      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt');
     }
 
     const products = await query.lean();
+    if (!req.adminUser && products.length) {
+      topProductsCache = { data: products.slice(0, 4), timestamp: Date.now() };
+    }
     res.json(products);
   } catch (error) {
     console.error('GET /api/products error:', error);

@@ -15,6 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
     <link rel="manifest" href="manifest.json">
+    <link rel="preconnect" href="https://res.cloudinary.com">
     <!-- Preconnect to Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,12 +34,12 @@
     </script>
 </head>
 
-<body class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
+<body data-page="products" class="bg-background text-on-surface font-body-md antialiased min-h-screen flex flex-col selection:bg-primary/30"
     dir="rtl">
 
     <!-- TopNavBar -->
     <header
-        class="bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
+        class="site-header bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
         <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
             <div class="flex items-center gap-4 md:gap-8">
                 <a class="flex items-center gap-2" href="/">
@@ -102,7 +103,7 @@
     </header>
 
     <!-- Mobile Category Filter Bar -->
-    <div class="md:hidden w-full px-4 pt-20 pb-2">
+    <div class="mobile-category-shell md:hidden w-full px-4 pt-20 pb-2">
         <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide" id="mobileCategoryFilters">
             <button
                 class="filter-btn active shrink-0 px-4 py-2 rounded-full bg-primary/20 text-primary border border-primary/30 text-sm font-bold whitespace-nowrap"
@@ -193,18 +194,27 @@
         </aside>
 
         <!-- Main Content Canvas -->
-        <main class="flex-1 pb-24 w-full">
-            <section class="catalog-control-panel glass-panel" aria-label="فلاتر المنتجات">
+        <main class="products-main flex-1 pb-24 w-full">
+            <section id="catalogControls" class="catalog-control-panel glass-panel" aria-label="فلاتر المنتجات">
                 <div class="catalog-control-top">
-                    <div>
+                    <div class="catalog-control-heading">
                         <h1 class="catalog-page-title">كتالوج المنتجات</h1>
                         <p id="productsResultCount" class="catalog-result-count">جاري تحميل المنتجات...</p>
                     </div>
-                    <button type="button" onclick="clearCatalogFilters()" class="catalog-clear-btn">
-                        <span class="material-symbols-outlined">filter_alt_off</span> مسح الفلاتر
-                    </button>
+                    <div class="catalog-control-actions">
+                        <button type="button" onclick="toggleCatalogFilters()" class="catalog-filter-toggle" aria-expanded="false" aria-controls="catalogFilterGrid">
+                            <span class="material-symbols-outlined">tune</span> فلترة وترتيب
+                        </button>
+                        <button type="button" onclick="clearCatalogFilters()" class="catalog-clear-btn">
+                            <span class="material-symbols-outlined">filter_alt_off</span> مسح
+                        </button>
+                    </div>
                 </div>
-                <div class="catalog-filter-grid">
+                <label class="catalog-mobile-search">
+                    <span class="material-symbols-outlined">search</span>
+                    <input id="mobileCatalogSearch" class="catalog-mobile-search-input" placeholder="ابحث باسم المنتج أو الكود..." type="search" autocomplete="off">
+                </label>
+                <div id="catalogFilterGrid" class="catalog-filter-grid">
                     <label class="catalog-filter-field">
                         <span>العلامة التجارية</span>
                         <select id="brandFilter" onchange="applyCatalogFilters()" aria-label="العلامة التجارية">
@@ -241,7 +251,7 @@
 
     <!-- Footer -->
     <footer
-        class="bg-surface-container-lowest text-secondary font-mono-data text-mono-data w-full mt-auto border-t border-outline-variant">
+        class="site-footer bg-surface-container-lowest text-secondary font-mono-data text-mono-data w-full mt-auto border-t border-outline-variant">
         <div
             class="grid grid-cols-1 md:grid-cols-4 gap-gutter px-gutter md:px-margin-desktop py-12 w-full max-w-container-max mx-auto">
             <div class="md:col-span-1 flex flex-col gap-4">
