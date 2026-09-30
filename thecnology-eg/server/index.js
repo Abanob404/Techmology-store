@@ -399,7 +399,7 @@ function normalizePublicUrl(value, allowedHosts = []) {
 
 let topProductsCache = { data: null, timestamp: 0 };
 
-// --- SSR product routes: /products (legacy) + clean short share links /p/:code ---
+// --- SSR product routes: /products + human-readable product share links ---
 function decodeProductShareCode(value = '') {
   const raw = String(value || '').trim();
   if (/^[a-f0-9]{24}$/i.test(raw)) return raw;
@@ -411,10 +411,54 @@ function decodeProductShareCode(value = '') {
     return /^[a-f0-9]{24}$/i.test(hex) ? hex : '';
   } catch (_) { return ''; }
 }
+function slugifyProductTitle(title = '') {
+  const slug = String(title || 'product')
+    .normalize('NFKC')
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-')
+    .slice(0, 88);
+  return slug || 'product';
+}
 function escapeHtmlAttr(value = '') {
   return String(value).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-async function renderProductsPage(req, res, productIdOverride = '') {
+async function resolveSharedProduct(slugOrLegacyCode = '', ref = '') {
+  await ensureDBConnection();
+  const slug = decodeURIComponent(String(slugOrLegacyCode || '')).trim();
+  const reference = decodeURIComponent(String(ref || '')).trim();
+  const visible = { isHidden: { $ne: true } };
+
+  // Backward compatibility with V6.2 /p/:shortCode links.
+  if (!reference) {
+    const legacyId = decodeProductShareCode(slug);
+    if (legacyId && mongoose.isValidObjectId(legacyId)) {
+      return Product.findOne({ _id: legacyId, ...visible }).lean();
+    }
+  }
+
+  if (reference) {
+    const bySku = await Product.findOne({ sku: reference, ...visible }).lean();
+    if (bySku && slugifyProductTitle(bySku.title) === slug) return bySku;
+
+    const refId = decodeProductShareCode(reference);
+    if (refId && mongoose.isValidObjectId(refId)) {
+      const byId = await Product.findOne({ _id: refId, ...visible }).lean();
+      if (byId && slugifyProductTitle(byId.title) === slug) return byId;
+    }
+  }
+
+  // Human-readable link such as /p/flash-kingston-128.
+  // We resolve it without changing any stored product data.
+  const candidates = await Product.find(visible)
+    .select('title category price image sku publicBrand warranty description oldPrice additionalImages stockQuantity')
+    .limit(3000)
+    .lean();
+  return candidates.find(product => slugifyProductTitle(product.title) === slug) || null;
+}
+async function renderProductsPage(req, res, productIdOverride = '', productOverride = null) {
   try {
     const htmlPath = path.join(__dirname, '../products_page.html');
     let html = fs.readFileSync(htmlPath, 'utf-8');
@@ -422,8 +466,8 @@ async function renderProductsPage(req, res, productIdOverride = '') {
     if (productId && mongoose.isValidObjectId(productId)) {
       try {
         await ensureDBConnection();
-        const product = await Product.findById(productId).lean();
-        if (product) {
+        const product = productOverride || await Product.findById(productId).lean();
+        if (product && product.isHidden !== true) {
           const safeTitle = escapeHtmlAttr(`${product.title} | TECHNOLOGY`);
           const priceText = Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('en-US')} ج.م` : '';
           const safeDescription = escapeHtmlAttr([priceText ? `السعر: ${priceText}` : '', product.category ? `قسم: ${product.category}` : ''].filter(Boolean).join(' • '));
@@ -437,6 +481,7 @@ async function renderProductsPage(req, res, productIdOverride = '') {
           html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${escapeHtmlAttr(image)}">`);
           if (/<meta property="og:url"/.test(html)) html = html.replace(/<meta property="og:url" content=".*?">/, `<meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">`);
           else html = html.replace('</head>', `    <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">\n</head>`);
+          html = html.replace('</head>', `    <script>window.__SHARED_PRODUCT_ID__=${JSON.stringify(String(product._id))};</script>\n</head>`);
         }
       } catch (e) { console.error('SSR OG Tags DB Error:', e.message); }
     } else if (!productId) {
@@ -459,7 +504,16 @@ async function renderProductsPage(req, res, productIdOverride = '') {
   }
 }
 app.get('/products', (req, res) => renderProductsPage(req, res));
-app.get('/p/:code', (req, res) => renderProductsPage(req, res, decodeProductShareCode(req.params.code)));
+app.get('/p/:slug/:ref?', async (req, res) => {
+  try {
+    const product = await resolveSharedProduct(req.params.slug, req.params.ref || '');
+    if (!product) return renderProductsPage(req, res);
+    return renderProductsPage(req, res, String(product._id), product);
+  } catch (err) {
+    console.error('Shared product route error:', err);
+    return renderProductsPage(req, res);
+  }
+});
 
 // --- الـ API Routes الخاصة بمزامنة برنامج الكاشير (POS) ---
 

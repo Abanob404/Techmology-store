@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v6-2-share-social';
+const CACHE_NAME = 'technology-store-v6-3-readable-share';
 const APP_SHELL = [
   '/',
   '/products',
