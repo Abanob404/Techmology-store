@@ -842,9 +842,6 @@
             </div>
         </div>
 
-    </div>
-
-
         <!-- ========= TAB 6: Logs ========= -->
         <div id="panel-logs" class="tab-panel hidden">
             <div class="glass-panel p-5 md:p-6 rounded-xl border border-primary/20 flex flex-col min-h-[300px]">
@@ -957,104 +954,129 @@
     </div>
 
     <!-- Edit Product Modal -->
-    <div id="editProductModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
-        <div class="bg-surface border border-outline-variant/30 rounded-xl w-full max-w-2xl max-h-[90vh] flex flex-col transform scale-95 transition-transform duration-300 shadow-2xl relative" id="editProductModalContent">
-            <!-- Header (Fixed) -->
-            <div class="p-6 pb-4 border-b border-outline-variant/30 flex justify-between items-center relative">
-                <h3 class="font-headline-md text-xl text-on-surface flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary text-[22px]">edit</span> تعديل المنتج
-                </h3>
-                <button onclick="closeEditModal()" class="text-on-surface-variant hover:text-red-500 transition-colors">
+    <div id="editProductModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-3 md:p-5 bg-background/80 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="product-edit-modal-shell transform scale-95 transition-transform duration-300" id="editProductModalContent">
+            <div class="product-edit-modal-header">
+                <div class="product-edit-modal-heading">
+                    <span class="product-edit-modal-icon material-symbols-outlined">edit_square</span>
+                    <div>
+                        <h3>تعديل المنتج</h3>
+                        <p>عدّل البيانات، السعر، المخزون والصور من مكان واحد.</p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeEditModal()" class="product-edit-close" aria-label="إغلاق نافذة تعديل المنتج">
                     <span class="material-symbols-outlined">close</span>
                 </button>
             </div>
-            
-            <!-- Form containing scrollable body and fixed footer -->
-            <form id="editProductForm" class="flex flex-col flex-1 overflow-hidden">
+
+            <form id="editProductForm" class="product-edit-form">
                 <input type="hidden" id="editProductId">
 
-                <!-- Scrollable Fields Area -->
-                <div class="p-6 overflow-y-auto flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="md:col-span-2">
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">اسم المنتج</label>
-                        <input type="text" id="editPTitle" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">القسم</label>
-                        <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر (ج.م)</label>
-                        <input type="number" id="editPPrice" required class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                    </div>
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السعر قبل الخصم (اختياري)</label>
-                        <input type="number" id="editPOldPrice" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">مدة الخصم</label>
-                        <select id="editPDiscountType" onchange="document.getElementById('editPDiscountValueContainer').style.display = this.value ? 'block' : 'none'" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                            <option value="">بدون وقت (مستمر)</option>
-                            <option value="days">أيام</option>
-                            <option value="hours">ساعات</option>
-                        </select>
-                    </div>
-                    <div id="editPDiscountValueContainer" style="display: none;">
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">القيمة</label>
-                        <input type="number" id="editPDiscountValue" min="1" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                    </div>
-                    
-                    <div class="md:col-span-2">
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الوصف (كل سطر = مواصفة)</label>
-                        <textarea id="editPDesc" rows="3" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></textarea>
-                    </div>
+                <div id="editProductScrollArea" class="product-edit-scroll">
+                    <section class="product-edit-section">
+                        <div class="product-edit-section-title">
+                            <span class="material-symbols-outlined">description</span>
+                            <div><strong>البيانات الأساسية</strong><small>المعلومات التي تعرّف المنتج للعميل.</small></div>
+                        </div>
+                        <div class="product-edit-grid product-edit-grid--2">
+                            <label class="product-edit-field product-edit-field--wide">
+                                <span>اسم المنتج</span>
+                                <input type="text" id="editPTitle" required placeholder="اسم واضح ومختصر للمنتج">
+                            </label>
+                            <label class="product-edit-field">
+                                <span>القسم</span>
+                                <input type="text" id="editPCategory" list="categoriesList" placeholder="اختر أو اكتب قسم جديد" required>
+                            </label>
+                            <label class="product-edit-field">
+                                <span>العلامة التجارية الظاهرة للعميل</span>
+                                <input type="text" id="editPPublicBrand" placeholder="مثال: Hikvision / Dahua">
+                                <small>اسم المورد الداخلي لا يظهر للعميل.</small>
+                            </label>
+                            <label class="product-edit-field">
+                                <span>السيريال كود (SKU)</span>
+                                <input type="text" id="editPSku" placeholder="اختياري" dir="ltr">
+                            </label>
+                            <label class="product-edit-field">
+                                <span>فترة الضمان</span>
+                                <input type="text" id="editPWarranty" placeholder="مثال: سنة واحدة">
+                            </label>
+                        </div>
+                    </section>
 
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">الكمية المتاحة</label>
-                        <input type="number" id="editPQuantity" required min="0" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm font-mono-data">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">السيريال كود (SKU)</label>
-                        <input type="text" id="editPSku" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                    </div>
+                    <section class="product-edit-section">
+                        <div class="product-edit-section-title">
+                            <span class="material-symbols-outlined">payments</span>
+                            <div><strong>السعر والمخزون</strong><small>السعر الحالي، الخصم والكمية المتاحة.</small></div>
+                        </div>
+                        <div class="product-edit-grid product-edit-grid--3">
+                            <label class="product-edit-field">
+                                <span>السعر الحالي (ج.م)</span>
+                                <div class="product-edit-input-with-icon"><span class="material-symbols-outlined">payments</span><input type="number" id="editPPrice" min="0" step="0.01" required></div>
+                            </label>
+                            <label class="product-edit-field">
+                                <span>السعر قبل الخصم</span>
+                                <div class="product-edit-input-with-icon"><span class="material-symbols-outlined">sell</span><input type="number" id="editPOldPrice" min="0" step="0.01" placeholder="اختياري"></div>
+                            </label>
+                            <label class="product-edit-field">
+                                <span>الكمية المتاحة</span>
+                                <div class="product-edit-input-with-icon"><span class="material-symbols-outlined">inventory_2</span><input type="number" id="editPQuantity" required min="0"></div>
+                            </label>
+                            <label class="product-edit-field">
+                                <span>مدة الخصم</span>
+                                <select id="editPDiscountType" onchange="document.getElementById('editPDiscountValueContainer').style.display = this.value ? 'flex' : 'none'">
+                                    <option value="">بدون وقت (مستمر)</option>
+                                    <option value="days">أيام</option>
+                                    <option value="hours">ساعات</option>
+                                </select>
+                            </label>
+                            <label class="product-edit-field" id="editPDiscountValueContainer" style="display:none">
+                                <span>مدة العرض</span>
+                                <input type="number" id="editPDiscountValue" min="1" placeholder="القيمة">
+                            </label>
+                        </div>
+                    </section>
 
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">العلامة التجارية الظاهرة للعميل</label>
-                        <input type="text" id="editPPublicBrand" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                    </div>
+                    <section class="product-edit-section">
+                        <div class="product-edit-section-title">
+                            <span class="material-symbols-outlined">format_list_bulleted</span>
+                            <div><strong>المواصفات</strong><small>كل سطر سيظهر كمواصفة منفصلة للعميل.</small></div>
+                        </div>
+                        <label class="product-edit-field">
+                            <span>الوصف والمواصفات</span>
+                            <textarea id="editPDesc" rows="5" placeholder="مثال:&#10;دقة 2MP&#10;رؤية ليلية&#10;ضمان سنة"></textarea>
+                        </label>
+                    </section>
 
-                    <div>
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">فترة الضمان</label>
-                        <input type="text" id="editPWarranty" class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm">
-                    </div>
-
-                    <div class="md:col-span-2">
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-2">الصور الحالية <span class="text-on-surface-variant/50 text-xs">(اضغط ❌ على أي صورة لحذفها)</span></label>
-                        <div id="editCurrentImages" class="flex flex-wrap gap-3 mb-4 p-3 bg-surface-container-low rounded-lg border border-outline-variant/20 min-h-[60px]">
-                            <span class="text-on-surface-variant/50 text-xs self-center">لا توجد صور</span>
+                    <section class="product-edit-section">
+                        <div class="product-edit-section-title">
+                            <span class="material-symbols-outlined">photo_library</span>
+                            <div><strong>صور المنتج</strong><small>رتّب الصور أو احذف صورة وأضف صورًا جديدة.</small></div>
+                        </div>
+                        <div class="product-edit-current-images-wrap">
+                            <div class="product-edit-images-label"><span>الصور الحالية</span><small>الصورة الأساسية مميزة بنجمة.</small></div>
+                            <div id="editCurrentImages" class="product-edit-current-images">
+                                <span class="text-on-surface-variant/50 text-xs self-center">لا توجد صور</span>
+                            </div>
                         </div>
 
-                        <label class="block text-on-surface-variant text-sm font-semibold mb-1">إضافة صور جديدة <span class="text-on-surface-variant/50 text-xs">(اختياري - يمكنك تحديد أكثر من صورة)</span></label>
-                        <input type="file" id="editPImage" multiple accept="image/webp,image/jpeg,image/png" class="w-full text-on-surface-variant text-xs file:mr-4 file:py-1.5 file:px-3 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-primary/20 file:text-primary hover:file:bg-primary/30 transition-all">
-                        <div class="mt-2 flex items-center gap-2">
-                            <input type="checkbox" id="editReplaceMainImage" class="accent-primary w-4 h-4 cursor-pointer">
-                            <label for="editReplaceMainImage" class="text-sm text-on-surface cursor-pointer select-none">استبدال الصورة الأساسية بالصورة الجديدة الأولى (سيتم نقل القديمة للمعرض)</label>
-                        </div>
-                        <div id="editImagePreviewContainer" class="hidden flex-wrap gap-2 mt-3 p-2 bg-surface rounded border border-outline-variant/30"></div>
-                    </div>
+                        <label class="product-edit-upload-zone" for="editPImage">
+                            <span class="material-symbols-outlined">cloud_upload</span>
+                            <strong>إضافة صور جديدة</strong>
+                            <small>JPG / PNG / WebP — يمكنك اختيار أكثر من صورة، وسيتم تحويل المرفوع إلى WebP.</small>
+                        </label>
+                        <input type="file" id="editPImage" multiple accept="image/webp,image/jpeg,image/png" class="hidden">
+                        <label class="product-edit-check">
+                            <input type="checkbox" id="editReplaceMainImage">
+                            <span><strong>اجعل أول صورة جديدة هي الصورة الأساسية</strong><small>سيتم نقل الصورة الأساسية القديمة إلى المعرض بدل حذفها.</small></span>
+                        </label>
+                        <div id="editImagePreviewContainer" class="hidden product-edit-new-preview"></div>
+                    </section>
                 </div>
 
-                <!-- Footer Actions (Fixed/Sticky at bottom) -->
-                <div class="p-6 bg-surface border-t border-outline-variant/30 flex gap-3 z-10">
-                    <button type="submit" class="flex-1 py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2">
-                        <span class="material-symbols-outlined text-[18px]">save</span> حفظ التعديلات
-                    </button>
-                    <button type="button" onclick="closeEditModal()" class="flex-1 py-2.5 bg-surface-container border border-outline-variant text-on-surface font-bold rounded hover:bg-surface-variant transition-all text-sm">
-                        إلغاء
+                <div class="product-edit-footer">
+                    <button type="button" onclick="closeEditModal()" class="admin-action-btn product-edit-cancel">إلغاء</button>
+                    <button type="submit" class="admin-action-btn admin-action-btn--primary product-edit-save">
+                        <span class="material-symbols-outlined">save</span> حفظ التعديلات
                     </button>
                 </div>
             </form>

@@ -1432,7 +1432,7 @@ window.openEditModal = function(id) {
             const hours = Math.ceil(remaining / (1000 * 60 * 60));
             document.getElementById('editPDiscountType').value = 'hours';
             document.getElementById('editPDiscountValue').value = hours;
-            document.getElementById('editPDiscountValueContainer').style.display = 'block';
+            document.getElementById('editPDiscountValueContainer').style.display = 'flex';
         } else {
             document.getElementById('editPDiscountType').value = '';
             document.getElementById('editPDiscountValue').value = '';
@@ -1470,9 +1470,12 @@ window.openEditModal = function(id) {
     }
 
     const modal = document.getElementById('editProductModal');
+    const editScrollArea = document.getElementById('editProductScrollArea');
+    if (editScrollArea) editScrollArea.scrollTop = 0;
     modal.classList.remove('hidden');
     document.body.classList.add('overflow-hidden');
     setTimeout(() => {
+        if (editScrollArea) editScrollArea.scrollTop = 0;
         modal.classList.remove('opacity-0');
         document.getElementById('editProductModalContent').classList.remove('scale-95');
     }, 10);

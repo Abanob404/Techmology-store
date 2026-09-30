@@ -776,37 +776,37 @@ function injectProductModal() {
             <div class="absolute inset-0 bg-background/80 backdrop-blur-md cursor-pointer" onclick="closeProductModal()"></div>
             
             <!-- Modal Content -->
-            <div class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto glass-panel rounded-2xl border border-primary/20 shadow-2xl flex flex-col md:flex-row transform scale-95 transition-transform duration-300" id="productModalContent">
+            <div class="product-detail-modal relative w-full max-w-5xl max-h-[92vh] overflow-y-auto glass-panel rounded-2xl border border-primary/20 shadow-2xl flex flex-col md:flex-row transform scale-95 transition-transform duration-300" id="productModalContent">
                 
                 <!-- Close Button -->
-                <button onclick="closeProductModal()" class="absolute top-4 left-4 z-10 w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
+                <button onclick="closeProductModal()" class="product-detail-close absolute top-4 left-4 z-10 w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
 
                 <!-- Image Section -->
-                <div class="w-full md:w-1/2 p-5 flex flex-col justify-center items-center shrink-0 border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
-                    <div class="w-full h-72 sm:h-80 md:h-96 rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center shrink-0 relative">
+                <div class="product-detail-media w-full md:w-1/2 p-5 flex flex-col justify-center items-center shrink-0 border-b md:border-b-0 md:border-l border-outline-variant/30 relative">
+                    <div class="product-detail-image-stage w-full h-72 sm:h-80 md:h-96 rounded-2xl overflow-hidden bg-surface-container-high border border-outline-variant/20 shadow-inner flex items-center justify-center shrink-0 relative">
                         <img id="modalImage" src="" alt="Product Image" width="600" height="600" loading="lazy" class="mx-auto block object-contain max-w-full max-h-full w-auto h-auto p-2 rounded-2xl drop-shadow-2xl transition-opacity duration-200">
                     </div>
                     <div id="modalBadge" class="absolute top-7 right-7 z-10"></div>
                     <!-- Image Gallery -->
-                    <div id="modalImageGallery" class="flex flex-wrap justify-center gap-2 mt-4 w-full px-2"></div>
+                    <div id="modalImageGallery" class="product-detail-gallery flex flex-wrap justify-center gap-2 mt-4 w-full px-2"></div>
                 </div>
 
                 <!-- Details Section -->
-                <div class="w-full md:w-1/2 p-6 md:p-8 flex flex-col">
-                    <span id="modalCategory" class="text-on-surface-variant text-xs font-mono-data tracking-wider uppercase mb-2"></span>
-                    <h2 id="modalTitle" class="font-headline-md text-2xl md:text-3xl text-on-surface mb-4 leading-tight"></h2>
-                    <div class="text-primary font-display-lg text-3xl font-bold text-glow mb-4" id="modalPrice"></div>
+                <div class="product-detail-info w-full md:w-1/2 p-6 md:p-8 flex flex-col">
+                    <span id="modalCategory" class="product-detail-category text-on-surface-variant text-xs font-mono-data tracking-wider uppercase mb-2"></span>
+                    <h2 id="modalTitle" class="product-detail-title font-headline-md text-2xl md:text-3xl text-on-surface mb-4 leading-tight"></h2>
+                    <div class="product-detail-price text-primary font-display-lg text-3xl font-bold text-glow mb-4" id="modalPrice"></div>
                     
-                    <div id="modalExtraDetails" class="grid grid-cols-2 gap-3 mb-6 bg-surface-container-high p-4 rounded-xl border border-outline-variant/30 text-sm">
+                    <div id="modalExtraDetails" class="product-detail-meta grid grid-cols-2 gap-3 mb-6 bg-surface-container-high p-4 rounded-xl border border-outline-variant/30 text-sm">
                         <!-- Details injected here -->
                     </div>
 
-                    <h4 class="text-sm font-bold text-on-surface mb-3 border-b border-outline-variant/30 pb-2">المواصفات الأساسية</h4>
-                    <ul id="modalSpecs" class="flex flex-col gap-2 text-sm text-on-surface-variant mb-8 flex-1"></ul>
+                    <h4 class="product-detail-section-title text-sm font-bold text-on-surface mb-3 border-b border-outline-variant/30 pb-2"><span class="material-symbols-outlined">checklist</span> المواصفات الأساسية</h4>
+                    <ul id="modalSpecs" class="product-detail-specs flex flex-col gap-2 text-sm text-on-surface-variant mb-8 flex-1"></ul>
 
-                    <div class="flex flex-col gap-3 mt-auto pt-4 border-t border-outline-variant/30">
+                    <div class="product-detail-actions flex flex-col gap-3 mt-auto pt-4 border-t border-outline-variant/30">
                         <div class="flex gap-3">
                             <button id="modalAddToCartBtn" class="flex-1 bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 font-bold py-3 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm md:text-base">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -817,13 +817,13 @@ function injectProductModal() {
                                 استفسر الآن
                             </a>
                         </div>
-                        <button id="modalShareBtn" class="w-full py-3 bg-surface-container border border-outline-variant/50 text-on-surface hover:text-primary rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
+                        <button id="modalShareBtn" class="product-detail-share w-full py-3 bg-surface-container border border-outline-variant/50 text-on-surface hover:text-primary rounded-lg transition-colors flex items-center justify-center gap-2 text-sm">
                             <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"></path></svg>
                             مشاركة رابط المنتج
                         </button>
                         
                         <!-- Related Products -->
-                        <div id="modalRelatedProducts" class="mt-8 pt-6 border-t border-outline-variant/30 hidden">
+                        <div id="modalRelatedProducts" class="product-detail-related mt-8 pt-6 border-t border-outline-variant/30 hidden">
                             <h4 class="text-sm font-bold text-on-surface mb-4 flex items-center gap-2">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                                 منتجات مشابهة قد تعجبك
@@ -944,15 +944,15 @@ window.openProductModal = function(id) {
         }
     }
     
-    const specsHtml = p.description.map(spec => `<li class="flex gap-2"><span class="text-primary">•</span><span>${spec}</span></li>`).join('');
+    const specsHtml = p.description.map(spec => `<li class="product-detail-spec-item"><span class="material-symbols-outlined">check_circle</span><span>${spec}</span></li>`).join('');
     document.getElementById('modalSpecs').innerHTML = specsHtml;
 
     // Extra Details (SKU, Brand, Warranty)
     const extraDetailsContainer = document.getElementById('modalExtraDetails');
     let extraHtml = '';
-    if (p.publicBrand) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">العلامة التجارية</span><span class="font-bold text-on-surface">${p.publicBrand}</span></div>`;
-    if (p.sku) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">السيريال كود (SKU)</span><span class="font-bold text-on-surface font-mono-data">${p.sku}</span></div>`;
-    if (p.warranty) extraHtml += `<div class="flex flex-col"><span class="text-on-surface-variant text-xs mb-0.5">الضمان</span><span class="font-bold text-on-surface">${p.warranty}</span></div>`;
+    if (p.publicBrand) extraHtml += `<div class="product-detail-meta-item"><span class="material-symbols-outlined">sell</span><div><small>العلامة التجارية</small><strong>${p.publicBrand}</strong></div></div>`;
+    if (p.sku) extraHtml += `<div class="product-detail-meta-item"><span class="material-symbols-outlined">qr_code_2</span><div><small>السيريال كود (SKU)</small><strong class="font-mono-data">${p.sku}</strong></div></div>`;
+    if (p.warranty) extraHtml += `<div class="product-detail-meta-item"><span class="material-symbols-outlined">verified_user</span><div><small>الضمان</small><strong>${p.warranty}</strong></div></div>`;
     
     if (extraHtml) {
         extraDetailsContainer.innerHTML = extraHtml;
@@ -1047,7 +1047,7 @@ window.openProductModal = function(id) {
             relatedContainer.innerHTML = shuffled.map(prod => {
                 const img = (prod.image && !isPlaceholderImage(prod.image)) ? getSafeImageUrl(prod.image, getFallbackImage(prod)) : getFallbackImage(prod);
                 return `
-                    <div class="bg-surface-variant/30 p-2 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-surface-variant/70 transition-colors border border-outline-variant/30" onclick="closeProductModal(); setTimeout(() => openProductModal('${prod._id}'), 300)">
+                    <div class="product-detail-related-card bg-surface-variant/30 p-2 rounded-xl flex flex-col items-center gap-2 cursor-pointer hover:bg-surface-variant/70 transition-colors border border-outline-variant/30" onclick="closeProductModal(); setTimeout(() => openProductModal('${prod._id}'), 300)">
                         <img src="${img}" onerror="handleProductImageError(this)" class="w-16 h-16 object-contain rounded-lg">
                         <span class="text-[10px] text-center text-on-surface line-clamp-2">${prod.title}</span>
                         <span class="text-primary font-bold text-xs">${prod.price} ج.م</span>
