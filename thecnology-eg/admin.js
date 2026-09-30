@@ -807,6 +807,11 @@ if (addForm) {
         const sku = document.getElementById('pSku').value;
         const warranty = document.getElementById('pWarranty').value;
         const publicBrand = document.getElementById('pPublicBrand').value;
+        const customBadge = document.getElementById('pCustomBadge')?.value || '';
+        const tags = document.getElementById('pTags')?.value || '';
+        const isFeatured = document.getElementById('pIsFeatured')?.checked || false;
+        const seoTitle = document.getElementById('pSeoTitle')?.value || '';
+        const seoDescription = document.getElementById('pSeoDescription')?.value || '';
 
         const formData = new FormData();
         formData.append('title', title);
@@ -818,6 +823,11 @@ if (addForm) {
         formData.append('sku', sku);
         formData.append('warranty', warranty);
         formData.append('publicBrand', publicBrand);
+        formData.append('customBadge', customBadge);
+        formData.append('tags', tags);
+        formData.append('isFeatured', isFeatured ? 'true' : 'false');
+        formData.append('seoTitle', seoTitle);
+        formData.append('seoDescription', seoDescription);
 
         const type = document.getElementById('pDiscountType')?.value;
         const val = parseInt(document.getElementById('pDiscountValue')?.value);
@@ -1260,6 +1270,15 @@ window.saveBrandingSettings = async function() {
 let defaultProductImage = '';
 let tempDefaultProductImageFile = null;
 
+function toDateTimeLocalValue(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 16);
+}
+let tempPromoBannerFile = null;
+
 async function loadStoreSettings() {
     try {
         const response = await adminFetch(`${BASE_URL}/api/settings`);
@@ -1285,6 +1304,34 @@ async function loadStoreSettings() {
         setValue('socialInstagramUrl', settings.instagramUrl || '');
         setValue('socialTiktokUrl', settings.tiktokUrl || 'https://www.tiktok.com/@technologystore.official');
         setValue('socialXUrl', settings.xUrl || 'https://x.com/techstoreeg');
+
+        const setChecked = (id, value) => { const el = document.getElementById(id); if (el) el.checked = Boolean(value); };
+        setChecked('enableWishlist', settings.enableWishlist !== false);
+        setChecked('enableCompare', settings.enableCompare !== false);
+        setChecked('enableRecentlyViewed', settings.enableRecentlyViewed !== false);
+        setChecked('enableSmartSearch', settings.enableSmartSearch !== false);
+        setChecked('showHomeCollections', settings.showHomeCollections !== false);
+        setChecked('promoBannerEnabled', Boolean(settings.promoBannerEnabled));
+        setChecked('seasonalEffectEnabled', Boolean(settings.seasonalEffectEnabled));
+        setChecked('pushEnabled', Boolean(settings.pushEnabled));
+        setValue('lowStockThreshold', settings.lowStockThreshold ?? 3);
+        setValue('newProductDays', settings.newProductDays ?? 30);
+        setValue('promoBannerText', settings.promoBannerText || '');
+        setValue('promoBannerButtonText', settings.promoBannerButtonText || 'اكتشف الآن');
+        setValue('promoBannerLink', settings.promoBannerLink || '/products');
+        setValue('seasonalMessage', settings.seasonalMessage || '');
+        setValue('promoBannerStartsAt', toDateTimeLocalValue(settings.promoBannerStartsAt));
+        setValue('promoBannerEndsAt', toDateTimeLocalValue(settings.promoBannerEndsAt));
+        setValue('seasonalEffectStartsAt', toDateTimeLocalValue(settings.seasonalEffectStartsAt));
+        setValue('seasonalEffectEndsAt', toDateTimeLocalValue(settings.seasonalEffectEndsAt));
+        const effect = document.getElementById('seasonalEffect'); if (effect) effect.value = settings.seasonalEffect || 'off';
+        const intensity = document.getElementById('seasonalEffectIntensity'); if (intensity) intensity.value = settings.seasonalEffectIntensity || 'medium';
+        const pushStatus = document.getElementById('pushStatusText'); if (pushStatus) {
+            pushStatus.textContent = settings.pushAvailable ? 'جاهز للإرسال — مفاتيح VAPID مضبوطة' : 'غير جاهز — أضف VAPID_PUBLIC_KEY و VAPID_PRIVATE_KEY';
+            pushStatus.className = `block text-[10px] mt-1 ${settings.pushAvailable ? 'text-green-400' : 'text-amber-400'}`;
+        }
+        const promoPreview = document.getElementById('promoBannerPreview');
+        if (promoPreview && settings.promoBannerImage) { promoPreview.src = adminSafeImageUrl(settings.promoBannerImage); promoPreview.classList.remove('hidden'); }
     } catch (err) {
         console.error('Error loading store settings:', err);
     }
@@ -1332,6 +1379,57 @@ if (defaultProductImageInput) {
         }
     });
 }
+
+const promoBannerImageInput = document.getElementById('promoBannerImageInput');
+if (promoBannerImageInput) {
+    promoBannerImageInput.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        tempPromoBannerFile = file;
+        const preview = document.getElementById('promoBannerPreview');
+        if (preview) { preview.src = URL.createObjectURL(file); preview.classList.remove('hidden'); }
+    });
+}
+
+window.saveExperienceSettings = async function() {
+    const fd = new FormData();
+    const add = (id, key=id) => { const el=document.getElementById(id); if(el) fd.append(key, el.value || ''); };
+    const addBool = (id, key=id) => { const el=document.getElementById(id); if(el) fd.append(key, el.checked ? 'true':'false'); };
+    addBool('promoBannerEnabled'); add('promoBannerText'); add('promoBannerButtonText'); add('promoBannerLink'); add('promoBannerStartsAt'); add('promoBannerEndsAt');
+    addBool('seasonalEffectEnabled'); add('seasonalEffect'); add('seasonalEffectIntensity'); add('seasonalMessage'); add('seasonalEffectStartsAt'); add('seasonalEffectEndsAt');
+    if (tempPromoBannerFile) fd.append('promoBannerImage', tempPromoBannerFile);
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/settings`, { method:'POST', body:fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || 'فشل الحفظ');
+        tempPromoBannerFile = null;
+        showToast('✅ تم حفظ البانر وتأثير المناسبة');
+        loadStoreSettings();
+    } catch(err) { showToast('❌ ' + err.message); }
+};
+
+window.saveGrowthSettings = async function() {
+    const payload = new URLSearchParams();
+    ['enableWishlist','enableCompare','enableRecentlyViewed','enableSmartSearch','showHomeCollections','pushEnabled'].forEach(id => payload.set(id, document.getElementById(id)?.checked ? 'true':'false'));
+    payload.set('lowStockThreshold', document.getElementById('lowStockThreshold')?.value || '3');
+    payload.set('newProductDays', document.getElementById('newProductDays')?.value || '30');
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/settings`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:payload.toString() });
+        const data = await res.json(); if(!res.ok) throw new Error(data.message || 'فشل الحفظ');
+        showToast('✅ تم حفظ تجربة التسوق'); loadStoreSettings();
+    } catch(err) { showToast('❌ ' + err.message); }
+};
+
+window.sendPushNotification = async function() {
+    const title = document.getElementById('pushTitle')?.value.trim() || 'TECHNOLOGY STORE';
+    const body = document.getElementById('pushBody')?.value.trim() || 'لدينا تحديث جديد في المتجر';
+    const url = document.getElementById('pushUrl')?.value.trim() || '/products';
+    try {
+        const res = await adminFetch(`${BASE_URL}/api/admin/push/send`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({title,body,url}) });
+        const data = await res.json(); if(!res.ok) throw new Error(data.message || 'فشل الإرسال');
+        showToast(`✅ تم إرسال الإشعار إلى ${data.sent || 0} جهاز`);
+    } catch(err) { showToast('❌ ' + err.message); }
+};
 
 window.saveMarketingSettings = async function(showSuccess = false) {
     const isCrossSellEnabled = document.getElementById('crossSellToggleInput') ? document.getElementById('crossSellToggleInput').checked : false;
@@ -1425,6 +1523,11 @@ window.openEditModal = function(id) {
     document.getElementById('editPSku').value = product.sku || '';
     document.getElementById('editPPublicBrand').value = product.publicBrand || '';
     document.getElementById('editPWarranty').value = product.warranty || '';
+    if (document.getElementById('editPCustomBadge')) document.getElementById('editPCustomBadge').value = product.customBadge || '';
+    if (document.getElementById('editPTags')) document.getElementById('editPTags').value = Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || '');
+    if (document.getElementById('editPIsFeatured')) document.getElementById('editPIsFeatured').checked = Boolean(product.isFeatured);
+    if (document.getElementById('editPSeoTitle')) document.getElementById('editPSeoTitle').value = product.seoTitle || '';
+    if (document.getElementById('editPSeoDescription')) document.getElementById('editPSeoDescription').value = product.seoDescription || '';
 
     if (product.discountExpiresAt) {
         const remaining = new Date(product.discountExpiresAt) - new Date();
@@ -1633,6 +1736,11 @@ if (editForm) {
         formData.append('sku', document.getElementById('editPSku').value);
         formData.append('publicBrand', document.getElementById('editPPublicBrand').value);
         formData.append('warranty', document.getElementById('editPWarranty').value);
+        formData.append('customBadge', document.getElementById('editPCustomBadge')?.value || '');
+        formData.append('tags', document.getElementById('editPTags')?.value || '');
+        formData.append('isFeatured', document.getElementById('editPIsFeatured')?.checked ? 'true' : 'false');
+        formData.append('seoTitle', document.getElementById('editPSeoTitle')?.value || '');
+        formData.append('seoDescription', document.getElementById('editPSeoDescription')?.value || '');
 
         const type = document.getElementById('editPDiscountType')?.value;
         const val = parseInt(document.getElementById('editPDiscountValue')?.value);
@@ -1723,8 +1831,14 @@ window.exportCSV = function() {
         category: p.category,
         stockQuantity: p.stockQuantity || 0,
         publicBrand: p.publicBrand || '',
-        description: p.description.join('\n'),
+        description: Array.isArray(p.description) ? p.description.join('\n') : (p.description || ''),
         warranty: p.warranty || '',
+        oldPrice: p.oldPrice || '',
+        isFeatured: p.isFeatured ? 'true' : 'false',
+        customBadge: p.customBadge || '',
+        tags: Array.isArray(p.tags) ? p.tags.join(', ') : (p.tags || ''),
+        seoTitle: p.seoTitle || '',
+        seoDescription: p.seoDescription || '',
         image: p.image || ''
     }));
 
@@ -1917,6 +2031,18 @@ window.loadDashboard = async function() {
         const db = document.getElementById('healthDb'); if (db) db.innerHTML = healthBadge(data.health?.database === 'connected');
         const cloud = document.getElementById('healthCloudinary'); if (cloud) cloud.innerHTML = healthBadge(Boolean(data.health?.cloudinaryConfigured), 'مضبوط', 'غير مضبوط');
         const pos = document.getElementById('healthPos'); if (pos) pos.innerHTML = healthBadge(Boolean(data.health?.posConfigured), 'مربوط', 'غير مربوط');
+        const push = document.getElementById('healthPush'); if (push) push.innerHTML = healthBadge(Boolean(data.health?.pushConfigured), 'جاهز', 'غير مضبوط');
+        const promo = document.getElementById('healthPromo'); if (promo) promo.innerHTML = healthBadge(Boolean(data.health?.promoBannerActive), 'فعال', 'متوقف');
+        const season = document.getElementById('healthSeason'); if (season) season.innerHTML = healthBadge(Boolean(data.health?.seasonalEffectActive), 'فعال', 'متوقف');
+        const alerts = document.getElementById('dashboardAlerts');
+        if (alerts) {
+            const items = [];
+            if ((data.products?.lowStock || 0) > 0) items.push({icon:'warning', tone:'amber', title:`${data.products.lowStock} منتج بمخزون منخفض`, text:'راجع الكميات قبل نفاد المنتجات.'});
+            if ((data.products?.missingImages || 0) > 0) items.push({icon:'broken_image', tone:'red', title:`${data.products.missingImages} منتج بدون صورة`, text:'مركز الصور يوضح المنتجات التي تحتاج صورة.'});
+            if ((data.orders?.pending || 0) > 0) items.push({icon:'receipt_long', tone:'blue', title:`${data.orders.pending} طلب جديد`, text:'يوجد طلبات تحتاج متابعة.'});
+            if (!data.health?.pushConfigured) items.push({icon:'notifications_off', tone:'slate', title:'Push Notifications غير مضبوط', text:'اختياري: أضف مفاتيح VAPID عند الحاجة.'});
+            alerts.innerHTML = items.slice(0,6).map(i => `<div class="glass-panel p-4 rounded-xl border border-outline-variant/30"><div class="flex items-start gap-3"><span class="material-symbols-outlined text-primary">${i.icon}</span><div><p class="font-bold text-sm text-on-surface">${i.title}</p><p class="text-xs text-on-surface-variant mt-1">${i.text}</p></div></div></div>`).join('');
+        }
 
         const ordersBox = document.getElementById('dashboardRecentOrders');
         if (ordersBox) {
@@ -2023,7 +2149,7 @@ window.renderMediaCenter = function() {
     const grid = document.getElementById('mediaGrid'); if(!grid) return;
     const q=(document.getElementById('mediaSearchInput')?.value || '').trim().toLowerCase();
     const items=(window.mediaCenterData || []).filter(m => !q || String(m.productTitle||'').toLowerCase().includes(q) || String(m.category||'').toLowerCase().includes(q)).slice(0,300);
-    grid.innerHTML = items.length ? items.map(m => `<article class="glass-panel rounded-xl border border-outline-variant/30 overflow-hidden"><div class="aspect-square bg-white/95 p-2"><img src="${escapeHtml(adminSafeImageUrl(m.url))}" onerror="handleAdminImageError(this)" class="w-full h-full object-contain" loading="lazy"></div><div class="p-3"><p class="font-bold text-xs text-on-surface line-clamp-2" title="${escapeHtml(m.productTitle)}">${escapeHtml(m.productTitle)}</p><div class="flex items-center justify-between gap-2 mt-2"><span class="text-[10px] text-on-surface-variant">${escapeHtml(m.category || '')}</span><span class="text-[9px] px-1.5 py-0.5 rounded ${m.isCloudinary?'bg-green-500/10 text-green-400':'bg-amber-500/10 text-amber-400'}">${m.isCloudinary?'Cloudinary':'خارجي/محلي'}</span></div></div></article>`).join('') : '<div class="col-span-full text-center text-on-surface-variant py-10">لا توجد صور مطابقة.</div>';
+    grid.innerHTML = items.length ? items.map(m => `<article class="glass-panel rounded-xl border border-outline-variant/30 overflow-hidden"><div class="aspect-square bg-white/95 p-2"><img src="${escapeHtml(adminSafeImageUrl(m.url))}" onerror="handleAdminImageError(this)" class="w-full h-full object-contain" loading="lazy"></div><div class="p-3"><p class="font-bold text-xs text-on-surface line-clamp-2" title="${escapeHtml(m.productTitle)}">${escapeHtml(m.productTitle)}</p><div class="flex flex-wrap items-center gap-1.5 mt-2"><span class="text-[9px] px-1.5 py-0.5 rounded ${m.isCloudinary?'bg-green-500/10 text-green-400':'bg-amber-500/10 text-amber-400'}">${m.isCloudinary?'Cloudinary':'خارجي/محلي'}</span><span class="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">${escapeHtml(m.format || 'unknown')}</span><span class="text-[9px] px-1.5 py-0.5 rounded ${m.optimized?'bg-green-500/10 text-green-400':'bg-red-500/10 text-red-400'}">${m.optimized?'Optimized':'راجع الصيغة'}</span></div><p class="text-[10px] text-on-surface-variant mt-2">${escapeHtml(m.category || '')}</p></div></article>`).join('') : '<div class="col-span-full text-center text-on-surface-variant py-10">لا توجد صور مطابقة.</div>';
 };
 
 window.saveSocialSettings = async function() {
@@ -2882,12 +3008,19 @@ window.printInventoryReport = function() {
 // ==========================================
 // Activity Logs System
 // ==========================================
+let activeAdminLogAction = '';
+let adminLogFilterTimer = null;
 async function fetchAdminLogs() {
     try {
         const tbody = document.getElementById('adminLogsTableBody');
         if (tbody) tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-on-surface-variant"><span class="material-symbols-outlined animate-spin inline-block text-[24px]">sync</span> جاري تحميل السجل...</td></tr>`;
-
-        const response = await adminFetch(`${BASE_URL}/api/admin/logs?limit=100&_t=${Date.now()}`, {
+        const params = new URLSearchParams({ limit:'300', _t:String(Date.now()) });
+        const search = document.getElementById('logSearchFilter')?.value.trim();
+        const user = document.getElementById('logUserFilter')?.value.trim();
+        const from = document.getElementById('logFromFilter')?.value;
+        const to = document.getElementById('logToFilter')?.value;
+        if (search) params.set('search', search); if (user) params.set('user', user); if (from) params.set('from', from); if (to) params.set('to', to); if (activeAdminLogAction) params.set('action', activeAdminLogAction);
+        const response = await adminFetch(`${BASE_URL}/api/admin/logs?${params.toString()}`, {
             cache: 'no-store'
         });
         
@@ -2942,15 +3075,15 @@ function renderAdminLogs(logs) {
                         <span class="text-xs text-on-surface-variant">${timeString}</span>
                     </div>
                 </td>
-                <td class="py-3 px-4 font-bold text-on-surface">${log.user}</td>
+                <td class="py-3 px-4 font-bold text-on-surface">${escapeHtml(log.user || 'نظام')}</td>
                 <td class="py-3 px-4">
                     <div class="flex items-center gap-2">
                         <span class="material-symbols-outlined ${actionColor} text-[18px]">${actionIcon}</span>
-                        <span class="font-semibold">${log.action}</span>
+                        <span class="font-semibold">${escapeHtml(log.action || '')}</span>
                     </div>
                 </td>
-                <td class="py-3 px-4 text-on-surface-variant text-xs leading-relaxed max-w-sm truncate" title="${log.details}">
-                    ${log.details}
+                <td class="py-3 px-4 text-on-surface-variant text-xs leading-relaxed max-w-sm truncate" title="${escapeHtml(log.details || '')}">
+                    ${escapeHtml(log.details || '')}
                 </td>
             </tr>
         `;
@@ -2958,6 +3091,21 @@ function renderAdminLogs(logs) {
 }
 
 window.fetchAdminLogs = fetchAdminLogs;
+
+window.scheduleAdminLogFilter = function() { clearTimeout(adminLogFilterTimer); adminLogFilterTimer = setTimeout(fetchAdminLogs, 280); };
+window.setAdminLogAction = function(action='') { activeAdminLogAction = action; document.querySelectorAll('.log-action-filter[data-action]').forEach(btn => btn.classList.toggle('active', btn.dataset.action === action)); fetchAdminLogs(); };
+window.clearAdminLogFilters = function() { activeAdminLogAction=''; ['logSearchFilter','logUserFilter','logFromFilter','logToFilter'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';}); document.querySelectorAll('.log-action-filter[data-action]').forEach(btn=>btn.classList.toggle('active',btn.dataset.action==='')); fetchAdminLogs(); };
+
+window.previewSeasonalEffect = function() {
+    document.getElementById('adminSeasonPreview')?.remove();
+    const type = document.getElementById('seasonalEffect')?.value || 'off';
+    const intensity = document.getElementById('seasonalEffectIntensity')?.value || 'medium';
+    if (type === 'off') return showToast('اختر نوع المناسبة أولاً');
+    const symbols={snow:['❄','❅','✦'],hearts:['❤','♡','💗'],spring:['🌸','✿','🌼'],autumn:['🍂','🍁','🍃'],ramadan:['🌙','✦','★','✨'],eid:['✨','★','🎊','✦'],confetti:['●','■','▲','✦']}[type] || ['✦'];
+    const counts={low:14,medium:24,high:36}; const layer=document.createElement('div'); layer.id='adminSeasonPreview'; layer.className='admin-season-preview';
+    for(let i=0;i<(counts[intensity]||24);i++){const item=document.createElement('i');item.textContent=symbols[i%symbols.length];item.style.left=`${(i*37)%100}%`;item.style.animationDelay=`-${(i%10)*.37}s`;item.style.animationDuration=`${4+(i%5)}s`;layer.appendChild(item);} document.body.appendChild(layer);
+    setTimeout(()=>layer.remove(),6000); showToast('👀 معاينة لمدة 6 ثوانٍ — الحفظ غير مطلوب للمعاينة');
+};
 
 // ==========================================
 // Export Logs

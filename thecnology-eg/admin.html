@@ -186,10 +186,14 @@
                             <div class="flex justify-between items-center"><span>MongoDB</span><span id="healthDb" class="font-bold">—</span></div>
                             <div class="flex justify-between items-center"><span>Cloudinary</span><span id="healthCloudinary" class="font-bold">—</span></div>
                             <div class="flex justify-between items-center"><span>ربط POS</span><span id="healthPos" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>Push Notifications</span><span id="healthPush" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>بانر العروض</span><span id="healthPromo" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>تأثير المناسبة</span><span id="healthSeason" class="font-bold">—</span></div>
                             <div class="border-t border-outline-variant/30 pt-3 flex justify-between items-center"><span>مبيعات اليوم</span><span id="dashTodaySales" class="font-bold text-primary font-mono-data">—</span></div>
                         </div>
                     </div>
                 </div>
+                <div id="dashboardAlerts" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"></div>
                 <div class="glass-panel p-5 rounded-xl border border-outline-variant/30">
                     <h4 class="font-bold text-on-surface mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary">history</span> آخر النشاطات</h4>
                     <div id="dashboardRecentLogs" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3"><p class="text-sm text-on-surface-variant">جاري التحميل...</p></div>
@@ -368,6 +372,9 @@
                                 <label class="product-form-field"><span>العلامة التجارية الظاهرة</span><input type="text" id="pPublicBrand" placeholder="مثال: Hikvision / Dahua"><small>يظهر هذا الحقل للعملاء فقط، وليس اسم المورد.</small></label>
                                 <label class="product-form-field"><span>السيريال كود (SKU)</span><input type="text" id="pSku" placeholder="اختياري"></label>
                                 <label class="product-form-field"><span>فترة الضمان</span><input type="text" id="pWarranty" placeholder="مثال: سنة واحدة"></label>
+                                <label class="product-form-field"><span>شارة مخصصة</span><input type="text" id="pCustomBadge" maxlength="40" placeholder="مثال: اختيارنا / حصري"></label>
+                                <label class="product-form-field product-form-field--wide"><span>وسوم البحث</span><input type="text" id="pTags" placeholder="مثال: gaming, wireless, usb"><small>افصل بين الوسوم بفاصلة؛ تساعد البحث الذكي.</small></label>
+                                <label class="product-form-field product-form-field--wide"><span class="flex items-center gap-2"><input type="checkbox" id="pIsFeatured" class="accent-primary w-4 h-4"> منتج مميز</span><small>يعطي أولوية في الواجهة الرئيسية والكتالوج.</small></label>
                             </div>
                         </div>
 
@@ -385,6 +392,14 @@
                         <div class="product-form-section">
                             <div class="product-form-section__title"><span class="material-symbols-outlined">list_alt</span> المواصفات</div>
                             <label class="product-form-field"><span>الوصف والمواصفات <small>(كل سطر = مواصفة)</small></span><textarea id="pDesc" rows="5" placeholder="مثال:&#10;دقة 2MP&#10;رؤية ليلية&#10;ضمان سنة"></textarea></label>
+                        </div>
+
+                        <div class="product-form-section">
+                            <div class="product-form-section__title"><span class="material-symbols-outlined">travel_explore</span> SEO وظهور جوجل</div>
+                            <div class="product-form-grid product-form-grid--2">
+                                <label class="product-form-field product-form-field--wide"><span>عنوان SEO</span><input type="text" id="pSeoTitle" maxlength="70" placeholder="اختياري — لو فاضي يستخدم اسم المنتج"></label>
+                                <label class="product-form-field product-form-field--wide"><span>وصف SEO</span><textarea id="pSeoDescription" rows="3" maxlength="180" placeholder="وصف مختصر جذاب يظهر في نتائج البحث والمشاركة"></textarea></label>
+                            </div>
                         </div>
 
                         <div class="product-form-section">
@@ -562,6 +577,45 @@
                         <div><label class="block text-on-surface-variant text-sm font-semibold mb-1">TikTok</label><input id="socialTiktokUrl" dir="ltr" placeholder="https://tiktok.com/@..." class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></div>
                         <div><label class="block text-on-surface-variant text-sm font-semibold mb-1">X / Twitter</label><input id="socialXUrl" dir="ltr" placeholder="https://x.com/..." class="w-full bg-surface-container border border-outline-variant rounded py-2 px-3 text-on-surface text-sm"></div>
                         <div class="flex items-end"><button onclick="saveSocialSettings()" class="w-full py-2.5 bg-primary text-on-primary font-bold rounded hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2"><span class="material-symbols-outlined text-[18px]">save</span> حفظ روابط التواصل</button></div>
+                    </div>
+                </div>
+
+                <!-- Seasonal Experience & Banner -->
+                <div class="glass-panel p-5 rounded-xl border border-primary/20 lg:col-span-2">
+                    <div class="flex items-center justify-between gap-3 border-b border-outline-variant/30 pb-3 mb-5"><div><h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary">celebration</span> المناسبات والبانرات</h3><p class="text-xs text-on-surface-variant mt-1">تحكم في بانر علوي وتأثيرات موسمية خفيفة مثل الثلج والقلوب والورد والخريف.</p></div><span class="px-2 py-1 text-[10px] rounded-full bg-primary/10 text-primary border border-primary/20">Mobile Friendly</span></div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-lg bg-surface-container border border-outline-variant/30 md:col-span-2"><span><strong class="block text-sm">تفعيل البانر الإعلاني العلوي</strong><small class="text-on-surface-variant">يظهر فوق محتوى الموقع ويمكن تحديد مدة تشغيله.</small></span><input type="checkbox" id="promoBannerEnabled" class="accent-primary w-5 h-5"></label>
+                        <label class="product-form-field"><span>نص البانر</span><input id="promoBannerText" maxlength="220" placeholder="مثال: عروض رأس السنة بدأت الآن 🎉"></label>
+                        <label class="product-form-field"><span>نص الزر</span><input id="promoBannerButtonText" maxlength="40" placeholder="تسوق الآن"></label>
+                        <label class="product-form-field"><span>رابط الزر</span><input id="promoBannerLink" dir="ltr" placeholder="/products"></label>
+                        <label class="product-form-field"><span>صورة البانر (اختياري)</span><input type="file" id="promoBannerImageInput" accept="image/webp,image/jpeg,image/png"></label>
+                        <img id="promoBannerPreview" class="hidden md:col-span-2 w-full max-h-36 object-cover rounded-xl border border-outline-variant/30" alt="معاينة البانر">
+                        <label class="product-form-field"><span>يبدأ من</span><input type="datetime-local" id="promoBannerStartsAt"></label>
+                        <label class="product-form-field"><span>ينتهي في</span><input type="datetime-local" id="promoBannerEndsAt"></label>
+                        <div class="md:col-span-2 border-t border-outline-variant/30 pt-4 mt-1"></div>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-lg bg-surface-container border border-outline-variant/30 md:col-span-2"><span><strong class="block text-sm">تفعيل تأثير المناسبة</strong><small class="text-on-surface-variant">خفيف ولا يمنع الضغط أو التصفح، ويتوقف مع Reduce Motion.</small></span><input type="checkbox" id="seasonalEffectEnabled" class="accent-primary w-5 h-5"></label>
+                        <label class="product-form-field"><span>نوع المناسبة</span><select id="seasonalEffect"><option value="off">بدون</option><option value="snow">❄️ شتاء / كريسماس — ثلج</option><option value="hearts">❤️ عيد الحب — قلوب</option><option value="spring">🌸 ربيع — ورد</option><option value="autumn">🍂 خريف — أوراق شجر</option><option value="ramadan">🌙 رمضان — هلال ونجوم</option><option value="eid">✨ العيد — نجوم واحتفال</option><option value="confetti">🎉 احتفال عام — كونفيتي</option></select></label>
+                        <label class="product-form-field"><span>كثافة التأثير</span><select id="seasonalEffectIntensity"><option value="low">خفيفة</option><option value="medium">متوسطة</option><option value="high">عالية</option></select></label>
+                        <label class="product-form-field md:col-span-2"><span>رسالة المناسبة (اختياري)</span><input id="seasonalMessage" maxlength="160" placeholder="مثال: كل سنة وأنتم طيبين ❤️"></label>
+                        <label class="product-form-field"><span>يبدأ من</span><input type="datetime-local" id="seasonalEffectStartsAt"></label>
+                        <label class="product-form-field"><span>ينتهي في</span><input type="datetime-local" id="seasonalEffectEndsAt"></label>
+                    </div>
+                    <button onclick="saveExperienceSettings()" class="w-full mt-5 py-2.5 bg-primary text-on-primary font-bold rounded-lg hover:bg-primary/90 transition-all text-sm flex items-center justify-center gap-2"><span class="material-symbols-outlined">save</span> حفظ البانر والمناسبة</button>
+                </div>
+
+                <!-- Store Growth Features -->
+                <div class="glass-panel p-5 rounded-xl border border-outline-variant/50 lg:col-span-1">
+                    <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary">rocket_launch</span> تجربة التسوق والنمو</h3>
+                    <div class="flex flex-col gap-3">
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">المفضلة Wishlist</span><input id="enableWishlist" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">مقارنة المنتجات</span><input id="enableCompare" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">شوهدت مؤخراً</span><input id="enableRecentlyViewed" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">اقتراحات البحث الذكي</span><input id="enableSmartSearch" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">أقسام الرئيسية الذكية</span><input id="showHomeCollections" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <div class="grid grid-cols-2 gap-2"><label class="product-form-field"><span>حد المخزون المنخفض</span><input type="number" id="lowStockThreshold" min="1" max="99" value="3"></label><label class="product-form-field"><span>مدة شارة جديد (يوم)</span><input type="number" id="newProductDays" min="1" max="365" value="30"></label></div>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span><strong class="text-sm">Push Notifications</strong><small id="pushStatusText" class="block text-[10px] text-on-surface-variant mt-1">يتطلب VAPID Keys</small></span><input id="pushEnabled" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <button onclick="saveGrowthSettings()" class="w-full py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/20 text-sm">حفظ تجربة التسوق</button>
+                        <div class="border-t border-outline-variant/30 pt-3 mt-1"><p class="text-xs font-bold mb-2">إرسال إشعار للعملاء المشتركين</p><input id="pushTitle" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="عنوان الإشعار"><textarea id="pushBody" rows="2" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="نص الإشعار"></textarea><input id="pushUrl" dir="ltr" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" value="/products"><button onclick="sendPushNotification()" class="w-full py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-bold text-sm">إرسال Push</button></div>
                     </div>
                 </div>
 
@@ -1000,6 +1054,9 @@
                                 <span>فترة الضمان</span>
                                 <input type="text" id="editPWarranty" placeholder="مثال: سنة واحدة">
                             </label>
+                            <label class="product-edit-field"><span>شارة مخصصة</span><input type="text" id="editPCustomBadge" maxlength="40" placeholder="مثال: اختيارنا / حصري"></label>
+                            <label class="product-edit-field product-edit-field--wide"><span>وسوم البحث</span><input type="text" id="editPTags" placeholder="gaming, wireless, usb"></label>
+                            <label class="product-edit-check product-edit-field--wide"><input type="checkbox" id="editPIsFeatured"><span><strong>منتج مميز</strong><small>يعطي أولوية في الواجهة الرئيسية والكتالوج.</small></span></label>
                         </div>
                     </section>
 
@@ -1045,6 +1102,14 @@
                             <span>الوصف والمواصفات</span>
                             <textarea id="editPDesc" rows="5" placeholder="مثال:&#10;دقة 2MP&#10;رؤية ليلية&#10;ضمان سنة"></textarea>
                         </label>
+                    </section>
+
+                    <section class="product-edit-section">
+                        <div class="product-edit-section-title"><span class="material-symbols-outlined">travel_explore</span><div><strong>SEO وظهور جوجل</strong><small>اختياري، ويستخدم تلقائياً في صفحة المنتج والمشاركة.</small></div></div>
+                        <div class="product-edit-grid product-edit-grid--2">
+                            <label class="product-edit-field product-edit-field--wide"><span>عنوان SEO</span><input type="text" id="editPSeoTitle" maxlength="70" placeholder="اختياري"></label>
+                            <label class="product-edit-field product-edit-field--wide"><span>وصف SEO</span><textarea id="editPSeoDescription" rows="3" maxlength="180" placeholder="وصف مختصر لمحركات البحث"></textarea></label>
+                        </div>
                     </section>
 
                     <section class="product-edit-section">

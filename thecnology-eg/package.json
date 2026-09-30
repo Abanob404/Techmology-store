@@ -8,7 +8,8 @@
     "install:all": "npm install && cd server && npm install",
     "build": "npm run build:css",
     "build:css": "tailwindcss -i ./input.css -o ./style.css --minify",
-    "watch:css": "tailwindcss -i ./input.css -o ./style.css --watch"
+    "watch:css": "tailwindcss -i ./input.css -o ./style.css --watch",
+    "generate:vapid": "node generate_vapid_keys.js"
   },
   "dependencies": {
     "cloudinary": "^2.10.0",

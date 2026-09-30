@@ -241,6 +241,12 @@ const productSchema = new mongoose.Schema({
   // Customer-facing brand. Kept separate so old supplier data is preserved but private.
   publicBrand: { type: String, default: '' },
   discountExpiresAt: { type: Date },
+  // Store-growth / merchandising fields. All optional for backward compatibility.
+  isFeatured: { type: Boolean, default: false, index: true },
+  customBadge: { type: String, default: '' },
+  tags: { type: [String], default: [] },
+  seoTitle: { type: String, default: '' },
+  seoDescription: { type: String, default: '' },
   isHidden: { type: Boolean, default: false, index: true },
   visibilityManuallySet: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true }
@@ -267,6 +273,36 @@ const settingsSchema = new mongoose.Schema({
   telegramUrl: { type: String, default: 'https://t.me/TehnologyStore' },
   tiktokUrl: { type: String, default: 'https://www.tiktok.com/@technologystore.official' },
   xUrl: { type: String, default: 'https://x.com/techstoreeg' },
+  // Storefront experience switches. Defaults preserve the current storefront behavior.
+  enableWishlist: { type: Boolean, default: true },
+  enableCompare: { type: Boolean, default: true },
+  enableRecentlyViewed: { type: Boolean, default: true },
+  enableSmartSearch: { type: Boolean, default: true },
+  showHomeCollections: { type: Boolean, default: true },
+  lowStockThreshold: { type: Number, default: 3 },
+  newProductDays: { type: Number, default: 30 },
+  // Top promotional banner managed from admin.
+  promoBannerEnabled: { type: Boolean, default: false },
+  promoBannerText: { type: String, default: '' },
+  promoBannerButtonText: { type: String, default: 'اكتشف الآن' },
+  promoBannerLink: { type: String, default: '/products' },
+  promoBannerImage: { type: String, default: '' },
+  promoBannerImagePublicId: { type: String, default: '' },
+  promoBannerStartsAt: { type: Date },
+  promoBannerEndsAt: { type: Date },
+  // Lightweight seasonal effects. Off by default and date-aware.
+  seasonalEffectEnabled: { type: Boolean, default: false },
+  seasonalEffect: { type: String, enum: ['off','snow','hearts','spring','autumn','ramadan','eid','confetti'], default: 'off' },
+  seasonalEffectIntensity: { type: String, enum: ['low','medium','high'], default: 'medium' },
+  seasonalMessage: { type: String, default: '' },
+  seasonalEffectStartsAt: { type: Date },
+  seasonalEffectEndsAt: { type: Date },
+  // Optional Web Push feature. It is harmless when VAPID env vars are absent.
+  pushEnabled: { type: Boolean, default: false },
+  pushLastTitle: { type: String, default: '' },
+  pushLastBody: { type: String, default: '' },
+  pushLastUrl: { type: String, default: '/products' },
+  pushLastSentAt: { type: Date },
   createdAt: { type: Date, default: Date.now }
 });
 const Settings = mongoose.model('Settings', settingsSchema);
@@ -294,6 +330,19 @@ const visitorSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 const Visitor = mongoose.model('Visitor', visitorSchema);
+
+// Web Push subscriptions are optional and isolated from product/order data.
+const pushSubscriptionSchema = new mongoose.Schema({
+  endpoint: { type: String, required: true, unique: true },
+  keys: {
+    p256dh: { type: String, required: true },
+    auth: { type: String, required: true }
+  },
+  userAgent: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  lastSeenAt: { type: Date, default: Date.now }
+});
+const PushSubscription = mongoose.model('PushSubscription', pushSubscriptionSchema);
 
 // تعريف موديل سجل النشاطات (Activity Log Schema)
 const activityLogSchema = new mongoose.Schema({
@@ -388,13 +437,96 @@ function normalizePublicUrl(value, allowedHosts = []) {
   const raw = String(value || '').trim();
   if (!raw) return '';
   try {
-    const parsed = new URL(raw);
+    const parsed = new URL(raw, 'https://technology-store-eg.vercel.app');
     if (!['https:', 'http:'].includes(parsed.protocol)) return '';
     if (allowedHosts.length && !allowedHosts.some(host => parsed.hostname === host || parsed.hostname.endsWith(`.${host}`))) return '';
+    // Preserve relative internal links when the user entered one.
+    if (raw.startsWith('/')) return `${parsed.pathname}${parsed.search}${parsed.hash}`;
     return parsed.toString();
   } catch (_) {
     return '';
   }
+}
+function parseBool(value) {
+  return value === true || value === 'true' || value === '1' || value === 1 || value === 'on';
+}
+function parseOptionalDate(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return undefined;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? undefined : d;
+}
+function normalizeStringList(value, maxItems = 20) {
+  const source = Array.isArray(value) ? value : String(value || '').split(/[,\n]/);
+  return [...new Set(source.map(v => String(v).trim()).filter(Boolean))].slice(0, maxItems);
+}
+function sanitizePlainText(value, maxLength = 500) {
+  return String(value || '').replace(/[<>]/g, '').trim().slice(0, maxLength);
+}
+function isWindowActive(startAt, endAt) {
+  const now = Date.now();
+  const start = startAt ? new Date(startAt).getTime() : 0;
+  const end = endAt ? new Date(endAt).getTime() : Number.POSITIVE_INFINITY;
+  return (!Number.isFinite(start) || now >= start) && (!Number.isFinite(end) || now <= end);
+}
+function base64UrlToBuffer(value = '') {
+  let raw = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+  while (raw.length % 4) raw += '=';
+  return Buffer.from(raw, 'base64');
+}
+function toBase64Url(value) {
+  const buffer = Buffer.isBuffer(value) ? value : Buffer.from(String(value));
+  return buffer.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+function pushConfigured() {
+  const publicKey = String(process.env.VAPID_PUBLIC_KEY || '').trim();
+  const privateKey = String(process.env.VAPID_PRIVATE_KEY || '').trim();
+  if (!publicKey || !privateKey) return false;
+  try {
+    const pub = base64UrlToBuffer(publicKey);
+    const priv = base64UrlToBuffer(privateKey);
+    return pub.length === 65 && pub[0] === 4 && priv.length === 32;
+  } catch (_) { return false; }
+}
+function buildVapidAuthorization(endpoint) {
+  if (!pushConfigured()) throw new Error('VAPID keys are not configured');
+  const publicKey = String(process.env.VAPID_PUBLIC_KEY).trim();
+  const privateKey = String(process.env.VAPID_PRIVATE_KEY).trim();
+  const pub = base64UrlToBuffer(publicKey);
+  const priv = base64UrlToBuffer(privateKey);
+  const jwk = {
+    kty: 'EC', crv: 'P-256',
+    x: toBase64Url(pub.subarray(1, 33)),
+    y: toBase64Url(pub.subarray(33, 65)),
+    d: toBase64Url(priv)
+  };
+  const key = crypto.createPrivateKey({ key: jwk, format: 'jwk' });
+  const header = toBase64Url(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
+  const payload = toBase64Url(JSON.stringify({
+    aud: new URL(endpoint).origin,
+    exp: Math.floor(Date.now() / 1000) + (11 * 60 * 60),
+    sub: String(process.env.VAPID_SUBJECT || 'mailto:technology.store.official1@gmail.com')
+  }));
+  const unsigned = `${header}.${payload}`;
+  const signature = crypto.sign('sha256', Buffer.from(unsigned), { key, dsaEncoding: 'ieee-p1363' });
+  return `vapid t=${unsigned}.${toBase64Url(signature)}, k=${publicKey}`;
+}
+function isTrustedPushEndpoint(endpoint = '') {
+  try {
+    const url = new URL(String(endpoint));
+    if (url.protocol !== 'https:') return false;
+    const host = url.hostname.toLowerCase();
+    return host === 'fcm.googleapis.com' || host.endsWith('.push.services.mozilla.com') || host === 'updates.push.services.mozilla.com' || host === 'web.push.apple.com' || host.endsWith('.notify.windows.com');
+  } catch (_) { return false; }
+}
+async function sendEmptyWebPush(endpoint) {
+  if (!isTrustedPushEndpoint(endpoint)) throw new Error('Untrusted push endpoint');
+  if (typeof fetch !== 'function') throw new Error('Server fetch is unavailable');
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'TTL': '120', 'Urgency': 'normal', 'Authorization': buildVapidAuthorization(endpoint) }
+  });
+  return response.status;
 }
 
 let topProductsCache = { data: null, timestamp: 0 };
@@ -453,7 +585,7 @@ async function resolveSharedProduct(slugOrLegacyCode = '', ref = '') {
   // Human-readable link such as /p/flash-kingston-128.
   // We resolve it without changing any stored product data.
   const candidates = await Product.find(visible)
-    .select('title category price image sku publicBrand warranty description oldPrice additionalImages stockQuantity')
+    .select('title category price image sku publicBrand warranty description oldPrice additionalImages stockQuantity discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription')
     .limit(3000)
     .lean();
   return candidates.find(product => slugifyProductTitle(product.title) === slug) || null;
@@ -468,20 +600,43 @@ async function renderProductsPage(req, res, productIdOverride = '', productOverr
         await ensureDBConnection();
         const product = productOverride || await Product.findById(productId).lean();
         if (product && product.isHidden !== true) {
-          const safeTitle = escapeHtmlAttr(`${product.title} | TECHNOLOGY`);
+          const seoTitleRaw = product.seoTitle || `${product.title} | TECHNOLOGY`;
+          const safeTitle = escapeHtmlAttr(seoTitleRaw);
           const priceText = Number.isFinite(Number(product.price)) ? `${Number(product.price).toLocaleString('en-US')} ج.م` : '';
-          const safeDescription = escapeHtmlAttr([priceText ? `السعر: ${priceText}` : '', product.category ? `قسم: ${product.category}` : ''].filter(Boolean).join(' • '));
+          const fallbackDescription = [
+            product.seoDescription,
+            Array.isArray(product.description) ? product.description.slice(0, 3).join(' • ') : '',
+            priceText ? `السعر: ${priceText}` : '',
+            product.category ? `قسم: ${product.category}` : ''
+          ].filter(Boolean).join(' • ').slice(0, 180);
+          const safeDescription = escapeHtmlAttr(fallbackDescription);
           let image = product.image || 'logo.webp';
           if (image.startsWith('/')) image = `https://${req.get('host')}${image}`;
           else if (!image.startsWith('http')) image = `https://${req.get('host')}/${image}`;
           const canonicalUrl = `https://${req.get('host')}${req.path}`;
           html = html.replace(/<title>.*?<\/title>/, `<title>${safeTitle}</title>`);
+          html = html.replace(/<meta name="description" content=".*?">/, `<meta name="description" content="${safeDescription}">`);
           html = html.replace(/<meta property="og:title" content=".*?">/, `<meta property="og:title" content="${safeTitle}">`);
           html = html.replace(/<meta property="og:description" content=".*?">/, `<meta property="og:description" content="${safeDescription}">`);
           html = html.replace(/<meta property="og:image" content=".*?">/, `<meta property="og:image" content="${escapeHtmlAttr(image)}">`);
           if (/<meta property="og:url"/.test(html)) html = html.replace(/<meta property="og:url" content=".*?">/, `<meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">`);
           else html = html.replace('</head>', `    <meta property="og:url" content="${escapeHtmlAttr(canonicalUrl)}">\n</head>`);
-          html = html.replace('</head>', `    <script>window.__SHARED_PRODUCT_ID__=${JSON.stringify(String(product._id))};</script>\n</head>`);
+          const schemaProduct = {
+            '@context': 'https://schema.org', '@type': 'Product', name: product.title,
+            image: [image, ...(product.additionalImages || []).map(i => i.url).filter(Boolean)].slice(0, 5),
+            description: fallbackDescription, sku: product.sku || undefined,
+            brand: product.publicBrand ? { '@type': 'Brand', name: product.publicBrand } : undefined,
+            offers: { '@type': 'Offer', url: canonicalUrl, priceCurrency: 'EGP', price: Number(product.price) || 0,
+              availability: Number(product.stockQuantity) > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock' }
+          };
+          const extraHead = `    <link rel="canonical" href="${escapeHtmlAttr(canonicalUrl)}">\n` +
+            `    <meta name="twitter:card" content="summary_large_image">\n` +
+            `    <meta name="twitter:title" content="${safeTitle}">\n` +
+            `    <meta name="twitter:description" content="${safeDescription}">\n` +
+            `    <meta name="twitter:image" content="${escapeHtmlAttr(image)}">\n` +
+            `    <script type="application/ld+json">${JSON.stringify(schemaProduct).replace(/</g, '\u003c')}</script>\n` +
+            `    <script>window.__SHARED_PRODUCT_ID__=${JSON.stringify(String(product._id))};window.__DIRECT_PRODUCT_MODE__=true;</script>\n`;
+          html = html.replace('</head>', extraHead + '</head>');
         }
       } catch (e) { console.error('SSR OG Tags DB Error:', e.message); }
     } else if (!productId) {
@@ -977,7 +1132,7 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
     if (!req.adminUser) {
       // Send only fields used by the public storefront. This keeps mobile payloads small
       // and also guarantees internal supplier/Cloudinary management fields stay private.
-      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt');
+      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription');
     }
 
     const products = await query.lean();
@@ -1038,7 +1193,7 @@ app.delete('/api/emergency-clean', requireAdminAuth, requirePermission('manage_b
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', requireAdminAuth, requirePermission('add_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription } = req.body;
     if (!title || !category || !price) {
       return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
@@ -1086,7 +1241,12 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       sku: sku || '',
       warranty: warranty || '',
       publicBrand: publicBrand || '',
-      discountExpiresAt: discountExpiresAt ? new Date(discountExpiresAt) : undefined
+      discountExpiresAt: discountExpiresAt ? new Date(discountExpiresAt) : undefined,
+      isFeatured: parseBool(isFeatured),
+      customBadge: sanitizePlainText(customBadge, 40),
+      tags: normalizeStringList(tags, 20),
+      seoTitle: sanitizePlainText(seoTitle, 70),
+      seoDescription: sanitizePlainText(seoDescription, 180)
     });
 
     await newProduct.save();
@@ -1116,7 +1276,12 @@ app.post('/api/products/bulk', requireAdminAuth, requirePermission('manage_backu
         stockQuantity: Number(p.stockQuantity) || 0,
         sku: p.sku || '',
         publicBrand: p.publicBrand || '',
-        warranty: p.warranty || ''
+        warranty: p.warranty || '',
+        isFeatured: parseBool(p.isFeatured),
+        customBadge: sanitizePlainText(p.customBadge, 40),
+        tags: normalizeStringList(p.tags, 20),
+        seoTitle: sanitizePlainText(p.seoTitle, 70),
+        seoDescription: sanitizePlainText(p.seoDescription, 180)
       };
 
       // لا تكتب Placeholder فوق صورة موجودة عند استيراد CSV بدون عمود image.
@@ -1164,7 +1329,7 @@ app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     
     const updateData = {
@@ -1176,7 +1341,12 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
       stockQuantity: parseInt(stockQuantity, 10) || 0,
       sku: sku || '',
       warranty: warranty || '',
-      publicBrand: publicBrand || ''
+      publicBrand: publicBrand || '',
+      isFeatured: parseBool(isFeatured),
+      customBadge: sanitizePlainText(customBadge, 40),
+      tags: normalizeStringList(tags, 20),
+      seoTitle: sanitizePlainText(seoTitle, 70),
+      seoDescription: sanitizePlainText(seoDescription, 180)
     };
 
     if (discountExpiresAt !== undefined) {
@@ -1366,7 +1536,15 @@ app.get('/api/settings', optionalAdminAuth, async (req, res) => {
     const data = settings.toObject();
     const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
     const canViewPrivateSettings = permissions.includes('all') || permissions.includes('manage_settings');
-    if (!canViewPrivateSettings) delete data.posApiKey;
+    if (!canViewPrivateSettings) {
+      delete data.posApiKey;
+      delete data.promoBannerImagePublicId;
+    }
+    const isPushConfigured = pushConfigured();
+    data.pushAvailable = Boolean(isPushConfigured);
+    data.pushPublicKey = isPushConfigured ? String(process.env.VAPID_PUBLIC_KEY || '').trim() : '';
+    data.promoBannerActive = Boolean(data.promoBannerEnabled && isWindowActive(data.promoBannerStartsAt, data.promoBannerEndsAt));
+    data.seasonalEffectActive = Boolean(data.seasonalEffectEnabled && data.seasonalEffect !== 'off' && isWindowActive(data.seasonalEffectStartsAt, data.seasonalEffectEndsAt));
     res.json(data);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في جلب الإعدادات', error: err.message });
@@ -1428,6 +1606,19 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
       settings.darkHeroImage = result.secure_url;
       updated = true;
       logMessage = logMessage ? logMessage + ' وخلفية الغامق' : 'تحديث خلفية الوضع الغامق';
+    }
+
+    if (req.files && req.files.promoBannerImage) {
+      const [promoBannerFile] = validateImageFiles(req.files.promoBannerImage);
+      const oldPublicId = settings.promoBannerImagePublicId;
+      const result = await cloudinary.uploader.upload(promoBannerFile.tempFilePath, {
+        folder: 'technology_store_settings', format: 'webp', quality: 'auto'
+      });
+      settings.promoBannerImage = result.secure_url;
+      settings.promoBannerImagePublicId = result.public_id;
+      updated = true;
+      logMessage = logMessage ? logMessage + ' وبانر العروض' : 'تحديث بانر العروض';
+      if (oldPublicId && oldPublicId !== result.public_id) cloudinary.uploader.destroy(oldPublicId).catch(() => {});
     }
 
     if (req.body && req.body.isShippingEnabled !== undefined) {
@@ -1506,6 +1697,37 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
       updated = true;
     }
 
+    const boolFields = ['enableWishlist','enableCompare','enableRecentlyViewed','enableSmartSearch','showHomeCollections','promoBannerEnabled','seasonalEffectEnabled','pushEnabled'];
+    boolFields.forEach(field => {
+      if (req.body && req.body[field] !== undefined) { settings[field] = parseBool(req.body[field]); updated = true; }
+    });
+    if (req.body && req.body.lowStockThreshold !== undefined) { settings.lowStockThreshold = Math.max(1, Math.min(99, Number(req.body.lowStockThreshold) || 3)); updated = true; }
+    if (req.body && req.body.newProductDays !== undefined) { settings.newProductDays = Math.max(1, Math.min(365, Number(req.body.newProductDays) || 30)); updated = true; }
+    const textFields = {
+      promoBannerText: 220, promoBannerButtonText: 40, seasonalMessage: 160
+    };
+    Object.entries(textFields).forEach(([field,max]) => {
+      if (req.body && req.body[field] !== undefined) { settings[field] = sanitizePlainText(req.body[field], max); updated = true; }
+    });
+    if (req.body && req.body.promoBannerLink !== undefined) {
+      const raw = String(req.body.promoBannerLink || '').trim();
+      const normalized = raw.startsWith('/') ? raw.slice(0, 300) : normalizePublicUrl(raw);
+      if (raw && !normalized) return res.status(400).json({ message: 'رابط البانر غير صالح' });
+      settings.promoBannerLink = normalized || '/products'; updated = true;
+    }
+    const dateFields = ['promoBannerStartsAt','promoBannerEndsAt','seasonalEffectStartsAt','seasonalEffectEndsAt'];
+    dateFields.forEach(field => {
+      if (req.body && req.body[field] !== undefined) { settings[field] = parseOptionalDate(req.body[field]) || null; updated = true; }
+    });
+    if (req.body && req.body.seasonalEffect !== undefined) {
+      const allowed = new Set(['off','snow','hearts','spring','autumn','ramadan','eid','confetti']);
+      const value = String(req.body.seasonalEffect || 'off'); settings.seasonalEffect = allowed.has(value) ? value : 'off'; updated = true;
+    }
+    if (req.body && req.body.seasonalEffectIntensity !== undefined) {
+      const allowed = new Set(['low','medium','high']); const value = String(req.body.seasonalEffectIntensity || 'medium');
+      settings.seasonalEffectIntensity = allowed.has(value) ? value : 'medium'; updated = true;
+    }
+
     if (!updated) {
       return res.status(400).json({ message: 'لم يتم إرسال أي بيانات لتحديثها' });
     }
@@ -1519,6 +1741,85 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
 });
 
 // --- الـ API Routes الخاصة بالإحصائيات (Centralized Analytics) ---
+// Smart search suggestions. Small payload, public and read-only.
+app.get('/api/products/suggest', async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const q = sanitizePlainText(req.query.q, 80);
+    if (!q) return res.json([]);
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    const items = await Product.find({ isHidden: { $ne: true }, stockQuantity: { $gt: 0 }, $or: [
+      { title: regex }, { sku: regex }, { publicBrand: regex }, { category: regex }, { tags: regex }
+    ]}).select('title price image sku publicBrand category stockQuantity').limit(8).lean();
+    res.json(items);
+  } catch (err) { res.status(500).json([]); }
+});
+
+// Optional Web Push subscriptions. Notifications use native VAPID signing and an empty push ping,
+// so no extra npm package is required. The service worker then fetches the latest public message.
+app.get('/api/push/latest', async (req, res) => {
+  try {
+    const settings = await getOrCreateSettings();
+    res.set('Cache-Control', 'no-store');
+    res.json({
+      title: settings.pushLastTitle || 'TECHNOLOGY STORE',
+      body: settings.pushLastBody || 'لدينا تحديث جديد في المتجر',
+      url: settings.pushLastUrl || '/products',
+      icon: settings.storeLogo || '/icon-192.png',
+      sentAt: settings.pushLastSentAt || null
+    });
+  } catch (_) { res.json({ title: 'TECHNOLOGY STORE', body: 'لدينا تحديث جديد في المتجر', url: '/products', icon: '/icon-192.png' }); }
+});
+app.post('/api/push/subscribe', async (req, res) => {
+  try {
+    if (!pushConfigured()) return res.status(503).json({ message: 'Push notifications are not configured' });
+    const sub = req.body || {};
+    if (!sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth || !isTrustedPushEndpoint(sub.endpoint)) return res.status(400).json({ message: 'اشتراك غير صالح' });
+    await ensureDBConnection();
+    await PushSubscription.findOneAndUpdate(
+      { endpoint: String(sub.endpoint) },
+      { endpoint: String(sub.endpoint), keys: { p256dh: String(sub.keys.p256dh), auth: String(sub.keys.auth) }, userAgent: String(req.headers['user-agent'] || '').slice(0, 300), lastSeenAt: new Date() },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ message: 'تعذر حفظ اشتراك التنبيهات' }); }
+});
+app.delete('/api/push/subscribe', async (req, res) => {
+  try { await ensureDBConnection(); if (req.body?.endpoint) await PushSubscription.deleteOne({ endpoint: String(req.body.endpoint) }); res.json({ ok: true }); }
+  catch (_) { res.json({ ok: true }); }
+});
+app.post('/api/admin/push/send', requireAdminAuth, requirePermission('manage_settings'), async (req, res) => {
+  try {
+    if (!pushConfigured()) return res.status(503).json({ message: 'اضبط VAPID_PUBLIC_KEY و VAPID_PRIVATE_KEY أولاً' });
+    const settings = await getOrCreateSettings();
+    if (!settings.pushEnabled) return res.status(400).json({ message: 'فعّل Push Notifications من إعدادات المتجر أولاً' });
+    const title = sanitizePlainText(req.body?.title, 80) || 'TECHNOLOGY STORE';
+    const body = sanitizePlainText(req.body?.body, 180) || 'لدينا تحديث جديد في المتجر';
+    const requestedUrl = String(req.body?.url || '/products').trim();
+    const url = requestedUrl.startsWith('/') ? requestedUrl.slice(0, 300) : '/products';
+    settings.pushLastTitle = title; settings.pushLastBody = body; settings.pushLastUrl = url; settings.pushLastSentAt = new Date();
+    await settings.save();
+    const subs = await PushSubscription.find().limit(5000).lean();
+    let sent = 0, removed = 0, failed = 0;
+    const queue = [...subs];
+    const workers = Array.from({ length: Math.min(12, queue.length || 1) }, async () => {
+      while (queue.length) {
+        const sub = queue.shift();
+        try {
+          const status = await sendEmptyWebPush(sub.endpoint);
+          if (status >= 200 && status < 300) sent++;
+          else if ([404, 410].includes(status)) { await PushSubscription.deleteOne({ _id: sub._id }); removed++; }
+          else failed++;
+        } catch (_) { failed++; }
+      }
+    });
+    await Promise.all(workers);
+    await logActivity('إرسال إشعار', `Push: ناجح ${sent} — محذوف ${removed} — فشل ${failed}`, req.adminUser.username);
+    res.json({ ok: true, sent, removed, failed, total: subs.length });
+  } catch (err) { res.status(500).json({ message: 'تعذر إرسال الإشعار', error: err.message }); }
+});
+
 app.get('/api/analytics', async (req, res) => {
   await ensureDBConnection();
   try {
@@ -1670,7 +1971,10 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
       health: {
         database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
         cloudinaryConfigured: Boolean(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET),
-        posConfigured: Boolean(String(settings.posApiKey || process.env.POS_API_KEY || '').trim())
+        posConfigured: Boolean(String(settings.posApiKey || process.env.POS_API_KEY || '').trim()),
+        pushConfigured: pushConfigured(),
+        promoBannerActive: Boolean(settings.promoBannerEnabled && isWindowActive(settings.promoBannerStartsAt, settings.promoBannerEndsAt)),
+        seasonalEffectActive: Boolean(settings.seasonalEffectEnabled && settings.seasonalEffect !== 'off' && isWindowActive(settings.seasonalEffectStartsAt, settings.seasonalEffectEndsAt))
       }
     });
   } catch (err) {
@@ -1737,9 +2041,13 @@ app.get('/api/admin/media', requireAdminAuth, requirePermission('manage_media'),
     const pushMedia = (entry) => {
       const url = String(entry.url || '').trim();
       if (!url || /placehold\.co|no-image|No\+Image/i.test(url)) return;
+      const isCloudinary = /^https:\/\/res\.cloudinary\.com\//i.test(url);
+      const extMatch = url.split('?')[0].match(/\.([a-z0-9]{2,5})$/i);
+      const format = extMatch ? extMatch[1].toLowerCase() : (isCloudinary ? 'cloudinary' : 'unknown');
+      const optimized = isCloudinary || /\.webp(?:$|\?)/i.test(url);
       if (seenUrls.has(url)) duplicateReferences++;
       seenUrls.add(url);
-      media.push({ ...entry, url, isCloudinary: /^https:\/\/res\.cloudinary\.com\//i.test(url) });
+      media.push({ ...entry, url, isCloudinary, format, optimized });
     };
 
     for (const product of products) {
@@ -1820,8 +2128,20 @@ app.get('/api/admin/users', requireAdminAuth, requirePermission('manage_users'),
 
 app.get('/api/admin/logs', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
-    const limit = parseInt(req.query.limit) || 100;
-    const logs = await ActivityLog.find().sort({ timestamp: -1 }).limit(limit);
+    const limit = Math.max(1, Math.min(500, parseInt(req.query.limit) || 150));
+    const query = {};
+    const search = sanitizePlainText(req.query.search, 120);
+    const user = sanitizePlainText(req.query.user, 80);
+    const action = sanitizePlainText(req.query.action, 80);
+    if (user) query.user = new RegExp(user.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    if (action) query.action = new RegExp(action.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    if (search) {
+      const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+      query.$or = [{ details: rx }, { action: rx }, { user: rx }];
+    }
+    const from = parseOptionalDate(req.query.from); const to = parseOptionalDate(req.query.to);
+    if (from || to) { query.timestamp = {}; if (from) query.timestamp.$gte = from; if (to) { const end = new Date(to); end.setHours(23,59,59,999); query.timestamp.$lte = end; } }
+    const logs = await ActivityLog.find(query).sort({ timestamp: -1 }).limit(limit).lean();
     res.json(logs);
   } catch (err) {
     res.status(500).json({ message: 'خطأ في جلب السجل', error: err.message });

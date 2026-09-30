@@ -12,6 +12,7 @@
     <meta property="og:image" content="logo.webp">
     <meta property="og:type" content="website">
     <meta name="theme-color" content="#0f1418">
+    <link rel="canonical" href="https://technology-store-eg.vercel.app/products">
     <title>TECHNOLOGY | المنتجات</title>
     <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -195,7 +196,7 @@
         </aside>
 
         <!-- Main Content Canvas -->
-        <main class="products-main flex-1 pb-24 w-full">
+        <main id="main-content" class="products-main flex-1 pb-24 w-full">
             <section id="catalogControls" class="catalog-control-panel glass-panel" aria-label="فلاتر المنتجات">
                 <div class="catalog-control-top">
                     <div class="catalog-control-heading">
@@ -203,6 +204,8 @@
                         <p id="productsResultCount" class="catalog-result-count">جاري تحميل المنتجات...</p>
                     </div>
                     <div class="catalog-control-actions">
+                        <button type="button" id="offersFilterBtn" onclick="toggleOffersOnly()" class="catalog-utility-toggle" aria-pressed="false" title="العروض فقط"><span class="material-symbols-outlined">local_offer</span><span>العروض</span></button>
+                        <button type="button" id="wishlistFilterBtn" onclick="toggleWishlistFilter()" class="catalog-utility-toggle" aria-pressed="false" title="المفضلة"><span class="material-symbols-outlined">favorite</span><span>المفضلة</span><b id="wishlistCount">0</b></button>
                         <button type="button" onclick="toggleCatalogFilters()" class="catalog-filter-toggle" aria-expanded="false" aria-controls="catalogFilterGrid">
                             <span class="material-symbols-outlined">tune</span> فلترة وترتيب
                         </button>
