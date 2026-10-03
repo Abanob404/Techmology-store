@@ -1299,6 +1299,12 @@ window.openProductModal = function(id) {
 
     const modal = document.getElementById('productModal');
     const content = document.getElementById('productModalContent');
+    const infoPanel = document.querySelector('.product-detail-info');
+
+    // Always open a product from the top on mobile. The modal element is reused,
+    // so keeping an old scroll position can hide the product name and price.
+    if (content) content.scrollTop = 0;
+    if (infoPanel) infoPanel.scrollTop = 0;
     
     modal.classList.remove('hidden');
     // Trigger reflow
