@@ -415,7 +415,7 @@ async function fetchProducts() {
             }
         });
 
-        analyticsPromise = fetch(`${BASE_URL}/api/analytics`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
+        analyticsPromise = fetch(`${BASE_URL}/api/analytics/popular`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
         analyticsPromise.then(data => { window.globalAnalytics = data || {}; renderHomeGrowthSections(); });
         // تحديث الأقسام في الخلفية ولا نمنع ظهور الكتالوج أثناء انتظارها.
         renderDynamicCategoryFilters().catch(() => {});
@@ -1299,12 +1299,6 @@ window.openProductModal = function(id) {
 
     const modal = document.getElementById('productModal');
     const content = document.getElementById('productModalContent');
-    const infoPanel = document.querySelector('.product-detail-info');
-
-    // Always open a product from the top on mobile. The modal element is reused,
-    // so keeping an old scroll position can hide the product name and price.
-    if (content) content.scrollTop = 0;
-    if (infoPanel) infoPanel.scrollTop = 0;
     
     modal.classList.remove('hidden');
     // Trigger reflow
@@ -1994,6 +1988,19 @@ function initLightweightMotion() {
     reveal();
 }
 
+window.__techStoreState = {
+    getProducts: () => globalProducts,
+    getCart: () => cart,
+    setCart: (next) => { cart = Array.isArray(next) ? next : []; saveCart(); updateCartBadge(); },
+    saveCart: () => saveCart(),
+    renderCart: () => renderCart(),
+    getSettings: () => window.storeSettings || {},
+    getFallbackImage: (p) => getFallbackImage(p),
+    getProductShareUrl: (p) => getProductShareUrl(p),
+    buildWhatsappUrl: (m) => buildWhatsappUrl(m),
+    showToast: (m) => showStoreToast(m)
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     if (!document.querySelector('.skip-link')) { const skip=document.createElement('a'); skip.className='skip-link'; skip.href='#main-content'; skip.textContent='تخطي إلى المحتوى'; document.body.prepend(skip); const main=document.querySelector('main'); if(main&&!main.id) main.id='main-content'; }
     trackPageVisit();
@@ -2107,78 +2114,87 @@ async function trackVisitor() {
     try {
         let visitorId = localStorage.getItem('tech_store_vid');
         if (!visitorId) {
-            visitorId = 'vid_' + Math.random().toString(36).substr(2, 9) + Date.now();
+            visitorId = 'vid_' + (window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now());
             localStorage.setItem('tech_store_vid', visitorId);
-            
-            let location = 'غير محدد';
-            try {
-                const cachedLoc = localStorage.getItem('tech_user_country');
-                const cachedTime = localStorage.getItem('tech_user_country_time');
-                const oneDay = 24 * 60 * 60 * 1000;
-                let locData = null;
-
-                if (cachedLoc && cachedTime && (Date.now() - Number(cachedTime) < oneDay)) {
-                    locData = JSON.parse(cachedLoc);
-                } else {
-                    const locRes = await fetch('https://ipapi.co/json/');
-                    if (locRes.ok) {
-                        locData = await locRes.json();
-                        localStorage.setItem('tech_user_country', JSON.stringify(locData));
-                        localStorage.setItem('tech_user_country_time', Date.now().toString());
-                    }
-                }
-                
-                if (locData && locData.city) {
-                    location = `${locData.city}, ${locData.country_name || ''}`;
-                }
-            } catch(e) {
-                console.log('Location API skipped/failed due to adblock or limits');
-                const cachedLoc = localStorage.getItem('tech_user_country');
-                if (cachedLoc) {
-                    try {
-                        const locData = JSON.parse(cachedLoc);
-                        if (locData && locData.city) location = `${locData.city}, ${locData.country_name || ''}`;
-                    } catch(err){}
-                }
-            }
-            
-            const urlParams = new URLSearchParams(window.location.search);
-            const utmSource = urlParams.get('utm_source') || '';
-            
-            let device = "مجهول";
-            const ua = navigator.userAgent;
-            if (/windows/i.test(ua)) device = "Windows";
-            else if (/macintosh|mac os/i.test(ua)) device = "Mac";
-            else if (/iphone|ipad/i.test(ua)) device = "iOS";
-            else if (/android/i.test(ua)) device = "Android";
-            else if (/linux/i.test(ua)) device = "Linux";
-            
-            if (/chrome/i.test(ua) && !/edge|edg/i.test(ua)) device += " - Chrome";
-            else if (/safari/i.test(ua) && !/chrome/i.test(ua)) device += " - Safari";
-            else if (/firefox/i.test(ua)) device += " - Firefox";
-            else if (/edge|edg/i.test(ua)) device += " - Edge";
-            
-            await fetch(`${BASE_URL}/api/analytics/visitor`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    visitorId,
-                    referrer: document.referrer || '',
-                    utmSource,
-                    location,
-                    device
-                })
-            });
         }
-    } catch (error) {
-        console.error('Analytics error:', error);
-    }
+        let sessionId = sessionStorage.getItem('tech_store_session_id');
+        if (!sessionId) {
+            sessionId = 'sid_' + (window.crypto?.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).slice(2) + Date.now());
+            sessionStorage.setItem('tech_store_session_id', sessionId);
+            sessionStorage.setItem('tech_store_session_landing', location.pathname + location.search);
+        }
+        const params = new URLSearchParams(location.search);
+        const attrStore = {
+            referrer: 'tech_store_session_referrer',
+            utm_source: 'tech_store_session_utm_source',
+            utm_medium: 'tech_store_session_utm_medium',
+            utm_campaign: 'tech_store_session_utm_campaign',
+            utm_content: 'tech_store_session_utm_content',
+            utm_term: 'tech_store_session_utm_term',
+            share_source: 'tech_store_session_share_source'
+        };
+        if (sessionStorage.getItem(attrStore.referrer) === null) {
+            let entryRef = document.referrer || '';
+            try { if (entryRef && new URL(entryRef).origin === location.origin) entryRef = ''; } catch (_) {}
+            sessionStorage.setItem(attrStore.referrer, entryRef);
+        }
+        for (const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) {
+            if (sessionStorage.getItem(attrStore[key]) === null) sessionStorage.setItem(attrStore[key], params.get(key) || '');
+        }
+        if (sessionStorage.getItem(attrStore.share_source) === null) sessionStorage.setItem(attrStore.share_source, params.get('share_source') || params.get('src') || '');
+        const ua = navigator.userAgent || '';
+        const detect = () => {
+            let os = /android/i.test(ua) ? 'Android' : /iphone|ipad|ipod/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os|macintosh/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Other';
+            let browser = /edg/i.test(ua) ? 'Edge' : /opr|opera/i.test(ua) ? 'Opera' : /firefox/i.test(ua) ? 'Firefox' : /chrome|crios/i.test(ua) ? 'Chrome' : /safari/i.test(ua) ? 'Safari' : 'Other';
+            let deviceType = /ipad|tablet/i.test(ua) ? 'Tablet' : /mobi|android|iphone|ipod/i.test(ua) ? 'Mobile' : 'Desktop';
+            return { os, browser, deviceType };
+        };
+        const d = detect();
+        const payload = {
+            visitorId, sessionId,
+            referrer: sessionStorage.getItem(attrStore.referrer) || '',
+            utmSource: sessionStorage.getItem(attrStore.utm_source) || '',
+            utmMedium: sessionStorage.getItem(attrStore.utm_medium) || '',
+            utmCampaign: sessionStorage.getItem(attrStore.utm_campaign) || '',
+            utmContent: sessionStorage.getItem(attrStore.utm_content) || '',
+            utmTerm: sessionStorage.getItem(attrStore.utm_term) || '',
+            shareSource: sessionStorage.getItem(attrStore.share_source) || '',
+            landingPage: sessionStorage.getItem('tech_store_session_landing') || location.pathname + location.search,
+            page: location.pathname + location.search,
+            device: `${d.deviceType} - ${d.os} - ${d.browser}`,
+            ...d,
+            language: navigator.language || '',
+            screen: `${screen.width || 0}x${screen.height || 0}`,
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+        };
+        await fetch(`${BASE_URL}/api/analytics/visitor`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), keepalive:true });
+    } catch (error) { console.error('Analytics error:', error); }
 }
+
+function pingVisitorSession(delta = 0) {
+    try {
+        const visitorId = localStorage.getItem('tech_store_vid');
+        const sessionId = sessionStorage.getItem('tech_store_session_id');
+        if (!visitorId || !sessionId) return;
+        const payload = JSON.stringify({ visitorId, sessionId, page: location.pathname + location.search, activeSecondsDelta: Math.max(0, Math.min(60, Number(delta) || 0)) });
+        fetch(`${BASE_URL}/api/analytics/session-ping`, { method:'POST', headers:{'Content-Type':'application/json'}, body:payload, keepalive:true }).catch(()=>{});
+    } catch (_) {}
+}
+
 // Execute on load
 window.addEventListener('load', () => {
     const run = () => trackVisitor();
     if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 5000 });
     else setTimeout(run, 2500);
+    let activeTick = Date.now();
+    setInterval(() => {
+        const now = Date.now();
+        const seconds = document.visibilityState === 'visible' ? Math.min(35, Math.max(1, Math.round((now - activeTick) / 1000))) : 0;
+        activeTick = now;
+        if (seconds) pingVisitorSession(seconds);
+    }, 30000);
+    document.addEventListener('visibilitychange', () => { activeTick = Date.now(); });
+    window.addEventListener('pagehide', () => { if (document.visibilityState === 'visible') pingVisitorSession(Math.min(30, Math.max(1, Math.round((Date.now() - activeTick) / 1000)))); }, { passive:true });
 });
 
 function openQuickBuyModal(id) {

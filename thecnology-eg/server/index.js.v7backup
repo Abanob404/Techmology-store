@@ -12,57 +12,14 @@ require('dotenv').config();
 
 const app = express();
 
-// Middleware + V8 security hardening
-const DEFAULT_ALLOWED_ORIGINS = [
-  'https://technology-store-eg.vercel.app',
-  'http://localhost:3000', 'http://localhost:5000', 'http://127.0.0.1:5000'
-];
-const EXTRA_ALLOWED_ORIGINS = String(process.env.CORS_ORIGINS || '').split(',').map(v => v.trim()).filter(Boolean);
-const RUNTIME_VERCEL_ORIGINS = [process.env.VERCEL_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL].filter(Boolean).map(v => String(v).startsWith('http') ? String(v) : `https://${v}`);
-const ALLOWED_ORIGINS = new Set([...DEFAULT_ALLOWED_ORIGINS, ...EXTRA_ALLOWED_ORIGINS, ...RUNTIME_VERCEL_ORIGINS]);
-function isAllowedOrigin(origin) {
-  if (!origin) return true;
-  if (ALLOWED_ORIGINS.has(origin)) return true;
-  try { const u = new URL(origin); return u.hostname === 'technology-store-eg.vercel.app' || u.hostname.endsWith('.technology-store-eg.vercel.app'); }
-  catch (_) { return false; }
-}
+// Middleware
 app.use(cors({
-  origin(origin, cb) { cb(null, isAllowedOrigin(origin)); },
+  origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key', 'x-pos-api-key'],
-  credentials: false,
-  maxAge: 86400
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key', 'X-Api-Key', 'x-pos-api-key']
 }));
-app.use((req, res, next) => {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(self)');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  if (req.path.startsWith('/api/admin') || req.path === '/api/analytics' || req.path.startsWith('/api/analytics/visitors') || req.path.startsWith('/api/analytics/sessions')) res.setHeader('Cache-Control', 'no-store');
-  next();
-});
-app.use(express.json({ limit: '1mb' }));
-app.use(express.urlencoded({ extended: true, limit: '1mb' }));
-
-const rateBuckets = new Map();
-function createRateLimiter({ windowMs = 60000, max = 60, keyPrefix = 'generic' } = {}) {
-  return (req, res, next) => {
-    const rawIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown').split(',')[0].trim();
-    const key = `${keyPrefix}:${rawIp}`; const now = Date.now();
-    let bucket = rateBuckets.get(key);
-    if (!bucket || bucket.resetAt <= now) bucket = { count: 0, resetAt: now + windowMs };
-    bucket.count += 1; rateBuckets.set(key, bucket);
-    res.setHeader('X-RateLimit-Limit', String(max));
-    res.setHeader('X-RateLimit-Remaining', String(Math.max(0, max - bucket.count)));
-    if (bucket.count > max) return res.status(429).json({ message: 'طلبات كثيرة جداً، حاول مرة أخرى بعد قليل.' });
-    if (rateBuckets.size > 5000 && Math.random() < 0.02) for (const [k,v] of rateBuckets) if (v.resetAt <= now) rateBuckets.delete(k);
-    next();
-  };
-}
-const publicWriteLimiter = createRateLimiter({ windowMs: 60_000, max: 40, keyPrefix: 'public-write' });
-const orderLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 12, keyPrefix: 'order' });
-const loginLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 10, keyPrefix: 'admin-login' });
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload({
   useTempFiles: true,
   tempFileDir: '/tmp/', // مهم جداً لبيئات الـ Serverless مثل Vercel
@@ -290,10 +247,6 @@ const productSchema = new mongoose.Schema({
   tags: { type: [String], default: [] },
   seoTitle: { type: String, default: '' },
   seoDescription: { type: String, default: '' },
-  variants: [{
-    label: { type: String, default: 'الخيار' }, value: { type: String, default: '' },
-    price: Number, oldPrice: Number, stockQuantity: { type: Number, default: 0 }, sku: { type: String, default: '' }, image: { type: String, default: '' }
-  }],
   isHidden: { type: Boolean, default: false, index: true },
   visibilityManuallySet: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true }
@@ -308,15 +261,6 @@ const settingsSchema = new mongoose.Schema({
   darkHeroImage: { type: String, default: 'main-banner.webp' },
   storeLogo: { type: String, default: '' },
   isShippingEnabled: { type: Boolean, default: false },
-  pickupEnabled: { type: Boolean, default: true },
-  freeShippingThreshold: { type: Number, default: 0 },
-  shippingZones: [{ name: String, governorate: String, fee: { type: Number, default: 0 }, eta: { type: String, default: '' }, enabled: { type: Boolean, default: true } }],
-  shippingInstructions: { type: String, default: '' },
-  paymentCashOnDelivery: { type: Boolean, default: true },
-  paymentInstapay: { type: Boolean, default: false },
-  instapayHandle: { type: String, default: '' },
-  paymentStorePickup: { type: Boolean, default: true },
-  privacyNotice: { type: String, default: 'نستخدم مصدر الزيارة والجهاز والموقع التقريبي ومعرّف زيارة لتحسين المتجر وقياس الحملات، وقد نربط الزيارة ببيانات الطلب عند الشراء.' },
   posApiKey: { type: String, default: () => String(process.env.POS_API_KEY || '').trim() },
   isCrossSellEnabled: { type: Boolean, default: false },
   isQuickBuyEnabled: { type: Boolean, default: false },
@@ -375,46 +319,17 @@ const analyticsSchema = new mongoose.Schema({
 });
 const Analytics = mongoose.model('Analytics', analyticsSchema);
 
-// تعريف موديل تتبع الزوار (Visitor Schema) — V8 source attribution & sessions
+// تعريف موديل تتبع الزوار (Visitor Schema)
 const visitorSchema = new mongoose.Schema({
-  visitorId: { type: String, required: true, unique: true }, ip: { type: String, default: '' }, location: { type: String, default: '' }, country: String, city: String,
-  device: String, deviceType: String, browser: String, os: String, language: String, screen: String, timezone: String,
-  referrer: String, utmSource: String, utmMedium: String, utmCampaign: String, utmContent: String, utmTerm: String, shareSource: String,
-  source: { type: String, default: 'Direct', index: true }, medium: { type: String, default: 'direct' },
-  firstSource: { type: String, default: 'Direct' }, firstReferrer: String, firstLandingPage: String, lastLandingPage: String, lastPage: String,
-  knownCustomerName: { type: String, default: '' }, knownCustomerPhone: { type: String, default: '' }, lastOrderNumber: { type: String, default: '' }, ordersCount: { type: Number, default: 0 },
-  visitCount: { type: Number, default: 0 }, sessionCount: { type: Number, default: 0 }, firstSeenAt: { type: Date, default: Date.now }, lastSeenAt: { type: Date, default: Date.now }, timestamp: { type: Date, default: Date.now }
-}, { minimize: false });
+  visitorId: { type: String, required: true, unique: true },
+  ip: { type: String, default: '' },
+  location: { type: String, default: '' },
+  device: { type: String, default: '' },
+  referrer: { type: String, default: '' },
+  utmSource: { type: String, default: '' },
+  timestamp: { type: Date, default: Date.now }
+});
 const Visitor = mongoose.model('Visitor', visitorSchema);
-
-const visitorSessionSchema = new mongoose.Schema({
-  sessionId: { type: String, required: true, unique: true, index: true }, visitorId: { type: String, required: true, index: true },
-  ip: String, location: String, country: String, city: String, source: { type: String, default: 'Direct', index: true }, medium: String, referrer: String,
-  utmSource: String, utmMedium: String, utmCampaign: String, utmContent: String, utmTerm: String, shareSource: String,
-  entryPage: String, exitPage: String, device: String, deviceType: String, browser: String, os: String, language: String, screen: String, timezone: String,
-  pageCount: { type: Number, default: 1 }, activeSeconds: { type: Number, default: 0 }, startedAt: { type: Date, default: Date.now }, lastSeenAt: { type: Date, default: Date.now }
-});
-const VisitorSession = mongoose.model('VisitorSession', visitorSessionSchema);
-
-const reviewSchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true, index: true }, name: { type: String, required: true }, rating: { type: Number, min: 1, max: 5, required: true },
-  comment: { type: String, default: '' }, approved: { type: Boolean, default: false, index: true }, createdAt: { type: Date, default: Date.now }
-});
-const Review = mongoose.model('Review', reviewSchema);
-
-const couponSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true, uppercase: true, trim: true }, type: { type: String, enum: ['percent','fixed'], default: 'percent' },
-  value: { type: Number, required: true, min: 0 }, minSubtotal: { type: Number, default: 0 }, maxDiscount: { type: Number, default: 0 }, startsAt: Date, endsAt: Date,
-  usageLimit: { type: Number, default: 0 }, usedCount: { type: Number, default: 0 }, enabled: { type: Boolean, default: true }, createdAt: { type: Date, default: Date.now }
-});
-const Coupon = mongoose.model('Coupon', couponSchema);
-
-const stockNotifySchema = new mongoose.Schema({
-  productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true, index: true }, productTitle: String, name: String, phone: { type: String, required: true },
-  status: { type: String, enum: ['waiting','notified','cancelled'], default: 'waiting', index: true }, createdAt: { type: Date, default: Date.now }, notifiedAt: Date
-});
-stockNotifySchema.index({ productId: 1, phone: 1, status: 1 });
-const StockNotify = mongoose.model('StockNotify', stockNotifySchema);
 
 // Web Push subscriptions are optional and isolated from product/order data.
 const pushSubscriptionSchema = new mongoose.Schema({
@@ -445,13 +360,12 @@ const orderSchema = new mongoose.Schema({
   customerPhone: { type: String, required: true },
   customerAddress: { type: String, required: true },
   notes: { type: String, default: '' },
-  visitorId: { type: String, default: '', index: true }, sessionId: { type: String, default: '' },
-  deliveryMethod: { type: String, enum: ['shipping','pickup'], default: 'pickup' }, governorate: { type: String, default: '' }, area: { type: String, default: '' },
-  shippingAmount: { type: Number, default: 0 }, paymentMethod: { type: String, default: 'cash_on_delivery' }, couponCode: { type: String, default: '' }, discountAmount: { type: Number, default: 0 },
+  shippingAmount: { type: Number, default: 0 },
+  paymentMethod: { type: String, default: 'cash_on_delivery' },
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     posItemId: { type: Number },
-    sku: { type: String }, variant: { type: String, default: '' },
+    sku: { type: String },
     title: { type: String },
     quantity: { type: Number, default: 1 },
     price: { type: Number, required: true },
@@ -459,8 +373,8 @@ const orderSchema = new mongoose.Schema({
   }],
   subtotal: { type: Number, required: true },
   total: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'], default: 'pending' },
-  statusHistory: [{ status: String, at: { type: Date, default: Date.now }, note: String }], posInvoiceId: { type: String, default: '' },
+  status: { type: String, enum: ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'], default: 'pending' },
+  posInvoiceId: { type: String, default: '' },
   createdAt: { type: Date, default: Date.now }
 });
 const Order = mongoose.model('Order', orderSchema);
@@ -548,58 +462,6 @@ function normalizeStringList(value, maxItems = 20) {
 }
 function sanitizePlainText(value, maxLength = 500) {
   return String(value || '').replace(/[<>]/g, '').trim().slice(0, maxLength);
-}
-
-function normalizeVariants(value) {
-  let arr = value;
-  if (typeof value === 'string') { try { arr = JSON.parse(value); } catch (_) { arr = []; } }
-  if (!Array.isArray(arr)) return [];
-  return arr.slice(0, 50).map(v => ({
-    label: sanitizePlainText(v?.label || 'الخيار', 40), value: sanitizePlainText(v?.value, 80),
-    price: Number.isFinite(Number(v?.price)) ? Math.max(0, Number(v.price)) : undefined,
-    oldPrice: Number.isFinite(Number(v?.oldPrice)) ? Math.max(0, Number(v.oldPrice)) : undefined,
-    stockQuantity: Math.max(0, Math.floor(Number(v?.stockQuantity) || 0)), sku: sanitizePlainText(v?.sku, 80), image: String(v?.image || '').trim().slice(0, 700)
-  })).filter(v => v.value);
-}
-function safeUrlHost(value) { try { return new URL(String(value || '')).hostname.toLowerCase().replace(/^www\./,''); } catch (_) { return ''; } }
-function classifyTrafficSource({ referrer='', utmSource='', utmMedium='', shareSource='' } = {}) {
-  const u = String(utmSource || shareSource || '').trim().toLowerCase(); const medium = String(utmMedium || '').trim().toLowerCase(); const host = safeUrlHost(referrer); const hay = `${u} ${host}`;
-  if (/whatsapp|wa\.me/.test(hay)) return { source: 'WhatsApp', medium: medium || 'social/share' };
-  if (/facebook|fb\.com|m\.facebook/.test(hay)) return { source: 'Facebook', medium: medium || 'social' };
-  if (/instagram/.test(hay)) return { source: 'Instagram', medium: medium || 'social' };
-  if (/tiktok/.test(hay)) return { source: 'TikTok', medium: medium || 'social' };
-  if (/telegram|t\.me/.test(hay)) return { source: 'Telegram', medium: medium || 'social/share' };
-  if (/youtube/.test(hay)) return { source: 'YouTube', medium: medium || 'social' };
-  if (/google/.test(hay)) return { source: 'Google', medium: medium || 'organic/search' };
-  if (/bing/.test(hay)) return { source: 'Bing', medium: medium || 'organic/search' };
-  if (u === 'share' || u === 'shared' || shareSource) return { source: shareSource ? `Shared:${shareSource}` : 'Shared link', medium: medium || 'share' };
-  if (u) return { source: sanitizePlainText(utmSource || shareSource, 60), medium: medium || 'campaign' };
-  if (host) return { source: host, medium: 'referral' };
-  return { source: 'Direct', medium: 'direct' };
-}
-function readGeoFromRequest(req) {
-  const dec = (v) => { try { return decodeURIComponent(String(v || '')); } catch (_) { return String(v || ''); } };
-  const city = dec(req.headers['x-vercel-ip-city'] || ''); const country = String(req.headers['x-vercel-ip-country'] || '').toUpperCase(); const region = dec(req.headers['x-vercel-ip-country-region'] || '');
-  return { city, country, location: [city, region, country].filter(Boolean).join(', ') };
-}
-async function getShippingQuote(settings, deliveryMethod, governorate, subtotal) {
-  if (deliveryMethod === 'pickup') { if (!settings.pickupEnabled) throw Object.assign(new Error('الاستلام من المعرض غير متاح حالياً'), { statusCode: 400 }); return { amount: 0, zone: null }; }
-  if (!settings.isShippingEnabled) throw Object.assign(new Error('الشحن غير متاح حالياً'), { statusCode: 400 });
-  const zone = (settings.shippingZones || []).find(z => z.enabled !== false && String(z.name) === String(governorate));
-  if (!zone) throw Object.assign(new Error('اختر منطقة شحن متاحة'), { statusCode: 400 });
-  const freeThreshold = Math.max(0, Number(settings.freeShippingThreshold) || 0); const amount = freeThreshold > 0 && Number(subtotal) >= freeThreshold ? 0 : Math.max(0, Number(zone.fee) || 0);
-  return { amount, zone };
-}
-async function validateCouponCode(code, subtotal) {
-  const clean = String(code || '').trim().toUpperCase(); if (!clean) return { code: '', discount: 0, coupon: null };
-  const coupon = await Coupon.findOne({ code: clean, enabled: true }); if (!coupon) throw Object.assign(new Error('كود الخصم غير صالح'), { statusCode: 400 });
-  const now = new Date();
-  if (coupon.startsAt && coupon.startsAt > now) throw Object.assign(new Error('كود الخصم لم يبدأ بعد'), { statusCode: 400 });
-  if (coupon.endsAt && coupon.endsAt < now) throw Object.assign(new Error('انتهت صلاحية كود الخصم'), { statusCode: 400 });
-  if (coupon.usageLimit > 0 && coupon.usedCount >= coupon.usageLimit) throw Object.assign(new Error('تم استهلاك الحد الأقصى لهذا الكود'), { statusCode: 400 });
-  if (Number(subtotal) < Number(coupon.minSubtotal || 0)) throw Object.assign(new Error(`الحد الأدنى لاستخدام الكود ${coupon.minSubtotal} ج.م`), { statusCode: 400 });
-  let discount = coupon.type === 'fixed' ? Number(coupon.value) : Number(subtotal) * Number(coupon.value) / 100; if (coupon.maxDiscount > 0) discount = Math.min(discount, Number(coupon.maxDiscount));
-  discount = Math.max(0, Math.min(Number(subtotal), Math.round(discount * 100) / 100)); return { code: clean, discount, coupon };
 }
 function isWindowActive(startAt, endAt) {
   const now = Date.now();
@@ -988,7 +850,7 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
     const { orderId } = req.params;
     const { status, posInvoiceId } = req.body;
 
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({ ok: false, message: "Invalid status" });
     }
@@ -999,8 +861,6 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
     }
 
     order.status = status;
-    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
-    order.statusHistory.push({ status, at: new Date(), note: 'تم تحديث الحالة من POS' });
     if (posInvoiceId) {
       order.posInvoiceId = posInvoiceId;
     }
@@ -1022,84 +882,103 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
 // --- الـ API Routes الخاصة بالمنتجات ---
 
 // إضافة طلب جديد (عبر الموقع)
-app.post('/api/orders', orderLimiter, async (req, res) => {
+app.post('/api/orders', async (req, res) => {
   try {
-    await ensureDBConnection();
-    const { customerName, customerPhone, customerAddress, notes, paymentMethod, deliveryMethod='pickup', governorate='', area='', couponCode='', visitorId='', sessionId='', items } = req.body || {};
-    const safeName = sanitizePlainText(customerName, 100); const safePhone = normalizePhoneNumber(customerPhone); const safeAddress = sanitizePlainText(customerAddress, 600);
-    if (!safeName || !safePhone) return res.status(400).json({ success:false, message:'الاسم ورقم الهاتف مطلوبان' });
-    if (!Array.isArray(items) || items.length === 0 || items.length > 100) return res.status(400).json({ success:false, message:'السلة غير صالحة' });
-    let subtotal = 0; const orderItems = [];
-    for (const item of items) {
+    const { customerName, customerPhone, customerAddress, notes, shippingAmount, paymentMethod, items } = req.body;
+
+    if (!String(customerName || '').trim() || !String(customerPhone || '').trim() || !String(customerAddress || '').trim()) {
+      return res.status(400).json({ success: false, message: 'بيانات العميل الأساسية مطلوبة' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, message: 'السلة فارغة' });
+    }
+    if (items.length > 100) {
+      return res.status(400).json({ success: false, message: 'عدد عناصر الطلب أكبر من الحد المسموح' });
+    }
+
+    let subtotal = 0;
+    const orderItems = [];
+
+    for (let item of items) {
       let product = null;
-      if (item.productId) product = await Product.findById(item.productId);
-      else if (item.sku) product = await Product.findOne({ sku: item.sku });
-      else if (item.posItemId) product = await Product.findOne({ posItemId: item.posItemId });
-      if (!product || product.isHidden) return res.status(404).json({ success:false, message:`المنتج غير موجود: ${sanitizePlainText(item.title,100)}` });
-      const qty = Number(item.quantity); if (!Number.isInteger(qty) || qty < 1 || qty > 99) return res.status(400).json({ success:false, message:`كمية غير صالحة للمنتج: ${product.title}` });
-      let itemPrice = Number(product.price) || 0; let stock = Number(product.stockQuantity) || 0; let sku = product.sku || ''; let variantText = '';
-      if (item.variant && Array.isArray(product.variants) && product.variants.length) {
-        const wanted = typeof item.variant === 'object' ? String(item.variant.value || '') : String(item.variant || '');
-        const variant = product.variants.find(v => String(v.value) === wanted || String(v.sku) === wanted);
-        if (!variant) return res.status(400).json({ success:false, message:`الخيار المحدد غير صالح للمنتج: ${product.title}` });
-        itemPrice = Number.isFinite(Number(variant.price)) ? Number(variant.price) : itemPrice; stock = Number(variant.stockQuantity) || 0; sku = variant.sku || sku; variantText = `${variant.label || 'الخيار'}: ${variant.value}`;
+      if (item.productId) {
+        product = await Product.findById(item.productId);
+      } else if (item.sku) {
+        product = await Product.findOne({ sku: item.sku });
+      } else if (item.posItemId) {
+        product = await Product.findOne({ posItemId: item.posItemId });
       }
-      if (stock < qty) return res.status(409).json({ success:false, message:`الكمية المطلوبة غير متاحة للمنتج: ${product.title}${variantText ? ` (${variantText})` : ''}` });
-      const lineTotal = itemPrice * qty; subtotal += lineTotal;
-      orderItems.push({ productId:product._id,posItemId:product.posItemId,sku,title:product.title,variant:variantText,quantity:qty,price:itemPrice,lineTotal });
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: `المنتج غير موجود: ${item.title || item.sku}` });
+      }
+
+      // حساب السعر الفعلي من الداتابيز فقط
+      const itemPrice = Number(product.price) || 0;
+      const qty = Number(item.quantity);
+      if (!Number.isInteger(qty) || qty < 1) {
+        return res.status(400).json({ success: false, message: `كمية غير صالحة للمنتج: ${product.title}` });
+      }
+      if (Number(product.stockQuantity) < qty) {
+        return res.status(409).json({ success: false, message: `الكمية المطلوبة غير متاحة للمنتج: ${product.title}` });
+      }
+      const lineTotal = itemPrice * qty;
+      subtotal += lineTotal;
+
+      orderItems.push({
+        productId: product._id,
+        posItemId: product.posItemId,
+        sku: product.sku,
+        title: product.title,
+        quantity: qty,
+        price: itemPrice,
+        lineTotal: lineTotal
+      });
     }
-    subtotal = Math.round(subtotal*100)/100;
-    const settings = await getOrCreateSettings();
-    const method = deliveryMethod === 'shipping' ? 'shipping' : 'pickup';
-    if (method === 'shipping' && !safeAddress) return res.status(400).json({ success:false, message:'العنوان مطلوب للشحن' });
-    const quote = await getShippingQuote(settings, method, governorate, subtotal);
-    const coupon = await validateCouponCode(couponCode, subtotal);
-    const allowedPayments = [];
-    if (settings.paymentCashOnDelivery) allowedPayments.push('cash_on_delivery');
-    if (settings.paymentInstapay) allowedPayments.push('instapay');
-    if (settings.paymentStorePickup) allowedPayments.push('pay_at_store');
-    const pay = allowedPayments.includes(String(paymentMethod)) ? String(paymentMethod) : (method === 'pickup' && settings.paymentStorePickup ? 'pay_at_store' : (settings.paymentCashOnDelivery ? 'cash_on_delivery' : allowedPayments[0]));
-    if (!pay) return res.status(400).json({ success:false, message:'لا توجد طريقة دفع متاحة حالياً' });
-    const total = Math.max(0, Math.round((subtotal - coupon.discount + quote.amount)*100)/100);
-    const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)}-${Math.floor(1000+Math.random()*9000)}`;
-    const order = new Order({ orderNumber, customerName:safeName, customerPhone:safePhone, customerAddress:method==='pickup'?'استلام من المعرض':safeAddress, notes:sanitizePlainText(notes,700), visitorId:sanitizePlainText(visitorId,120), sessionId:sanitizePlainText(sessionId,140), deliveryMethod:method, governorate:sanitizePlainText(governorate,100), area:sanitizePlainText(area,120), shippingAmount:quote.amount, paymentMethod:pay, couponCode:coupon.code, discountAmount:coupon.discount, items:orderItems, subtotal, total, statusHistory:[{status:'pending',at:new Date(),note:'تم استلام الطلب من الموقع'}] });
+
+    const safeShippingAmount = Math.max(0, Number(shippingAmount) || 0);
+    const total = subtotal + safeShippingAmount;
+    const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    const order = new Order({
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerAddress,
+      notes,
+      shippingAmount: safeShippingAmount,
+      paymentMethod,
+      items: orderItems,
+      subtotal,
+      total
+    });
+
     await order.save();
-    if (order.visitorId) {
-      await Visitor.updateOne({ visitorId: order.visitorId }, { $set: { knownCustomerName: safeName, knownCustomerPhone: safePhone, lastOrderNumber: order.orderNumber }, $inc: { ordersCount: 1 } }).catch(() => null);
+    
+    // تسجيل إحصائية
+    let doc = await Analytics.findOne({ key: 'main' });
+    if (!doc) doc = new Analytics({ key: 'main' });
+    const today = new Date().toISOString().split('T')[0];
+    const wOrders = { ...doc.whatsapp_orders };
+    // Using whatsapp_orders field for all orders temporarily
+    for (let item of orderItems) {
+      if (item.productId) {
+        const idStr = item.productId.toString();
+        if (!wOrders[idStr]) wOrders[idStr] = { count: 0, title: item.title };
+        wOrders[idStr].count++;
+        wOrders[idStr].lastDate = new Date().toISOString();
+      }
     }
-    if (coupon.coupon) await Coupon.updateOne({_id:coupon.coupon._id},{$inc:{usedCount:1}});
-    let doc=await Analytics.findOne({key:'main'}); if(!doc) doc=new Analytics({key:'main'}); const wOrders={...(doc.whatsapp_orders||{})};
-    for(const item of orderItems){const idStr=String(item.productId);if(!wOrders[idStr])wOrders[idStr]={count:0,title:item.title};wOrders[idStr].count+=(item.quantity||1);wOrders[idStr].lastDate=new Date().toISOString();}
-    doc.whatsapp_orders=wOrders;doc.markModified('whatsapp_orders');await doc.save();
-    res.json({success:true,message:'تم إرسال الطلب بنجاح',orderId:order.orderNumber,orderNumber:order.orderNumber,subtotal,discountAmount:coupon.discount,shippingAmount:quote.amount,total,paymentMethod:pay,deliveryMethod:method});
-  } catch(err){console.error('Error submitting order:',err);res.status(err.statusCode||500).json({success:false,message:err.statusCode?err.message:'خطأ أثناء تقديم الطلب'});}
+    doc.whatsapp_orders = wOrders;
+    doc.markModified('whatsapp_orders');
+    await doc.save();
+
+    res.json({ success: true, message: 'تم إرسال الطلب بنجاح', orderId: order.orderNumber });
+  } catch (err) {
+    console.error('Error submitting order:', err);
+    res.status(500).json({ success: false, message: 'خطأ أثناء تقديم الطلب' });
+  }
 });
-
-app.post('/api/checkout/quote', publicWriteLimiter, async (req,res)=>{
-  try{await ensureDBConnection();const settings=await getOrCreateSettings();const subtotal=Math.max(0,Number(req.body?.subtotal)||0);const quote=await getShippingQuote(settings,req.body?.deliveryMethod==='shipping'?'shipping':'pickup',req.body?.governorate||'',subtotal);const coupon=await validateCouponCode(req.body?.couponCode||'',subtotal);res.json({shippingAmount:quote.amount,discountAmount:coupon.discount,total:Math.max(0,Math.round((subtotal-coupon.discount+quote.amount)*100)/100),eta:quote.zone?.eta||'',couponCode:coupon.code});}catch(err){res.status(err.statusCode||400).json({message:err.message});}
-});
-app.post('/api/coupons/validate', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const r=await validateCouponCode(req.body?.code,Math.max(0,Number(req.body?.subtotal)||0));res.json({valid:true,code:r.code,discountAmount:r.discount});}catch(err){res.status(err.statusCode||400).json({valid:false,message:err.message});}});
-
-app.get('/api/orders/track', publicWriteLimiter, async (req,res)=>{
-  try{await ensureDBConnection();const orderNumber=sanitizePlainText(req.query.orderNumber,80);const phone=normalizePhoneNumber(req.query.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});const order=await Order.findOne({orderNumber,customerPhone:phone}).lean();if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});res.json({orderNumber:order.orderNumber,status:order.status,createdAt:order.createdAt,total:order.total,shippingAmount:order.shippingAmount,discountAmount:order.discountAmount,deliveryMethod:order.deliveryMethod,paymentMethod:order.paymentMethod,items:(order.items||[]).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity,price:i.price})),statusHistory:(order.statusHistory||[]).map(x=>({status:x.status,at:x.at,note:x.note}))});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}
-});
-
-app.get('/api/reviews/:productId', async (req,res)=>{try{await ensureDBConnection();const reviews=await Review.find({productId:req.params.productId,approved:true}).sort({createdAt:-1}).limit(50).lean();const avg=reviews.length?reviews.reduce((a,r)=>a+Number(r.rating||0),0)/reviews.length:0;res.json({reviews,average:Math.round(avg*10)/10,count:reviews.length});}catch(err){res.status(500).json({message:'تعذر تحميل التقييمات'});}});
-app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});await Review.create({productId,name,rating,comment,approved:false});res.status(201).json({success:true,message:'تم استلام تقييمك وسيظهر بعد المراجعة'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
-
-app.post('/api/stock-notify', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const product=await Product.findById(req.body?.productId).select('title stockQuantity');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const phone=normalizePhoneNumber(req.body?.phone);if(!phone)return res.status(400).json({message:'رقم الهاتف مطلوب'});const name=sanitizePlainText(req.body?.name,80);await StockNotify.findOneAndUpdate({productId:product._id,phone,status:'waiting'},{$set:{productTitle:product.title,name,createdAt:new Date()}},{upsert:true,new:true});res.json({success:true,message:'تم تسجيل طلب التنبيه عند توفر المنتج'});}catch(err){res.status(500).json({message:'تعذر تسجيل طلب التنبيه'});}});
-
-// V8 admin: coupons, reviews and stock notifications
-app.get('/api/admin/coupons', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{res.json(await Coupon.find().sort({createdAt:-1}).lean());});
-app.post('/api/admin/coupons', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{try{const code=sanitizePlainText(req.body?.code,40).toUpperCase();if(!code)return res.status(400).json({message:'كود الخصم مطلوب'});const doc=await Coupon.create({code,type:req.body?.type==='fixed'?'fixed':'percent',value:Math.max(0,Number(req.body?.value)||0),minSubtotal:Math.max(0,Number(req.body?.minSubtotal)||0),maxDiscount:Math.max(0,Number(req.body?.maxDiscount)||0),startsAt:parseOptionalDate(req.body?.startsAt),endsAt:parseOptionalDate(req.body?.endsAt),usageLimit:Math.max(0,Math.floor(Number(req.body?.usageLimit)||0)),enabled:req.body?.enabled!==false});await logActivity('إضافة كوبون',`تم إضافة كوبون ${code}`,req.adminUser.username);res.status(201).json(doc);}catch(err){res.status(400).json({message:err.code===11000?'كود الخصم موجود بالفعل':err.message});}});
-app.put('/api/admin/coupons/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{try{const update={};['code','type','value','minSubtotal','maxDiscount','usageLimit','enabled'].forEach(k=>{if(req.body?.[k]!==undefined)update[k]=req.body[k]});if(update.code)update.code=sanitizePlainText(update.code,40).toUpperCase();if(update.type&&!['percent','fixed'].includes(update.type))update.type='percent';['value','minSubtotal','maxDiscount','usageLimit'].forEach(k=>{if(update[k]!==undefined)update[k]=Math.max(0,Number(update[k])||0)});if(req.body?.startsAt!==undefined)update.startsAt=parseOptionalDate(req.body.startsAt)||null;if(req.body?.endsAt!==undefined)update.endsAt=parseOptionalDate(req.body.endsAt)||null;const doc=await Coupon.findByIdAndUpdate(req.params.id,update,{new:true});if(!doc)return res.status(404).json({message:'الكوبون غير موجود'});res.json(doc);}catch(err){res.status(400).json({message:err.message});}});
-app.delete('/api/admin/coupons/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await Coupon.findByIdAndDelete(req.params.id);res.json({success:true});});
-app.get('/api/admin/reviews', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const reviews=await Review.find().populate('productId','title').sort({createdAt:-1}).limit(500).lean();res.json(reviews);});
-app.put('/api/admin/reviews/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const doc=await Review.findByIdAndUpdate(req.params.id,{approved:Boolean(req.body?.approved)},{new:true});if(!doc)return res.status(404).json({message:'التقييم غير موجود'});res.json(doc);});
-app.delete('/api/admin/reviews/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await Review.findByIdAndDelete(req.params.id);res.json({success:true});});
-app.get('/api/admin/stock-notify', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{res.json(await StockNotify.find().sort({createdAt:-1}).limit(500).lean());});
-app.put('/api/admin/stock-notify/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const status=['waiting','notified','cancelled'].includes(req.body?.status)?req.body.status:'waiting';const doc=await StockNotify.findByIdAndUpdate(req.params.id,{status,notifiedAt:status==='notified'?new Date():null},{new:true});res.json(doc);});
-app.delete('/api/admin/stock-notify/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await StockNotify.findByIdAndDelete(req.params.id);res.json({success:true});});
 
 // جلب كل الأقسام
 app.get('/api/categories', async (req, res) => {
@@ -1253,7 +1132,7 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
     if (!req.adminUser) {
       // Send only fields used by the public storefront. This keeps mobile payloads small
       // and also guarantees internal supplier/Cloudinary management fields stay private.
-      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription variants');
+      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription');
     }
 
     const products = await query.lean();
@@ -1314,7 +1193,7 @@ app.delete('/api/emergency-clean', requireAdminAuth, requirePermission('manage_b
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', requireAdminAuth, requirePermission('add_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription } = req.body;
     if (!title || !category || !price) {
       return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
@@ -1348,8 +1227,6 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
     }
 
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
-    const normalizedVariants = normalizeVariants(variants);
-    const effectiveStock = normalizedVariants.length ? normalizedVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockQuantity) || 0), 0) : (stockQuantity ? parseInt(stockQuantity, 10) : 1);
 
     const newProduct = new Product({
       title,
@@ -1360,7 +1237,7 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       image: image,
       imagePublicId: imagePublicId,
       additionalImages: additionalImages,
-      stockQuantity: effectiveStock,
+      stockQuantity: stockQuantity ? parseInt(stockQuantity, 10) : 1,
       sku: sku || '',
       warranty: warranty || '',
       publicBrand: publicBrand || '',
@@ -1369,8 +1246,7 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       customBadge: sanitizePlainText(customBadge, 40),
       tags: normalizeStringList(tags, 20),
       seoTitle: sanitizePlainText(seoTitle, 70),
-      seoDescription: sanitizePlainText(seoDescription, 180),
-      variants: normalizedVariants
+      seoDescription: sanitizePlainText(seoDescription, 180)
     });
 
     await newProduct.save();
@@ -1453,10 +1329,8 @@ app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
-    const normalizedVariants = normalizeVariants(variants);
-    const effectiveStock = normalizedVariants.length ? normalizedVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockQuantity) || 0), 0) : (parseInt(stockQuantity, 10) || 0);
     
     const updateData = {
       title,
@@ -1464,7 +1338,7 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
       price,
       oldPrice: oldPrice ? Number(oldPrice) : null,
       description: descArray,
-      stockQuantity: effectiveStock,
+      stockQuantity: parseInt(stockQuantity, 10) || 0,
       sku: sku || '',
       warranty: warranty || '',
       publicBrand: publicBrand || '',
@@ -1472,8 +1346,7 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
       customBadge: sanitizePlainText(customBadge, 40),
       tags: normalizeStringList(tags, 20),
       seoTitle: sanitizePlainText(seoTitle, 70),
-      seoDescription: sanitizePlainText(seoDescription, 180),
-      variants: normalizedVariants
+      seoDescription: sanitizePlainText(seoDescription, 180)
     };
 
     if (discountExpiresAt !== undefined) {
@@ -1754,25 +1627,6 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
       logMessage = logMessage ? logMessage + ' وإعدادات الشحن' : `تم ${settings.isShippingEnabled ? 'تفعيل' : 'إيقاف'} الشحن`;
     }
 
-    if (req.body && req.body.pickupEnabled !== undefined) { settings.pickupEnabled = parseBool(req.body.pickupEnabled); updated = true; }
-    if (req.body && req.body.freeShippingThreshold !== undefined) { settings.freeShippingThreshold = Math.max(0, Number(req.body.freeShippingThreshold) || 0); updated = true; }
-    if (req.body && req.body.shippingInstructions !== undefined) { settings.shippingInstructions = sanitizePlainText(req.body.shippingInstructions, 500); updated = true; }
-    if (req.body && req.body.paymentCashOnDelivery !== undefined) { settings.paymentCashOnDelivery = parseBool(req.body.paymentCashOnDelivery); updated = true; }
-    if (req.body && req.body.paymentInstapay !== undefined) { settings.paymentInstapay = parseBool(req.body.paymentInstapay); updated = true; }
-    if (req.body && req.body.paymentStorePickup !== undefined) { settings.paymentStorePickup = parseBool(req.body.paymentStorePickup); updated = true; }
-    if (req.body && req.body.instapayHandle !== undefined) { settings.instapayHandle = sanitizePlainText(req.body.instapayHandle, 120); updated = true; }
-    if (req.body && req.body.privacyNotice !== undefined) { settings.privacyNotice = sanitizePlainText(req.body.privacyNotice, 600); updated = true; }
-    if (req.body && req.body.shippingZones !== undefined) {
-      let zones = req.body.shippingZones;
-      if (typeof zones === 'string') { try { zones = JSON.parse(zones); } catch (_) { zones = []; } }
-      if (!Array.isArray(zones)) zones = [];
-      settings.shippingZones = zones.slice(0, 100).map(z => ({
-        name: sanitizePlainText(z?.name, 100), governorate: sanitizePlainText(z?.governorate || z?.name, 100),
-        fee: Math.max(0, Number(z?.fee) || 0), eta: sanitizePlainText(z?.eta, 80), enabled: z?.enabled !== false
-      })).filter(z => z.name);
-      updated = true;
-    }
-
     if (req.body && req.body.posApiKey !== undefined) {
       settings.posApiKey = String(req.body.posApiKey).trim();
       updated = true;
@@ -1966,15 +1820,7 @@ app.post('/api/admin/push/send', requireAdminAuth, requirePermission('manage_set
   } catch (err) { res.status(500).json({ message: 'تعذر إرسال الإشعار', error: err.message }); }
 });
 
-app.get('/api/analytics/popular', async (req, res) => {
-  try {
-    await ensureDBConnection();
-    const doc = await getOrCreateAnalytics();
-    res.json({ views: doc.views || {}, cart_adds: doc.cart_adds || {}, whatsapp_orders: doc.whatsapp_orders || {} });
-  } catch (_) { res.json({ views:{}, cart_adds:{}, whatsapp_orders:{} }); }
-});
-
-app.get('/api/analytics', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+app.get('/api/analytics', async (req, res) => {
   await ensureDBConnection();
   try {
     const doc = await getOrCreateAnalytics();
@@ -2048,52 +1894,31 @@ app.post('/api/analytics/reset', requireAdminAuth, requirePermission('view_repor
   }
 });
 
-app.post('/api/analytics/visitor', publicWriteLimiter, async (req, res) => {
+app.post('/api/analytics/visitor', async (req, res) => {
   try {
-    await ensureDBConnection(); const body = req.body || {}; const visitorId = sanitizePlainText(body.visitorId, 120); const sessionId = sanitizePlainText(body.sessionId, 140);
-    if (!visitorId || !sessionId) return res.status(400).json({ message: 'visitorId and sessionId required' });
-    const rawIp = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim(); const geo = readGeoFromRequest(req); const attr = classifyTrafficSource(body); const now = new Date();
-    const referrer = String(body.referrer || '').slice(0, 1000); const landingPage = String(body.landingPage || body.page || '/').slice(0, 500);
-    const visitor = await Visitor.findOne({ visitorId }); const sessionExists = await VisitorSession.exists({ sessionId }); const isNew = !visitor;
-    const update = { ip: rawIp, location: geo.location || sanitizePlainText(body.location,120), country: geo.country, city: geo.city, device: sanitizePlainText(body.device,140), deviceType: sanitizePlainText(body.deviceType,40), browser: sanitizePlainText(body.browser,60), os: sanitizePlainText(body.os,60), language: sanitizePlainText(body.language,30), screen: sanitizePlainText(body.screen,40), timezone: sanitizePlainText(body.timezone,80), referrer, utmSource: sanitizePlainText(body.utmSource,80), utmMedium: sanitizePlainText(body.utmMedium,80), utmCampaign: sanitizePlainText(body.utmCampaign,120), utmContent: sanitizePlainText(body.utmContent,120), utmTerm: sanitizePlainText(body.utmTerm,120), shareSource: sanitizePlainText(body.shareSource,50), source: attr.source, medium: attr.medium, lastLandingPage: landingPage, lastPage: String(body.page || landingPage).slice(0,500), lastSeenAt: now, timestamp: now, visitCount: Number(visitor?.visitCount || 0) + 1 };
-    if (isNew) Object.assign(update,{ firstSource: attr.source, firstReferrer: referrer, firstLandingPage: landingPage, firstSeenAt: now, sessionCount: 1 }); else if (!sessionExists) update.sessionCount = Number(visitor.sessionCount || 0) + 1;
-    await Visitor.findOneAndUpdate({ visitorId }, { $set: update }, { upsert: true, new: true, setDefaultsOnInsert: true });
-    await VisitorSession.findOneAndUpdate({ sessionId }, { $setOnInsert: { sessionId, visitorId, startedAt: now, entryPage: landingPage, source: attr.source, medium: attr.medium, referrer, utmSource: body.utmSource || '', utmMedium: body.utmMedium || '', utmCampaign: body.utmCampaign || '', utmContent: body.utmContent || '', utmTerm: body.utmTerm || '', shareSource: body.shareSource || '', ip: rawIp, location: geo.location || '', country: geo.country, city: geo.city, device: body.device || '', deviceType: body.deviceType || '', browser: body.browser || '', os: body.os || '', language: body.language || '', screen: body.screen || '', timezone: body.timezone || '' }, $set: { exitPage: String(body.page || landingPage).slice(0,500), lastSeenAt: now }, ...(sessionExists ? { $inc: { pageCount: 1 } } : {}) }, { upsert: true, new: true });
-    res.json({ success: true, source: attr.source, medium: attr.medium });
-  } catch (err) { res.status(500).json({ message: 'Error tracking visitor', error: err.message }); }
-});
-
-app.post('/api/analytics/session-ping', publicWriteLimiter, async (req,res)=>{
-  try{
-    await ensureDBConnection();const visitorId=sanitizePlainText(req.body?.visitorId,120),sessionId=sanitizePlainText(req.body?.sessionId,140);if(!visitorId||!sessionId)return res.status(400).json({message:'missing session'});
-    const now=new Date();const page=String(req.body?.page||'').slice(0,500);const delta=Math.max(0,Math.min(60,Number(req.body?.activeSecondsDelta)||0));
-    await Promise.all([Visitor.updateOne({visitorId},{$set:{lastSeenAt:now,lastPage:page||undefined}}),VisitorSession.updateOne({sessionId,visitorId},{$set:{lastSeenAt:now,exitPage:page||undefined},$inc:{activeSeconds:delta}})]);
-    res.json({success:true});
-  }catch(err){res.status(500).json({message:'ping failed'});}
+    const { visitorId, referrer, utmSource, location, device } = req.body;
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (!visitorId) return res.status(400).json({ message: 'visitorId required' });
+    
+    await Visitor.findOneAndUpdate(
+      { visitorId },
+      { ip, location, device, referrer, utmSource, timestamp: new Date() },
+      { upsert: true, new: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Error tracking visitor', error: err.message });
+  }
 });
 
 app.get('/api/analytics/visitors', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
-    await ensureDBConnection();
-    const limit=Math.max(1,Math.min(500,parseInt(req.query.limit)||200)); const q={};
-    if(req.query.source) q.source=sanitizePlainText(req.query.source,80);
-    const from=parseOptionalDate(req.query.from), to=parseOptionalDate(req.query.to);
-    if(from || to){q.lastSeenAt={};if(from)q.lastSeenAt.$gte=from;if(to){const end=new Date(to);if(String(req.query.to||'').length<=10)end.setHours(23,59,59,999);q.lastSeenAt.$lte=end;}}
-    const [visitors,uniqueCount,sourceAgg]=await Promise.all([
-      Visitor.find(q).sort({lastSeenAt:-1,timestamp:-1}).limit(limit).lean(),
-      Visitor.countDocuments(q),
-      Visitor.aggregate([{ $match:q },{ $group:{_id:'$source',count:{$sum:1}}},{ $sort:{count:-1}},{ $limit:30}])
-    ]);
-    res.json({visitors,uniqueCount,sources:sourceAgg.map(x=>({source:x._id||'Direct',count:x.count}))});
-  } catch(err){res.status(500).json({message:'Error fetching visitors',error:err.message});}
-});
-app.get('/api/analytics/sessions', requireAdminAuth, requirePermission('view_reports'), async (req,res)=>{
-  try{
-    await ensureDBConnection();const limit=Math.max(1,Math.min(1000,parseInt(req.query.limit)||300));const q={};
-    if(req.query.visitorId)q.visitorId=sanitizePlainText(req.query.visitorId,120);if(req.query.source)q.source=sanitizePlainText(req.query.source,80);
-    const from=parseOptionalDate(req.query.from),to=parseOptionalDate(req.query.to);if(from||to){q.startedAt={};if(from)q.startedAt.$gte=from;if(to){const end=new Date(to);if(String(req.query.to||'').length<=10)end.setHours(23,59,59,999);q.startedAt.$lte=end;}}
-    const sessions=await VisitorSession.find(q).sort({startedAt:-1}).limit(limit).lean();res.json({sessions});
-  }catch(err){res.status(500).json({message:'Error fetching sessions',error:err.message});}
+    const visitors = await Visitor.find().sort({ timestamp: -1 }).limit(100);
+    const uniqueCount = await Visitor.countDocuments();
+    res.json({ visitors, uniqueCount });
+  } catch (err) {
+    res.status(500).json({ message: 'Error fetching visitors', error: err.message });
+  }
 });
 
 // --- الـ API Routes الخاصة بمديري النظام (Admin Auth) ---
@@ -2169,7 +1994,7 @@ app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'
     const status = String(req.query.status || '').trim();
     const search = String(req.query.search || '').trim();
     const filter = {};
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
     if (status && validStatuses.includes(status)) filter.status = status;
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2191,15 +2016,13 @@ app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'
 
 app.put('/api/admin/orders/:orderId/status', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
   try {
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'received_by_pos', 'processing', 'completed', 'cancelled'];
     const status = String(req.body.status || '').trim();
     if (!validStatuses.includes(status)) return res.status(400).json({ message: 'حالة الطلب غير صالحة' });
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: 'الطلب غير موجود' });
     const previousStatus = order.status;
     order.status = status;
-    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
-    order.statusHistory.push({ status, at: new Date(), note: sanitizePlainText(req.body?.note, 200) });
     await order.save();
     await logActivity('تحديث طلب', `تم تغيير حالة الطلب ${order.orderNumber} من ${previousStatus} إلى ${status}`, req.adminUser.username);
     res.json({ success: true, order });
@@ -2253,7 +2076,7 @@ app.get('/api/admin/media', requireAdminAuth, requirePermission('manage_media'),
   }
 });
 
-app.post('/api/admin/login', loginLimiter, async (req, res) => {
+app.post('/api/admin/login', async (req, res) => {
   await ensureDBConnection();
   try {
     const username = String(req.body?.username || '').trim();

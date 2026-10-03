@@ -206,7 +206,7 @@
             <div class="flex flex-col gap-5">
                 <div class="glass-panel p-4 rounded-xl border border-outline-variant/30 flex flex-col lg:flex-row gap-3 lg:items-center">
                     <div class="relative flex-1"><span class="material-symbols-outlined absolute right-3 top-2.5 text-on-surface-variant text-[20px]">search</span><input id="ordersSearchInput" oninput="scheduleOrdersReload()" type="search" placeholder="رقم الطلب، العميل، الهاتف أو المنتج..." class="w-full bg-surface-container border border-outline-variant rounded-lg py-2.5 pr-10 pl-3 text-sm text-on-surface focus:outline-none focus:border-primary"></div>
-                    <select id="ordersStatusFilter" onchange="loadOrders(1)" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-3 text-sm text-on-surface min-w-[180px]"><option value="">كل الحالات</option><option value="pending">جديد</option><option value="received_by_pos">استلمه POS</option><option value="processing">جاري التجهيز</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select>
+                    <select id="ordersStatusFilter" onchange="loadOrders(1)" class="bg-surface-container border border-outline-variant rounded-lg py-2.5 px-3 text-sm text-on-surface min-w-[180px]"><option value="">كل الحالات</option><option value="pending">جديد</option><option value="received_by_pos">استلمه POS</option><option value="processing">جاري التجهيز</option><option value="out_for_delivery">خرج للتوصيل</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select>
                     <button onclick="loadOrders(1)" class="px-4 py-2.5 rounded-lg bg-primary text-on-primary font-bold text-sm flex items-center justify-center gap-2"><span class="material-symbols-outlined text-[18px]">refresh</span> تحديث</button>
                 </div>
                 <div class="glass-panel rounded-xl border border-outline-variant/30 overflow-hidden">
@@ -1220,5 +1220,6 @@
         }
     </script>
     <script src="admin.js" defer></script>
+    <script src="admin-v8.js" defer></script>
 </body>
 </html>
