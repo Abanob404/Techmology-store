@@ -2124,6 +2124,13 @@ async function trackVisitor() {
             sessionStorage.setItem('tech_store_session_landing', location.pathname + location.search);
         }
         const params = new URLSearchParams(location.search);
+        const aliasParamMap = {
+            utm_source: ['utm_source', 'src', 'source'],
+            utm_medium: ['utm_medium', 'med', 'medium'],
+            utm_campaign: ['utm_campaign', 'camp', 'campaign'],
+            utm_content: ['utm_content', 'content'],
+            utm_term: ['utm_term', 'term']
+        };
         const attrStore = {
             referrer: 'tech_store_session_referrer',
             utm_source: 'tech_store_session_utm_source',
@@ -2133,15 +2140,23 @@ async function trackVisitor() {
             utm_term: 'tech_store_session_utm_term',
             share_source: 'tech_store_session_share_source'
         };
+        const getCampaignParamValue = (key) => {
+            const aliases = aliasParamMap[key] || [key];
+            for (const alias of aliases) {
+                const value = params.get(alias);
+                if (value) return value;
+            }
+            return '';
+        };
         if (sessionStorage.getItem(attrStore.referrer) === null) {
             let entryRef = document.referrer || '';
             try { if (entryRef && new URL(entryRef).origin === location.origin) entryRef = ''; } catch (_) {}
             sessionStorage.setItem(attrStore.referrer, entryRef);
         }
         for (const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) {
-            if (sessionStorage.getItem(attrStore[key]) === null) sessionStorage.setItem(attrStore[key], params.get(key) || '');
+            if (sessionStorage.getItem(attrStore[key]) === null) sessionStorage.setItem(attrStore[key], getCampaignParamValue(key));
         }
-        if (sessionStorage.getItem(attrStore.share_source) === null) sessionStorage.setItem(attrStore.share_source, params.get('share_source') || params.get('src') || '');
+        if (sessionStorage.getItem(attrStore.share_source) === null) sessionStorage.setItem(attrStore.share_source, params.get('share_source') || params.get('src') || params.get('source') || '');
         const ua = navigator.userAgent || '';
         const detect = () => {
             let os = /android/i.test(ua) ? 'Android' : /iphone|ipad|ipod/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os|macintosh/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Other';
