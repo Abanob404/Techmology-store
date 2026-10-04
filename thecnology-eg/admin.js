@@ -980,7 +980,12 @@ async function loadUsersTable() {
             'manage_users': 'مستخدمين',
             'manage_orders': 'إدارة الطلبات',
             'manage_media': 'مركز الصور',
-            'all': 'كل الصلاحيات (مدير)'
+            'manage_marketing': 'التسويق والحملات',
+            'manage_returns': 'الاستبدال والاسترجاع',
+            'manage_security': 'أمان الإدارة',
+            'manage_system': 'حالة النظام وPOS',
+            'view_visitor_details': 'تفاصيل الزوار',
+            'all': 'كل الصلاحيات (مالك)'
         };
         const permsText = user.permissions.includes('all') ? 'كل الصلاحيات' : user.permissions.map(p => permLabels[p] || p).join('، ');
         tr.innerHTML = `

@@ -232,11 +232,6 @@
   function cycleModalGallery(dir,p){const arr=collectImages(p),img=document.getElementById('modalImage');if(!img||!arr.length)return;let i=Math.max(0,arr.indexOf(img.src));i=(i+dir+arr.length)%arr.length;img.src=arr[i];}
   function openImageViewer(images,current){document.getElementById('v8ImageViewer')?.remove();let idx=Math.max(0,images.indexOf(current));const m=document.createElement('div');m.id='v8ImageViewer';m.className='v8-image-viewer';m.innerHTML=`<button class="close">×</button><button class="prev">‹</button><img><button class="next">›</button><span></span>`;document.body.appendChild(m);const render=()=>{m.querySelector('img').src=images[idx];m.querySelector('span').textContent=`${idx+1} / ${images.length}`;};render();m.querySelector('.close').onclick=()=>m.remove();m.querySelector('.prev').onclick=()=>{idx=(idx-1+images.length)%images.length;render();};m.querySelector('.next').onclick=()=>{idx=(idx+1)%images.length;render();};m.onclick=e=>{if(e.target===m)m.remove();};}
 
-  function injectPrivacyNotice(){
-    const s=settings(); const text=String(s.privacyNotice||'').trim(); if(!text || localStorage.getItem('tech_privacy_seen_v8')==='1')return;
-    const bar=document.createElement('div');bar.className='v8-privacy-note';bar.innerHTML=`<span class="material-symbols-outlined">shield_lock</span><p>${esc(text)}</p><button type="button">فهمت</button>`;
-    bar.querySelector('button').onclick=()=>{localStorage.setItem('tech_privacy_seen_v8','1');bar.remove();};document.body.appendChild(bar);
-  }
 
   // ---------- UI hooks ----------
   function injectTrackingEntry(){
@@ -248,7 +243,7 @@
   function smoothImages(){document.querySelectorAll('img').forEach(img=>{if(!img.hasAttribute('decoding'))img.decoding='async';});}
 
   document.addEventListener('DOMContentLoaded',()=>{
-    setTimeout(()=>{ buildCheckoutForm(); upgradeCheckoutButton(); injectTrackingEntry(); smoothImages(); injectPrivacyNotice(); },80); setTimeout(()=>{refreshCheckoutConfig();injectPrivacyNotice();},1400);
+    setTimeout(()=>{ buildCheckoutForm(); upgradeCheckoutButton(); injectTrackingEntry(); smoothImages(); },80); setTimeout(()=>{refreshCheckoutConfig();},1400);
     const mo=new MutationObserver(()=>smoothImages()); mo.observe(document.body,{childList:true,subtree:true}); setTimeout(()=>mo.disconnect(),12000);
   });
 })();

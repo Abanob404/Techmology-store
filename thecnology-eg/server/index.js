@@ -129,10 +129,30 @@ const adminUserSchema = new mongoose.Schema({
   username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   role: { type: String, default: 'محرر' },
+  roleKey: { type: String, default: 'custom' },
   permissions: { type: [String], default: [] },
+  totpEnabled: { type: Boolean, default: false },
+  totpSecret: { type: String, default: '' },
+  totpPendingSecret: { type: String, default: '' },
+  failedLoginCount: { type: Number, default: 0 },
+  lockedUntil: { type: Date, default: null },
+  lastLoginAt: { type: Date, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 const AdminUser = mongoose.model('AdminUser', adminUserSchema);
+
+const adminSessionSchema = new mongoose.Schema({
+  jti: { type: String, required: true, unique: true, index: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'AdminUser', required: true, index: true },
+  ip: { type: String, default: '' },
+  userAgent: { type: String, default: '' },
+  deviceLabel: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now },
+  lastSeenAt: { type: Date, default: Date.now },
+  expiresAt: { type: Date, required: true, index: { expires: 0 } },
+  revokedAt: { type: Date, default: null }
+});
+const AdminSession = mongoose.model('AdminSession', adminSessionSchema);
 
 function hashPassword(password) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -162,12 +182,54 @@ function getJwtSecret() {
   return secret;
 }
 
-function issueAdminToken(user) {
+function issueAdminToken(user, jti = '') {
   return jwt.sign(
-    { sub: user._id.toString(), username: user.username },
+    { sub: user._id.toString(), username: user.username, ...(jti ? { jti } : {}) },
     getJwtSecret(),
     { expiresIn: '12h' }
   );
+}
+
+function getClientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.socket?.remoteAddress || '').split(',')[0].trim().slice(0, 120);
+}
+function describeAdminDevice(req) {
+  const ua = String(req.headers['user-agent'] || '').slice(0, 500);
+  let device = /iphone/i.test(ua) ? 'iPhone' : /ipad/i.test(ua) ? 'iPad' : /android/i.test(ua) ? 'Android' : /windows/i.test(ua) ? 'Windows' : /macintosh|mac os/i.test(ua) ? 'Mac' : /linux/i.test(ua) ? 'Linux' : 'جهاز غير معروف';
+  let browser = /edg\//i.test(ua) ? 'Edge' : /chrome\//i.test(ua) ? 'Chrome' : /firefox\//i.test(ua) ? 'Firefox' : /safari\//i.test(ua) ? 'Safari' : 'Browser';
+  return `${browser} / ${device}`;
+}
+async function createAdminSession(user, req) {
+  const jti = crypto.randomBytes(24).toString('hex');
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + 12 * 60 * 60 * 1000);
+  await AdminSession.create({ jti, userId: user._id, ip: getClientIp(req), userAgent: String(req.headers['user-agent'] || '').slice(0, 500), deviceLabel: describeAdminDevice(req), createdAt: now, lastSeenAt: now, expiresAt });
+  return { jti, token: issueAdminToken(user, jti), expiresAt };
+}
+
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function base32Encode(buffer) {
+  let bits = ''; for (const b of buffer) bits += b.toString(2).padStart(8, '0');
+  let out = ''; for (let i = 0; i < bits.length; i += 5) { const chunk = bits.slice(i, i + 5).padEnd(5, '0'); out += BASE32_ALPHABET[parseInt(chunk, 2)]; }
+  return out;
+}
+function base32Decode(value) {
+  const clean = String(value || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+  let bits = ''; for (const ch of clean) { const idx = BASE32_ALPHABET.indexOf(ch); if (idx >= 0) bits += idx.toString(2).padStart(5, '0'); }
+  const bytes = []; for (let i = 0; i + 8 <= bits.length; i += 8) bytes.push(parseInt(bits.slice(i, i + 8), 2));
+  return Buffer.from(bytes);
+}
+function generateTotpSecret() { return base32Encode(crypto.randomBytes(20)); }
+function generateTotpCode(secret, timestamp = Date.now()) {
+  const key = base32Decode(secret); const counter = Math.floor(timestamp / 30000); const buf = Buffer.alloc(8); buf.writeBigUInt64BE(BigInt(counter));
+  const hmac = crypto.createHmac('sha1', key).update(buf).digest(); const offset = hmac[hmac.length - 1] & 0x0f;
+  const code = ((hmac[offset] & 0x7f) << 24 | hmac[offset + 1] << 16 | hmac[offset + 2] << 8 | hmac[offset + 3]) % 1000000;
+  return String(code).padStart(6, '0');
+}
+function verifyTotp(secret, code) {
+  const wanted = String(code || '').replace(/\D/g, '').slice(0, 6); if (wanted.length !== 6 || !secret) return false;
+  const now = Date.now(); for (const drift of [-1, 0, 1]) { const generated = generateTotpCode(secret, now + drift * 30000); if (crypto.timingSafeEqual(Buffer.from(generated), Buffer.from(wanted))) return true; }
+  return false;
 }
 
 async function requireAdminAuth(req, res, next) {
@@ -178,9 +240,16 @@ async function requireAdminAuth(req, res, next) {
     }
     const token = authHeader.slice(7).trim();
     const payload = jwt.verify(token, getJwtSecret());
-    const user = await AdminUser.findById(payload.sub).select('-password');
+    const user = await AdminUser.findById(payload.sub).select('-password -totpSecret -totpPendingSecret');
     if (!user) return res.status(401).json({ message: 'جلسة غير صالحة' });
+    if (payload.jti) {
+      const session = await AdminSession.findOne({ jti: payload.jti, userId: user._id });
+      if (!session || session.revokedAt || session.expiresAt <= new Date()) return res.status(401).json({ message: 'تم إنهاء جلسة الإدارة' });
+      if (!session.lastSeenAt || Date.now() - new Date(session.lastSeenAt).getTime() > 5 * 60 * 1000) AdminSession.updateOne({ _id: session._id }, { $set: { lastSeenAt: new Date() } }).catch(() => null);
+      req.adminSession = session;
+    }
     req.adminUser = user;
+    req.adminJwt = payload;
     next();
   } catch (err) {
     return res.status(401).json({ message: 'انتهت أو لم تعد جلسة الإدارة صالحة' });
@@ -208,6 +277,14 @@ function requirePermission(permission) {
   };
 }
 
+function requireAnyPermission(...wanted) {
+  return (req, res, next) => {
+    const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
+    if (permissions.includes('all') || wanted.some(p => permissions.includes(p))) return next();
+    return res.status(403).json({ message: 'ليس لديك صلاحية لتنفيذ هذا الإجراء' });
+  };
+}
+
 function requireSelfOrPermission(permission) {
   return (req, res, next) => {
     const isSelf = req.adminUser && String(req.adminUser._id) === String(req.params.id);
@@ -220,7 +297,8 @@ function requireSelfOrPermission(permission) {
 const VALID_ADMIN_PERMISSIONS = new Set([
   'all', 'add_product', 'edit_product', 'delete_product',
   'manage_categories', 'manage_settings', 'manage_backup', 'view_reports', 'manage_users',
-  'manage_orders', 'manage_media'
+  'manage_orders', 'manage_media', 'manage_marketing', 'manage_returns', 'manage_security',
+  'manage_system', 'view_visitor_details'
 ]);
 
 function normalizePermissions(value) {
@@ -228,6 +306,9 @@ function normalizePermissions(value) {
   const cleaned = [...new Set(value.map(v => String(v).trim()).filter(v => VALID_ADMIN_PERMISSIONS.has(v)))];
   return cleaned.includes('all') ? ['all'] : cleaned;
 }
+
+const ADMIN_ROLE_LABELS = { owner: 'المالك', manager: 'مدير', orders: 'الطلبات', warehouse: 'المخزون', marketing: 'التسويق', support: 'خدمة العملاء', custom: 'مخصص' };
+function normalizeRoleKey(value) { const key = String(value || 'custom').toLowerCase(); return Object.prototype.hasOwnProperty.call(ADMIN_ROLE_LABELS, key) ? key : 'custom'; }
 
 async function initDefaultAdmin() {
   try {
@@ -242,7 +323,8 @@ async function initDefaultAdmin() {
       const admin = new AdminUser({
         username,
         password: hashPassword(password),
-        role: 'مدير',
+        role: 'المالك',
+        roleKey: 'owner',
         permissions: ['all']
       });
       await admin.save();
@@ -316,7 +398,6 @@ const settingsSchema = new mongoose.Schema({
   paymentInstapay: { type: Boolean, default: false },
   instapayHandle: { type: String, default: '' },
   paymentStorePickup: { type: Boolean, default: true },
-  privacyNotice: { type: String, default: 'نستخدم مصدر الزيارة والجهاز والموقع التقريبي ومعرّف زيارة لتحسين المتجر وقياس الحملات، وقد نربط الزيارة ببيانات الطلب عند الشراء.' },
   posApiKey: { type: String, default: () => String(process.env.POS_API_KEY || '').trim() },
   isCrossSellEnabled: { type: Boolean, default: false },
   isQuickBuyEnabled: { type: Boolean, default: false },
@@ -437,6 +518,74 @@ const activityLogSchema = new mongoose.Schema({
   timestamp: { type: Date, default: Date.now }
 });
 const ActivityLog = mongoose.model('ActivityLog', activityLogSchema);
+
+
+// V9 — conversion funnel, abandoned carts, returns, backup history
+const visitorEventSchema = new mongoose.Schema({
+  visitorId: { type: String, default: '', index: true },
+  sessionId: { type: String, default: '', index: true },
+  type: { type: String, required: true, index: true },
+  source: { type: String, default: 'Direct', index: true },
+  medium: { type: String, default: '' },
+  campaign: { type: String, default: '', index: true },
+  path: { type: String, default: '' },
+  productId: { type: String, default: '' },
+  productTitle: { type: String, default: '' },
+  orderNumber: { type: String, default: '' },
+  value: { type: Number, default: 0 },
+  metadata: { type: Object, default: {} },
+  createdAt: { type: Date, default: Date.now, index: true }
+}, { minimize: true });
+visitorEventSchema.index({ sessionId: 1, type: 1, createdAt: -1 });
+const VisitorEvent = mongoose.model('VisitorEvent', visitorEventSchema);
+
+const abandonedCartSchema = new mongoose.Schema({
+  visitorId: { type: String, required: true, index: true },
+  sessionId: { type: String, required: true, index: true },
+  source: { type: String, default: 'Direct', index: true },
+  campaign: { type: String, default: '', index: true },
+  customerName: { type: String, default: '' },
+  phone: { type: String, default: '' },
+  stage: { type: String, enum: ['cart','checkout','contact'], default: 'cart', index: true },
+  items: [{ productId: String, title: String, variant: String, quantity: Number, price: Number }],
+  subtotal: { type: Number, default: 0 },
+  status: { type: String, enum: ['active','recovered','expired'], default: 'active', index: true },
+  recoveredOrderNumber: { type: String, default: '' },
+  firstSeenAt: { type: Date, default: Date.now },
+  lastSeenAt: { type: Date, default: Date.now, index: true }
+}, { minimize: true });
+abandonedCartSchema.index({ visitorId: 1, sessionId: 1 }, { unique: true });
+const AbandonedCart = mongoose.model('AbandonedCart', abandonedCartSchema);
+
+const returnRequestSchema = new mongoose.Schema({
+  returnNumber: { type: String, required: true, unique: true, index: true },
+  orderId: { type: mongoose.Schema.Types.ObjectId, ref: 'Order', required: true, index: true },
+  orderNumber: { type: String, required: true, index: true },
+  customerName: { type: String, default: '' },
+  customerPhone: { type: String, required: true },
+  type: { type: String, enum: ['return','exchange'], default: 'return' },
+  reason: { type: String, required: true },
+  details: { type: String, default: '' },
+  items: [{ title: String, variant: String, quantity: Number }],
+  status: { type: String, enum: ['pending','approved','rejected','received','refunded','replaced','closed'], default: 'pending', index: true },
+  adminNote: { type: String, default: '' },
+  history: [{ status: String, at: { type: Date, default: Date.now }, note: String, user: String }],
+  createdAt: { type: Date, default: Date.now, index: true },
+  updatedAt: { type: Date, default: Date.now }
+});
+const ReturnRequest = mongoose.model('ReturnRequest', returnRequestSchema);
+
+const backupRecordSchema = new mongoose.Schema({
+  publicId: { type: String, default: '' },
+  url: { type: String, default: '' },
+  bytes: { type: Number, default: 0 },
+  status: { type: String, enum: ['success','failed'], default: 'success' },
+  trigger: { type: String, default: 'manual' },
+  triggeredBy: { type: String, default: 'system' },
+  error: { type: String, default: '' },
+  createdAt: { type: Date, default: Date.now, index: true }
+});
+const BackupRecord = mongoose.model('BackupRecord', backupRecordSchema);
 
 // تعريف موديل الطلبات (Order Schema)
 const orderSchema = new mongoose.Schema({
@@ -1066,6 +1215,9 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
     await order.save();
     if (order.visitorId) {
       await Visitor.updateOne({ visitorId: order.visitorId }, { $set: { knownCustomerName: safeName, knownCustomerPhone: safePhone, lastOrderNumber: order.orderNumber }, $inc: { ordersCount: 1 } }).catch(() => null);
+      await AbandonedCart.updateMany({ visitorId: order.visitorId, status: 'active' }, { $set: { status: 'recovered', recoveredOrderNumber: order.orderNumber, lastSeenAt: new Date() } }).catch(() => null);
+      const session = order.sessionId ? await VisitorSession.findOne({ sessionId: order.sessionId }).lean().catch(() => null) : null;
+      await VisitorEvent.create({ visitorId: order.visitorId, sessionId: order.sessionId, type: 'order_completed', source: session?.source || 'Direct', medium: session?.medium || '', campaign: session?.utmCampaign || '', path: '/checkout', orderNumber: order.orderNumber, value: total }).catch(() => null);
     }
     if (coupon.coupon) await Coupon.updateOne({_id:coupon.coupon._id},{$inc:{usedCount:1}});
     let doc=await Analytics.findOne({key:'main'}); if(!doc) doc=new Analytics({key:'main'}); const wOrders={...(doc.whatsapp_orders||{})};
@@ -1090,16 +1242,16 @@ app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureD
 app.post('/api/stock-notify', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const product=await Product.findById(req.body?.productId).select('title stockQuantity');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const phone=normalizePhoneNumber(req.body?.phone);if(!phone)return res.status(400).json({message:'رقم الهاتف مطلوب'});const name=sanitizePlainText(req.body?.name,80);await StockNotify.findOneAndUpdate({productId:product._id,phone,status:'waiting'},{$set:{productTitle:product.title,name,createdAt:new Date()}},{upsert:true,new:true});res.json({success:true,message:'تم تسجيل طلب التنبيه عند توفر المنتج'});}catch(err){res.status(500).json({message:'تعذر تسجيل طلب التنبيه'});}});
 
 // V8 admin: coupons, reviews and stock notifications
-app.get('/api/admin/coupons', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{res.json(await Coupon.find().sort({createdAt:-1}).lean());});
-app.post('/api/admin/coupons', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{try{const code=sanitizePlainText(req.body?.code,40).toUpperCase();if(!code)return res.status(400).json({message:'كود الخصم مطلوب'});const doc=await Coupon.create({code,type:req.body?.type==='fixed'?'fixed':'percent',value:Math.max(0,Number(req.body?.value)||0),minSubtotal:Math.max(0,Number(req.body?.minSubtotal)||0),maxDiscount:Math.max(0,Number(req.body?.maxDiscount)||0),startsAt:parseOptionalDate(req.body?.startsAt),endsAt:parseOptionalDate(req.body?.endsAt),usageLimit:Math.max(0,Math.floor(Number(req.body?.usageLimit)||0)),enabled:req.body?.enabled!==false});await logActivity('إضافة كوبون',`تم إضافة كوبون ${code}`,req.adminUser.username);res.status(201).json(doc);}catch(err){res.status(400).json({message:err.code===11000?'كود الخصم موجود بالفعل':err.message});}});
-app.put('/api/admin/coupons/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{try{const update={};['code','type','value','minSubtotal','maxDiscount','usageLimit','enabled'].forEach(k=>{if(req.body?.[k]!==undefined)update[k]=req.body[k]});if(update.code)update.code=sanitizePlainText(update.code,40).toUpperCase();if(update.type&&!['percent','fixed'].includes(update.type))update.type='percent';['value','minSubtotal','maxDiscount','usageLimit'].forEach(k=>{if(update[k]!==undefined)update[k]=Math.max(0,Number(update[k])||0)});if(req.body?.startsAt!==undefined)update.startsAt=parseOptionalDate(req.body.startsAt)||null;if(req.body?.endsAt!==undefined)update.endsAt=parseOptionalDate(req.body.endsAt)||null;const doc=await Coupon.findByIdAndUpdate(req.params.id,update,{new:true});if(!doc)return res.status(404).json({message:'الكوبون غير موجود'});res.json(doc);}catch(err){res.status(400).json({message:err.message});}});
-app.delete('/api/admin/coupons/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await Coupon.findByIdAndDelete(req.params.id);res.json({success:true});});
-app.get('/api/admin/reviews', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const reviews=await Review.find().populate('productId','title').sort({createdAt:-1}).limit(500).lean();res.json(reviews);});
-app.put('/api/admin/reviews/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const doc=await Review.findByIdAndUpdate(req.params.id,{approved:Boolean(req.body?.approved)},{new:true});if(!doc)return res.status(404).json({message:'التقييم غير موجود'});res.json(doc);});
-app.delete('/api/admin/reviews/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await Review.findByIdAndDelete(req.params.id);res.json({success:true});});
-app.get('/api/admin/stock-notify', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{res.json(await StockNotify.find().sort({createdAt:-1}).limit(500).lean());});
-app.put('/api/admin/stock-notify/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{const status=['waiting','notified','cancelled'].includes(req.body?.status)?req.body.status:'waiting';const doc=await StockNotify.findByIdAndUpdate(req.params.id,{status,notifiedAt:status==='notified'?new Date():null},{new:true});res.json(doc);});
-app.delete('/api/admin/stock-notify/:id', requireAdminAuth, requirePermission('manage_settings'), async(req,res)=>{await StockNotify.findByIdAndDelete(req.params.id);res.json({success:true});});
+app.get('/api/admin/coupons', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{res.json(await Coupon.find().sort({createdAt:-1}).lean());});
+app.post('/api/admin/coupons', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{try{const code=sanitizePlainText(req.body?.code,40).toUpperCase();if(!code)return res.status(400).json({message:'كود الخصم مطلوب'});const doc=await Coupon.create({code,type:req.body?.type==='fixed'?'fixed':'percent',value:Math.max(0,Number(req.body?.value)||0),minSubtotal:Math.max(0,Number(req.body?.minSubtotal)||0),maxDiscount:Math.max(0,Number(req.body?.maxDiscount)||0),startsAt:parseOptionalDate(req.body?.startsAt),endsAt:parseOptionalDate(req.body?.endsAt),usageLimit:Math.max(0,Math.floor(Number(req.body?.usageLimit)||0)),enabled:req.body?.enabled!==false});await logActivity('إضافة كوبون',`تم إضافة كوبون ${code}`,req.adminUser.username);res.status(201).json(doc);}catch(err){res.status(400).json({message:err.code===11000?'كود الخصم موجود بالفعل':err.message});}});
+app.put('/api/admin/coupons/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{try{const update={};['code','type','value','minSubtotal','maxDiscount','usageLimit','enabled'].forEach(k=>{if(req.body?.[k]!==undefined)update[k]=req.body[k]});if(update.code)update.code=sanitizePlainText(update.code,40).toUpperCase();if(update.type&&!['percent','fixed'].includes(update.type))update.type='percent';['value','minSubtotal','maxDiscount','usageLimit'].forEach(k=>{if(update[k]!==undefined)update[k]=Math.max(0,Number(update[k])||0)});if(req.body?.startsAt!==undefined)update.startsAt=parseOptionalDate(req.body.startsAt)||null;if(req.body?.endsAt!==undefined)update.endsAt=parseOptionalDate(req.body.endsAt)||null;const doc=await Coupon.findByIdAndUpdate(req.params.id,update,{new:true});if(!doc)return res.status(404).json({message:'الكوبون غير موجود'});res.json(doc);}catch(err){res.status(400).json({message:err.message});}});
+app.delete('/api/admin/coupons/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{await Coupon.findByIdAndDelete(req.params.id);res.json({success:true});});
+app.get('/api/admin/reviews', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{const reviews=await Review.find().populate('productId','title').sort({createdAt:-1}).limit(500).lean();res.json(reviews);});
+app.put('/api/admin/reviews/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{const doc=await Review.findByIdAndUpdate(req.params.id,{approved:Boolean(req.body?.approved)},{new:true});if(!doc)return res.status(404).json({message:'التقييم غير موجود'});res.json(doc);});
+app.delete('/api/admin/reviews/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{await Review.findByIdAndDelete(req.params.id);res.json({success:true});});
+app.get('/api/admin/stock-notify', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{res.json(await StockNotify.find().sort({createdAt:-1}).limit(500).lean());});
+app.put('/api/admin/stock-notify/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{const status=['waiting','notified','cancelled'].includes(req.body?.status)?req.body.status:'waiting';const doc=await StockNotify.findByIdAndUpdate(req.params.id,{status,notifiedAt:status==='notified'?new Date():null},{new:true});res.json(doc);});
+app.delete('/api/admin/stock-notify/:id', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async(req,res)=>{await StockNotify.findByIdAndDelete(req.params.id);res.json({success:true});});
 
 // جلب كل الأقسام
 app.get('/api/categories', async (req, res) => {
@@ -1173,23 +1325,11 @@ app.put('/api/categories/rename', requireAdminAuth, requirePermission('manage_ca
 // 1. Export Data (Backup)
 app.get('/api/backup', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
-    const [categories, products, settings, orders, analytics] = await Promise.all([
-      Category.find(), Product.find(), Settings.find(), Order.find(), Analytics.find()
-    ]);
-    
-    const backupData = {
-      backupVersion: 2,
-      categories,
-      products,
-      settings,
-      orders,
-      analytics,
-      timestamp: new Date().toISOString()
-    };
-    
-    res.setHeader('Content-disposition', 'attachment; filename=technology-store-backup.json');
+    const backupData = await buildV9BackupData();
+    res.setHeader('Content-disposition', 'attachment; filename=technology-store-backup-v9.json');
     res.setHeader('Content-type', 'application/json');
     res.send(JSON.stringify(backupData, null, 2));
+    logActivity('تحميل نسخة احتياطية', 'تم تنزيل نسخة احتياطية V9 كاملة', req.adminUser.username).catch(() => null);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إنشاء النسخة الاحتياطية', error: err.message });
   }
@@ -1198,42 +1338,23 @@ app.get('/api/backup', requireAdminAuth, requirePermission('manage_backup'), asy
 // 2. Import Data (Restore)
 app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
-    if (!req.files || !req.files.backupFile) {
-      return res.status(400).json({ message: 'الرجاء إرفاق ملف النسخة الاحتياطية' });
-    }
-    
-    const file = req.files.backupFile;
-    const fileContent = fs.readFileSync(file.tempFilePath, 'utf8');
-    const backupData = JSON.parse(fileContent);
-    
-    if (!backupData.categories || !backupData.products || !backupData.settings) {
-      return res.status(400).json({ message: 'ملف غير صالح أو تالف' });
-    }
-    
-    // Clear current database
-    await Category.deleteMany({});
-    await Product.deleteMany({});
-    await Settings.deleteMany({});
-    
-    // Sanitize products before insertion to avoid validation errors
-    if (backupData.products && backupData.products.length > 0) {
-      backupData.products = backupData.products.map(p => ({
-        ...p,
-        image: p.image || '/assets/no-image.svg',
-        category: p.category || 'غير مصنف'
-      }));
-    }
-
-    // Insert backup data
-    if (backupData.categories && backupData.categories.length > 0) await Category.insertMany(backupData.categories);
-    if (backupData.products && backupData.products.length > 0) await Product.insertMany(backupData.products);
-    if (backupData.settings && backupData.settings.length > 0) await Settings.insertMany(backupData.settings);
-    await logActivity('استعادة نسخة احتياطية', 'تم استعادة كافة بيانات الموقع من نسخة احتياطية', req.adminUser.username);
+    if (!req.files || !req.files.backupFile) return res.status(400).json({ message: 'الرجاء إرفاق ملف النسخة الاحتياطية' });
+    const file = req.files.backupFile; const fileContent = fs.readFileSync(file.tempFilePath, 'utf8'); const backupData = JSON.parse(fileContent);
+    if (!backupData.categories || !backupData.products || !backupData.settings) return res.status(400).json({ message: 'ملف غير صالح أو تالف' });
+    const products = (backupData.products || []).map(p => ({...p,image:p.image||'/assets/no-image.svg',category:p.category||'غير مصنف'}));
+    await Promise.all([Category.deleteMany({}), Product.deleteMany({}), Settings.deleteMany({}), Order.deleteMany({}), Analytics.deleteMany({}), Coupon.deleteMany({}), Review.deleteMany({}), StockNotify.deleteMany({}), ReturnRequest.deleteMany({})]);
+    if (backupData.categories?.length) await Category.insertMany(backupData.categories);
+    if (products.length) await Product.insertMany(products);
+    if (backupData.settings?.length) await Settings.insertMany(backupData.settings);
+    if (backupData.orders?.length) await Order.insertMany(backupData.orders);
+    if (backupData.analytics?.length) await Analytics.insertMany(backupData.analytics);
+    if (backupData.coupons?.length) await Coupon.insertMany(backupData.coupons);
+    if (backupData.reviews?.length) await Review.insertMany(backupData.reviews);
+    if (backupData.stockNotify?.length) await StockNotify.insertMany(backupData.stockNotify);
+    if (backupData.returns?.length) await ReturnRequest.insertMany(backupData.returns);
+    await logActivity('استعادة نسخة احتياطية', `تم استعادة نسخة V${backupData.backupVersion || 2}`, req.adminUser.username);
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
-  } catch (err) {
-    console.error('RESTORE ERROR:', err);
-    res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message });
-  }
+  } catch (err) { console.error('RESTORE ERROR:', err); res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message }); }
 });
 
 // --- الـ API Routes ---
@@ -1661,6 +1782,8 @@ app.get('/api/settings', optionalAdminAuth, async (req, res) => {
     await ensureDBConnection();
     const settings = await getOrCreateSettings();
     const data = settings.toObject();
+    // V9: لا نرسل نص إشعار تتبع للواجهة العامة ولا نعرض أي popup للعميل.
+    delete data.privacyNotice;
     const permissions = Array.isArray(req.adminUser?.permissions) ? req.adminUser.permissions : [];
     const canViewPrivateSettings = permissions.includes('all') || permissions.includes('manage_settings');
     if (!canViewPrivateSettings) {
@@ -1761,7 +1884,6 @@ app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings')
     if (req.body && req.body.paymentInstapay !== undefined) { settings.paymentInstapay = parseBool(req.body.paymentInstapay); updated = true; }
     if (req.body && req.body.paymentStorePickup !== undefined) { settings.paymentStorePickup = parseBool(req.body.paymentStorePickup); updated = true; }
     if (req.body && req.body.instapayHandle !== undefined) { settings.instapayHandle = sanitizePlainText(req.body.instapayHandle, 120); updated = true; }
-    if (req.body && req.body.privacyNotice !== undefined) { settings.privacyNotice = sanitizePlainText(req.body.privacyNotice, 600); updated = true; }
     if (req.body && req.body.shippingZones !== undefined) {
       let zones = req.body.shippingZones;
       if (typeof zones === 'string') { try { zones = JSON.parse(zones); } catch (_) { zones = []; } }
@@ -2096,6 +2218,23 @@ app.get('/api/analytics/sessions', requireAdminAuth, requirePermission('view_rep
   }catch(err){res.status(500).json({message:'Error fetching sessions',error:err.message});}
 });
 
+// V9 — detailed visitor journey for authorized admins only.
+app.get('/api/admin/visitors/:visitorId/journey', requireAdminAuth, requirePermission('view_visitor_details'), async(req,res)=>{
+  try{
+    await ensureDBConnection();
+    const visitorId=sanitizePlainText(req.params.visitorId,120);
+    const visitor=await Visitor.findOne({visitorId}).lean();
+    if(!visitor)return res.status(404).json({message:'الزائر غير موجود'});
+    const [sessions,events,orders,carts]=await Promise.all([
+      VisitorSession.find({visitorId}).sort({startedAt:-1}).limit(30).lean(),
+      VisitorEvent.find({visitorId}).sort({createdAt:-1}).limit(250).lean(),
+      Order.find({visitorId}).sort({createdAt:-1}).limit(50).select('orderNumber customerName customerPhone total status createdAt items shippingAmount discountAmount').lean(),
+      AbandonedCart.find({visitorId}).sort({lastSeenAt:-1}).limit(30).lean()
+    ]);
+    res.json({visitor,sessions,events,orders,carts});
+  }catch(err){res.status(500).json({message:'تعذر تحميل رحلة الزائر'});}
+});
+
 // --- الـ API Routes الخاصة بمديري النظام (Admin Auth) ---
 
 
@@ -2259,26 +2398,49 @@ app.post('/api/admin/login', loginLimiter, async (req, res) => {
     const username = String(req.body?.username || '').trim();
     const password = String(req.body?.password || '');
     const user = await AdminUser.findOne({ username });
+    if (user?.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      const mins = Math.max(1, Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60000));
+      return res.status(429).json({ message: `تم قفل الحساب مؤقتاً. حاول بعد ${mins} دقيقة.` });
+    }
     if (!user || !verifyPassword(user.password, password)) {
+      if (user) {
+        user.failedLoginCount = Number(user.failedLoginCount || 0) + 1;
+        if (user.failedLoginCount >= 5) { user.lockedUntil = new Date(Date.now() + 15 * 60 * 1000); user.failedLoginCount = 0; }
+        await user.save().catch(() => null);
+      }
       return res.status(401).json({ message: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
     }
 
-    // ترقية كلمات المرور القديمة المخزنة كنص صريح بدون تعطيل المستخدم الحالي.
-    if (!String(user.password || '').startsWith('scrypt$')) {
-      user.password = hashPassword(password);
-      await user.save();
+    if (!String(user.password || '').startsWith('scrypt$')) user.password = hashPassword(password);
+    user.failedLoginCount = 0; user.lockedUntil = null;
+    await user.save();
+
+    const safeUser = { id: user._id, username: user.username, role: user.role, roleKey: user.roleKey || 'custom', permissions: user.permissions, totpEnabled: Boolean(user.totpEnabled) };
+    if (user.totpEnabled && user.totpSecret) {
+      const tempToken = jwt.sign({ sub: user._id.toString(), purpose: 'mfa-login' }, getJwtSecret(), { expiresIn: '5m' });
+      return res.json({ message: 'مطلوب رمز التحقق', mfaRequired: true, tempToken, user: safeUser });
     }
 
-    const token = issueAdminToken(user);
-    res.json({
-      message: 'تم تسجيل الدخول بنجاح',
-      token,
-      user: { id: user._id, username: user.username, role: user.role, permissions: user.permissions }
-    });
+    const session = await createAdminSession(user, req); user.lastLoginAt = new Date(); await user.save();
+    await logActivity('تسجيل دخول', `تم تسجيل الدخول من ${describeAdminDevice(req)} - ${getClientIp(req) || 'IP غير معروف'}`, user.username);
+    res.json({ message: 'تم تسجيل الدخول بنجاح', token: session.token, expiresAt: session.expiresAt, user: safeUser });
   } catch (err) {
     const status = /JWT_SECRET/.test(err.message) ? 503 : 500;
     res.status(status).json({ message: err.message || 'خطأ أثناء تسجيل الدخول' });
   }
+});
+
+app.post('/api/admin/login/2fa', loginLimiter, async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const payload = jwt.verify(String(req.body?.tempToken || ''), getJwtSecret());
+    if (payload.purpose !== 'mfa-login') return res.status(401).json({ message: 'طلب التحقق غير صالح' });
+    const user = await AdminUser.findById(payload.sub);
+    if (!user || !user.totpEnabled || !verifyTotp(user.totpSecret, req.body?.code)) return res.status(401).json({ message: 'رمز التحقق غير صحيح' });
+    const session = await createAdminSession(user, req); user.lastLoginAt = new Date(); await user.save();
+    await logActivity('تسجيل دخول 2FA', `تم تسجيل الدخول الآمن من ${describeAdminDevice(req)} - ${getClientIp(req) || 'IP غير معروف'}`, user.username);
+    res.json({ message: 'تم تسجيل الدخول بنجاح', token: session.token, expiresAt: session.expiresAt, user: { id:user._id, username:user.username, role:user.role, roleKey:user.roleKey || 'custom', permissions:user.permissions, totpEnabled:true } });
+  } catch (err) { res.status(401).json({ message: 'انتهى طلب التحقق أو أصبح غير صالح' }); }
 });
 
 app.get('/api/admin/me', requireAdminAuth, async (req, res) => {
@@ -2287,19 +2449,24 @@ app.get('/api/admin/me', requireAdminAuth, async (req, res) => {
       id: req.adminUser._id,
       username: req.adminUser.username,
       role: req.adminUser.role,
-      permissions: req.adminUser.permissions
+      permissions: req.adminUser.permissions,
+      roleKey: req.adminUser.roleKey || 'custom',
+      totpEnabled: Boolean(req.adminUser.totpEnabled)
     }
   });
 });
 
 app.get('/api/admin/users', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
-    const users = await AdminUser.find().select('-password');
+    const users = await AdminUser.find().select('-password -totpSecret -totpPendingSecret');
     const mappedUsers = users.map(u => ({
       id: u._id.toString(),
       username: u.username,
       role: u.role,
-      permissions: u.permissions
+      permissions: u.permissions,
+      roleKey: u.roleKey || 'custom',
+      totpEnabled: Boolean(u.totpEnabled),
+      lastLoginAt: u.lastLoginAt
     }));
     res.json(mappedUsers);
   } catch (err) {
@@ -2331,18 +2498,19 @@ app.get('/api/admin/logs', requireAdminAuth, requirePermission('view_reports'), 
 
 app.post('/api/admin/users', requireAdminAuth, requirePermission('manage_users'), async (req, res) => {
   try {
-    const { username, password, role, permissions } = req.body;
+    const { username, password, role, roleKey, permissions } = req.body;
     const existing = await AdminUser.findOne({ username });
     if (existing) return res.status(400).json({ message: 'اسم المستخدم موجود بالفعل' });
     
     if (!username || !password) return res.status(400).json({ message: 'اسم المستخدم وكلمة المرور مطلوبان' });
     const safePermissions = normalizePermissions(permissions);
     if (safePermissions.length === 0) return res.status(400).json({ message: 'يجب اختيار صلاحية واحدة صحيحة على الأقل' });
-    const safeRole = safePermissions.includes('all') ? 'مدير' : 'محرر';
-    const newUser = new AdminUser({ username: String(username).trim(), password: hashPassword(password), role: safeRole, permissions: safePermissions });
+    const safeRoleKey = safePermissions.includes('all') ? 'owner' : normalizeRoleKey(roleKey);
+    const safeRole = ADMIN_ROLE_LABELS[safeRoleKey] || (safePermissions.includes('all') ? 'المالك' : 'مخصص');
+    const newUser = new AdminUser({ username: String(username).trim(), password: hashPassword(password), role: safeRole, roleKey: safeRoleKey, permissions: safePermissions });
     await newUser.save();
     await logActivity('إضافة مستخدم', `تم إضافة مستخدم جديد بصلاحيات الإدارة: ${username}`, req.adminUser.username);
-    res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, permissions: newUser.permissions });
+    res.status(201).json({ id: newUser._id, username: newUser.username, role: newUser.role, roleKey: newUser.roleKey, permissions: newUser.permissions, totpEnabled: Boolean(newUser.totpEnabled) });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في إضافة المستخدم', error: err.message });
   }
@@ -2350,7 +2518,7 @@ app.post('/api/admin/users', requireAdminAuth, requirePermission('manage_users')
 
 app.put('/api/admin/users/:id', requireAdminAuth, requireSelfOrPermission('manage_users'), async (req, res) => {
   try {
-    const { username, password, role, permissions } = req.body;
+    const { username, password, role, roleKey, permissions } = req.body;
     const updateData = {};
     const isSelf = String(req.adminUser._id) === String(req.params.id);
     const actorPermissions = Array.isArray(req.adminUser.permissions) ? req.adminUser.permissions : [];
@@ -2360,21 +2528,23 @@ app.put('/api/admin/users/:id', requireAdminAuth, requireSelfOrPermission('manag
     if (password && String(password).trim() !== '') updateData.password = hashPassword(password);
 
     // المستخدم العادي يستطيع تعديل بيانات دخوله فقط، ولا يستطيع منح نفسه صلاحيات إضافية.
-    if ((role !== undefined || permissions !== undefined) && !canManageUsers) {
+    if ((role !== undefined || roleKey !== undefined || permissions !== undefined) && !canManageUsers) {
       return res.status(403).json({ message: 'لا يمكنك تعديل دورك أو صلاحياتك بنفسك' });
     }
     if (canManageUsers && permissions !== undefined) {
       const safePermissions = normalizePermissions(permissions);
       if (safePermissions.length === 0) return res.status(400).json({ message: 'يجب اختيار صلاحية واحدة صحيحة على الأقل' });
       updateData.permissions = safePermissions;
-      updateData.role = safePermissions.includes('all') ? 'مدير' : 'محرر';
-    } else if (canManageUsers && role !== undefined) {
-      updateData.role = role;
+      updateData.roleKey = safePermissions.includes('all') ? 'owner' : normalizeRoleKey(roleKey);
+      updateData.role = ADMIN_ROLE_LABELS[updateData.roleKey] || 'مخصص';
+    } else if (canManageUsers && (role !== undefined || roleKey !== undefined)) {
+      updateData.roleKey = normalizeRoleKey(roleKey);
+      updateData.role = ADMIN_ROLE_LABELS[updateData.roleKey] || sanitizePlainText(role, 50) || 'مخصص';
     }
     const updated = await AdminUser.findByIdAndUpdate(req.params.id, updateData, { new: true });
     if (!updated) return res.status(404).json({ message: 'المستخدم غير موجود' });
     await logActivity('تعديل مستخدم', `تم تعديل بيانات أو صلاحيات المستخدم: ${updated.username}`, req.adminUser.username);
-    res.json({ id: updated._id, username: updated.username, role: updated.role, permissions: updated.permissions });
+    res.json({ id: updated._id, username: updated.username, role: updated.role, roleKey: updated.roleKey, permissions: updated.permissions, totpEnabled: Boolean(updated.totpEnabled) });
   } catch (err) {
     res.status(500).json({ message: 'خطأ في تعديل المستخدم', error: err.message });
   }
@@ -2398,6 +2568,131 @@ app.delete('/api/admin/users/:id', requireAdminAuth, requirePermission('manage_u
     res.status(500).json({ message: 'خطأ في حذف المستخدم', error: err.message });
   }
 });
+
+
+// ==============================
+// V9 PRODUCTION & OPERATIONS API
+// ==============================
+function parseAnalyticsRange(req) {
+  const q = {}; const from = parseOptionalDate(req.query.from), to = parseOptionalDate(req.query.to);
+  if (from || to) { q.createdAt = {}; if (from) q.createdAt.$gte = from; if (to) { const end = new Date(to); if (String(req.query.to || '').length <= 10) end.setHours(23,59,59,999); q.createdAt.$lte = end; } }
+  return q;
+}
+
+app.post('/api/analytics/event', publicWriteLimiter, async (req,res) => {
+  try {
+    await ensureDBConnection(); const body=req.body||{}; const visitorId=sanitizePlainText(body.visitorId,120), sessionId=sanitizePlainText(body.sessionId,140);
+    const allowed=new Set(['page_view','product_view','add_to_cart','remove_from_cart','checkout_started','checkout_contact','checkout_quote','order_completed','whatsapp_click','share','search','return_started']);
+    const type=sanitizePlainText(body.type,50); if(!visitorId||!sessionId||!allowed.has(type)) return res.status(400).json({message:'invalid event'});
+    const session=await VisitorSession.findOne({sessionId}).lean();
+    await VisitorEvent.create({visitorId,sessionId,type,source:session?.source||sanitizePlainText(body.source,80)||'Direct',medium:session?.medium||'',campaign:session?.utmCampaign||sanitizePlainText(body.campaign,120),path:String(body.path||'').slice(0,500),productId:sanitizePlainText(body.productId,120),productTitle:sanitizePlainText(body.productTitle,180),orderNumber:sanitizePlainText(body.orderNumber,80),value:Math.max(0,Number(body.value)||0),metadata:typeof body.metadata==='object'&&body.metadata?body.metadata:{}});
+    res.json({success:true});
+  } catch(err){res.status(500).json({message:'event failed'});}
+});
+
+app.post('/api/analytics/cart-state', publicWriteLimiter, async (req,res)=>{
+  try{
+    await ensureDBConnection(); const b=req.body||{}; const visitorId=sanitizePlainText(b.visitorId,120),sessionId=sanitizePlainText(b.sessionId,140); if(!visitorId||!sessionId)return res.status(400).json({message:'missing session'});
+    const items=Array.isArray(b.items)?b.items.slice(0,50).map(i=>({productId:sanitizePlainText(i.productId,120),title:sanitizePlainText(i.title,180),variant:sanitizePlainText(i.variant,120),quantity:Math.max(1,Math.min(99,Number(i.quantity)||1)),price:Math.max(0,Number(i.price)||0)})):[];
+    if(!items.length){await AbandonedCart.deleteOne({visitorId,sessionId,status:'active'}).catch(()=>null);return res.json({success:true,empty:true});}
+    const session=await VisitorSession.findOne({sessionId}).lean(); const stage=['cart','checkout','contact'].includes(b.stage)?b.stage:'cart';
+    const subtotal=Math.round(items.reduce((a,i)=>a+i.quantity*i.price,0)*100)/100;
+    const doc=await AbandonedCart.findOneAndUpdate({visitorId,sessionId},{$set:{source:session?.source||'Direct',campaign:session?.utmCampaign||'',customerName:sanitizePlainText(b.customerName,100),phone:normalizePhoneNumber(b.phone),stage,items,subtotal,status:'active',lastSeenAt:new Date()},$setOnInsert:{firstSeenAt:new Date()}},{upsert:true,new:true,setDefaultsOnInsert:true});
+    res.json({success:true,id:doc._id});
+  }catch(err){res.status(500).json({message:'cart state failed'});}
+});
+
+app.get('/api/admin/v9/overview', requireAdminAuth, requirePermission('view_reports'), async (req,res)=>{
+  try{
+    await ensureDBConnection(); const range=parseAnalyticsRange(req); const eventQ={...range}; const orderQ={};
+    if(range.createdAt) orderQ.createdAt=range.createdAt;
+    const sessionQ={}; if(range.createdAt) sessionQ.startedAt=range.createdAt;
+    const [events,orders,sessions,abandoned,returns,topProducts,lastBackup]=await Promise.all([
+      VisitorEvent.aggregate([{ $match:eventQ },{ $group:{_id:'$type',count:{$sum:1},sessions:{$addToSet:'$sessionId'}}}]),
+      Order.find({...orderQ,status:{$ne:'cancelled'}}).select('visitorId total items createdAt').lean(),
+      VisitorSession.find(sessionQ).select('visitorId sessionId source utmCampaign startedAt').lean(),
+      AbandonedCart.find({status:'active',...(range.createdAt?{lastSeenAt:range.createdAt}:{})}).sort({lastSeenAt:-1}).limit(300).lean(),
+      ReturnRequest.countDocuments({status:{$in:['pending','approved','received']}}),
+      Order.aggregate([{ $match:{...orderQ,status:{$ne:'cancelled'}}},{ $unwind:'$items'},{ $group:{_id:'$items.title',qty:{$sum:'$items.quantity'},revenue:{$sum:'$items.lineTotal'}}},{ $sort:{revenue:-1}},{ $limit:8}]),
+      BackupRecord.findOne({status:'success'}).sort({createdAt:-1}).lean()
+    ]);
+    const eventMap={}; for(const e of events)eventMap[e._id]={count:e.count,sessions:e.sessions.filter(Boolean).length};
+    const uniqueVisitors=new Set(sessions.map(x=>x.visitorId).filter(Boolean)).size; const totalSessions=sessions.length;
+    const revenue=orders.reduce((a,o)=>a+Number(o.total||0),0); const aov=orders.length?revenue/orders.length:0;
+    const visitsBySource={}; for(const s1 of sessions){const k=s1.source||'Direct';visitsBySource[k]=(visitsBySource[k]||0)+1;}
+    const sessionByVisitor=new Map(); for(const ss of sessions){if(ss.visitorId&&!sessionByVisitor.has(ss.visitorId))sessionByVisitor.set(ss.visitorId,ss);}
+    const sourceSales={}; for(const o of orders){const ss=sessionByVisitor.get(o.visitorId);const k=ss?.source||'Direct';if(!sourceSales[k])sourceSales[k]={orders:0,revenue:0};sourceSales[k].orders++;sourceSales[k].revenue+=Number(o.total||0);}
+    const sources=[...new Set([...Object.keys(visitsBySource),...Object.keys(sourceSales)])].map(source=>({source,visits:visitsBySource[source]||0,orders:sourceSales[source]?.orders||0,revenue:Math.round((sourceSales[source]?.revenue||0)*100)/100,conversion:(visitsBySource[source]||0)?Math.round(((sourceSales[source]?.orders||0)/(visitsBySource[source]||1))*10000)/100:0})).sort((a,b)=>b.revenue-a.revenue||b.visits-a.visits);
+    res.json({generatedAt:new Date().toISOString(),kpis:{uniqueVisitors,totalSessions,orders:orders.length,revenue:Math.round(revenue*100)/100,aov:Math.round(aov*100)/100,abandoned:abandoned.length,pendingReturns:returns,conversion:totalSessions?Math.round(orders.length/totalSessions*10000)/100:0},funnel:{pageViews:eventMap.page_view?.sessions||totalSessions,productViews:eventMap.product_view?.sessions||0,addToCart:eventMap.add_to_cart?.sessions||0,checkout:eventMap.checkout_started?.sessions||0,contact:eventMap.checkout_contact?.sessions||0,orders:orders.length},sources,topProducts,abandoned:abandoned.slice(0,30),lastBackup});
+  }catch(err){res.status(500).json({message:'تعذر تحميل مركز ذكاء المبيعات',error:err.message});}
+});
+
+app.get('/api/admin/abandoned-carts', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
+  try{const status=['active','recovered','expired'].includes(req.query.status)?req.query.status:'active';const q={status};if(req.query.search){const rx=new RegExp(sanitizePlainText(req.query.search,80).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');q.$or=[{customerName:rx},{phone:rx},{'items.title':rx}];}const carts=await AbandonedCart.find(q).sort({lastSeenAt:-1}).limit(500).lean();res.json(carts);}catch(err){res.status(500).json({message:'تعذر تحميل السلات'});}
+});
+app.put('/api/admin/abandoned-carts/:id', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{const status=['active','recovered','expired'].includes(req.body?.status)?req.body.status:'active';const doc=await AbandonedCart.findByIdAndUpdate(req.params.id,{status},{new:true});res.json(doc);});
+
+app.post('/api/returns', publicWriteLimiter, async(req,res)=>{
+  try{
+    await ensureDBConnection(); const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});
+    const order=await Order.findOne({orderNumber,customerPhone:phone});if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});
+    if(order.status==='cancelled')return res.status(400).json({message:'لا يمكن إنشاء طلب استرجاع لطلب ملغي'});
+    const reason=sanitizePlainText(req.body?.reason,300);if(!reason)return res.status(400).json({message:'سبب الطلب مطلوب'}); const type=req.body?.type==='exchange'?'exchange':'return';
+    const requested=Array.isArray(req.body?.items)?req.body.items:[]; const items=(order.items||[]).filter((_,i)=>!requested.length||requested.some(x=>Number(x.index)===i)).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity}));
+    const returnNumber=`RET-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
+    const doc=await ReturnRequest.create({returnNumber,orderId:order._id,orderNumber:order.orderNumber,customerName:order.customerName,customerPhone:order.customerPhone,type,reason,details:sanitizePlainText(req.body?.details,1000),items,status:'pending',history:[{status:'pending',at:new Date(),note:'تم استلام الطلب من العميل',user:'العميل'}]});
+    await VisitorEvent.create({visitorId:order.visitorId||'',sessionId:order.sessionId||'',type:'return_started',orderNumber:order.orderNumber,value:order.total,metadata:{returnNumber,type}}).catch(()=>null);
+    res.status(201).json({success:true,returnNumber:doc.returnNumber,status:doc.status});
+  }catch(err){res.status(500).json({message:'تعذر إرسال طلب الاستبدال أو الاسترجاع'});}
+});
+app.get('/api/returns/track', publicWriteLimiter, async(req,res)=>{try{const returnNumber=sanitizePlainText(req.query.returnNumber,80),phone=normalizePhoneNumber(req.query.phone);const doc=await ReturnRequest.findOne({returnNumber,customerPhone:phone}).lean();if(!doc)return res.status(404).json({message:'لم يتم العثور على الطلب'});res.json({returnNumber:doc.returnNumber,orderNumber:doc.orderNumber,type:doc.type,status:doc.status,reason:doc.reason,items:doc.items,history:doc.history,createdAt:doc.createdAt});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}});
+app.get('/api/admin/returns', requireAdminAuth, requirePermission('manage_returns'), async(req,res)=>{const q={};if(req.query.status)q.status=sanitizePlainText(req.query.status,30);res.json(await ReturnRequest.find(q).sort({createdAt:-1}).limit(500).lean());});
+app.put('/api/admin/returns/:id', requireAdminAuth, requirePermission('manage_returns'), async(req,res)=>{try{const allowed=['pending','approved','rejected','received','refunded','replaced','closed'];const status=allowed.includes(req.body?.status)?req.body.status:null;const doc=await ReturnRequest.findById(req.params.id);if(!doc)return res.status(404).json({message:'الطلب غير موجود'});if(status&&status!==doc.status){doc.status=status;doc.history.push({status,at:new Date(),note:sanitizePlainText(req.body?.note,500),user:req.adminUser.username});}if(req.body?.adminNote!==undefined)doc.adminNote=sanitizePlainText(req.body.adminNote,1000);doc.updatedAt=new Date();await doc.save();await logActivity('تحديث مرتجع',`${doc.returnNumber} → ${doc.status}`,req.adminUser.username);res.json(doc);}catch(err){res.status(500).json({message:'تعذر تحديث الطلب'});}});
+
+app.get('/api/admin/security/sessions', requireAdminAuth, async(req,res)=>{const docs=await AdminSession.find({userId:req.adminUser._id,expiresAt:{$gt:new Date()}}).sort({lastSeenAt:-1}).lean();res.json(docs.map(x=>({_id:x._id,jti:x.jti===req.adminJwt?.jti?'current':x.jti.slice(0,8),ip:x.ip,deviceLabel:x.deviceLabel,userAgent:x.userAgent,createdAt:x.createdAt,lastSeenAt:x.lastSeenAt,expiresAt:x.expiresAt,revokedAt:x.revokedAt,current:x.jti===req.adminJwt?.jti})));});
+app.post('/api/admin/security/sessions/:id/revoke', requireAdminAuth, async(req,res)=>{const session=await AdminSession.findOne({_id:req.params.id,userId:req.adminUser._id});if(!session)return res.status(404).json({message:'الجلسة غير موجودة'});session.revokedAt=new Date();await session.save();res.json({success:true,current:session.jti===req.adminJwt?.jti});});
+app.post('/api/admin/security/sessions/revoke-others', requireAdminAuth, async(req,res)=>{await AdminSession.updateMany({userId:req.adminUser._id,jti:{$ne:req.adminJwt?.jti||''},revokedAt:null},{$set:{revokedAt:new Date()}});res.json({success:true});});
+app.post('/api/admin/logout', requireAdminAuth, async(req,res)=>{try{if(req.adminJwt?.jti)await AdminSession.updateOne({userId:req.adminUser._id,jti:req.adminJwt.jti},{$set:{revokedAt:new Date()}});await logActivity('تسجيل خروج','تم إنهاء جلسة الإدارة الحالية',req.adminUser.username);res.json({success:true});}catch(_){res.json({success:true});}});
+app.post('/api/admin/security/2fa/setup', requireAdminAuth, async(req,res)=>{const user=await AdminUser.findById(req.adminUser._id);const secret=generateTotpSecret();user.totpPendingSecret=secret;await user.save();const issuer=encodeURIComponent('Technology Store Admin');const account=encodeURIComponent(user.username);res.json({secret,otpauthUri:`otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&digits=6&period=30`});});
+app.post('/api/admin/security/2fa/enable', requireAdminAuth, async(req,res)=>{const user=await AdminUser.findById(req.adminUser._id);if(!user?.totpPendingSecret||!verifyTotp(user.totpPendingSecret,req.body?.code))return res.status(400).json({message:'رمز التحقق غير صحيح'});user.totpSecret=user.totpPendingSecret;user.totpPendingSecret='';user.totpEnabled=true;await user.save();await logActivity('تفعيل 2FA','تم تفعيل المصادقة الثنائية',user.username);res.json({success:true});});
+app.post('/api/admin/security/2fa/disable', requireAdminAuth, async(req,res)=>{const user=await AdminUser.findById(req.adminUser._id);if(user.totpEnabled&&user.totpSecret&&!verifyTotp(user.totpSecret,req.body?.code))return res.status(400).json({message:'رمز التحقق غير صحيح'});user.totpEnabled=false;user.totpSecret='';user.totpPendingSecret='';await user.save();await logActivity('إلغاء 2FA','تم إلغاء المصادقة الثنائية',user.username);res.json({success:true});});
+
+app.get('/api/admin/system/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{
+  try{const settings=await getOrCreateSettings();const [lastSync,pendingPos,lastBackup,activeCarts,pendingReturns,totalProducts,totalOrders]=await Promise.all([Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean(),Order.countDocuments({status:'pending'}),BackupRecord.findOne().sort({createdAt:-1}).lean(),AbandonedCart.countDocuments({status:'active'}),ReturnRequest.countDocuments({status:'pending'}),Product.countDocuments(),Order.countDocuments()]);res.json({generatedAt:new Date().toISOString(),database:{ok:mongoose.connection.readyState===1,state:mongoose.connection.readyState},cloudinary:{ok:Boolean(process.env.CLOUDINARY_CLOUD_NAME&&process.env.CLOUDINARY_API_KEY&&process.env.CLOUDINARY_API_SECRET)},pos:{configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:lastSync?.lastSyncedAt||null,pendingOrders:pendingPos},backup:{last:lastBackup,cronConfigured:Boolean(process.env.CRON_SECRET)},store:{products:totalProducts,orders:totalOrders,activeAbandonedCarts:activeCarts,pendingReturns},runtime:{node:process.version,uptimeSeconds:Math.round(process.uptime()),environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'local'}});}catch(err){res.status(500).json({message:'تعذر فحص النظام',error:err.message});}
+});
+app.get('/api/admin/pos/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{const settings=await getOrCreateSettings();const last=await Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean();const [syncedProducts,pendingOrders,receivedOrders]=await Promise.all([Product.countDocuments({source:'pos'}),Order.countDocuments({status:'pending'}),Order.countDocuments({status:'received_by_pos'})]);res.json({configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:last?.lastSyncedAt||null,syncedProducts,pendingOrders,receivedOrders});});
+
+async function buildV9BackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean()]);return{backupVersion:9,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns};}
+async function createCloudBackup(trigger='manual',triggeredBy='system'){
+  let tmpPath = '';
+  try {
+    if (!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) throw new Error('Cloudinary غير مضبوط');
+    const data = await buildV9BackupData();
+    const json = JSON.stringify(data);
+    const stamp = new Date().toISOString().replace(/[:.]/g,'-');
+    const publicId = `technology-store/backups/backup_${stamp}`;
+    tmpPath = path.join('/tmp', `technology-store-backup-${stamp}.json`);
+    fs.writeFileSync(tmpPath, json, { encoding:'utf8', mode:0o600 });
+    // النسخ الاحتياطية قد تحتوي بيانات عملاء؛ لذلك ترفع كأصل authenticated وليس رابطاً عاماً.
+    const result = await cloudinary.uploader.upload(tmpPath, { resource_type:'raw', type:'authenticated', public_id:publicId, overwrite:false });
+    const rec = await BackupRecord.create({ publicId:result.public_id, url:'', bytes:Buffer.byteLength(json), status:'success', trigger, triggeredBy });
+    const old = await BackupRecord.find({status:'success'}).sort({createdAt:-1}).skip(14).lean();
+    for (const x of old) {
+      if (x.publicId) cloudinary.uploader.destroy(x.publicId,{resource_type:'raw',type:'authenticated',invalidate:true}).catch(()=>null);
+      await BackupRecord.deleteOne({_id:x._id}).catch(()=>null);
+    }
+    return rec;
+  } catch(err) {
+    await BackupRecord.create({status:'failed',trigger,triggeredBy,error:String(err.message||err).slice(0,500)}).catch(()=>null);
+    throw err;
+  } finally {
+    if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch (_) {} }
+  }
+}
+app.get('/api/admin/backups/cloud', requireAdminAuth, requirePermission('manage_backup'), async(req,res)=>{res.json(await BackupRecord.find().sort({createdAt:-1}).limit(50).select('-url').lean());});
+app.get('/api/admin/backups/cloud/:id/link', requireAdminAuth, requirePermission('manage_backup'), async(req,res)=>{try{const rec=await BackupRecord.findById(req.params.id).lean();if(!rec||rec.status!=='success'||!rec.publicId)return res.status(404).json({message:'النسخة غير موجودة'});const url=cloudinary.url(rec.publicId,{resource_type:'raw',type:'authenticated',secure:true,sign_url:true});res.json({url});}catch(err){res.status(500).json({message:'تعذر إنشاء رابط التحميل الآمن'});}});
+app.post('/api/admin/backups/cloud', requireAdminAuth, requirePermission('manage_backup'), async(req,res)=>{try{const rec=await createCloudBackup('manual',req.adminUser.username);await logActivity('نسخة احتياطية سحابية',`تم إنشاء ${rec.publicId}`,req.adminUser.username);res.json({_id:rec._id,publicId:rec.publicId,bytes:rec.bytes,status:rec.status,trigger:rec.trigger,triggeredBy:rec.triggeredBy,createdAt:rec.createdAt});}catch(err){res.status(500).json({message:err.message});}});
+app.get('/api/cron/backup', async(req,res)=>{try{const secret=String(process.env.CRON_SECRET||'');const supplied=String(req.headers.authorization||'').replace(/^Bearer\s+/i,'');if(!secret)return res.status(503).json({message:'CRON_SECRET غير مضبوط'});if(supplied!==secret)return res.status(401).json({message:'Unauthorized'});const rec=await createCloudBackup('cron','Vercel Cron');res.json({success:true,id:rec._id});}catch(err){res.status(500).json({message:err.message});}});
 
 // تشغيل السيرفر محلياً
 const PORT = process.env.PORT || 5000;
