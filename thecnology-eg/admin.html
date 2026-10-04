@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="v9.css">
+    <link rel="stylesheet" href="admin-v10.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -90,22 +91,22 @@
             <!-- Sidebar Links -->
             <nav class="flex-1 overflow-y-auto py-6 px-4 flex flex-col gap-2 sidebar-nav">
                 <button onclick="switchTab('dashboard')" id="tab-dashboard" class="admin-tab active w-full flex items-center gap-3 px-4 py-3 rounded-lg text-primary bg-primary/10 border border-primary/20 font-bold text-sm transition-all hover:bg-primary/20">
-                    <span class="material-symbols-outlined text-[20px]">space_dashboard</span> مركز المتابعة
+                    <span class="material-symbols-outlined text-[20px]">space_dashboard</span> لوحة التحكم
                 </button>
                 <button onclick="switchTab('products')" id="tab-products" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">inventory_2</span> المنتجات والمخزون
                 </button>
                 <button onclick="switchTab('orders')" id="tab-orders" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
-                    <span class="material-symbols-outlined text-[20px]">receipt_long</span> إدارة الطلبات
+                    <span class="material-symbols-outlined text-[20px]">receipt_long</span> الطلبات
                 </button>
                 <button onclick="switchTab('media')" id="tab-media" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
-                    <span class="material-symbols-outlined text-[20px]">photo_library</span> مركز الصور
+                    <span class="material-symbols-outlined text-[20px]">photo_library</span> الصور والوسائط
                 </button>
                 <button onclick="switchTab('settings')" id="tab-settings" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">settings</span> إعدادات المتجر
                 </button>
                 <button onclick="switchTab('users')" id="tab-users" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
-                    <span class="material-symbols-outlined text-[20px]">group</span> إدارة المستخدمين
+                    <span class="material-symbols-outlined text-[20px]">group</span> المستخدمون والصلاحيات
                 </button>
                 <button onclick="switchTab('backup')" id="tab-backup" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">backup</span> النسخ الاحتياطي
@@ -114,10 +115,10 @@
                     <span class="material-symbols-outlined text-[20px]">analytics</span> التقارير والإحصائيات
                 </button>
                 <button onclick="switchTab('logs')" id="tab-logs" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
-                    <span class="material-symbols-outlined text-[20px]">manage_search</span> سجل النشاطات (Logs)
+                    <span class="material-symbols-outlined text-[20px]">manage_search</span> سجل العمليات
                 </button>
                 <button onclick="switchTab('api')" id="tab-api" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
-                    <span class="material-symbols-outlined text-[20px]">api</span> إدارة الـ API والتنظيف
+                    <span class="material-symbols-outlined text-[20px]">api</span> التكاملات والصيانة
                 </button>
             </nav>
 
@@ -139,7 +140,7 @@
                     <button onclick="toggleSidebar()" class="lg:hidden p-2 text-on-surface rounded-lg bg-surface-variant/50 hover:text-primary transition-colors flex items-center">
                         <span class="material-symbols-outlined">menu</span>
                     </button>
-                    <h2 id="currentTabTitle" class="font-display-lg text-xl md:text-2xl text-primary font-bold">مركز المتابعة</h2>
+                    <h2 id="currentTabTitle" class="font-display-lg text-xl md:text-2xl text-primary font-bold">لوحة التحكم</h2>
                 </div>
                 <div class="flex items-center gap-2 md:gap-3">
                     <button onclick="toggleTheme()" class="p-2.5 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm flex items-center justify-center" aria-label="Toggle Theme">
@@ -184,10 +185,10 @@
                     <div class="glass-panel p-5 rounded-xl border border-outline-variant/30">
                         <h4 class="font-bold text-on-surface mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary">health_and_safety</span> حالة النظام</h4>
                         <div class="flex flex-col gap-3 text-sm">
-                            <div class="flex justify-between items-center"><span>MongoDB</span><span id="healthDb" class="font-bold">—</span></div>
-                            <div class="flex justify-between items-center"><span>Cloudinary</span><span id="healthCloudinary" class="font-bold">—</span></div>
-                            <div class="flex justify-between items-center"><span>ربط POS</span><span id="healthPos" class="font-bold">—</span></div>
-                            <div class="flex justify-between items-center"><span>Push Notifications</span><span id="healthPush" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>قاعدة البيانات</span><span id="healthDb" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>تخزين الصور</span><span id="healthCloudinary" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>مزامنة نقاط البيع</span><span id="healthPos" class="font-bold">—</span></div>
+                            <div class="flex justify-between items-center"><span>إشعارات العملاء</span><span id="healthPush" class="font-bold">—</span></div>
                             <div class="flex justify-between items-center"><span>بانر العروض</span><span id="healthPromo" class="font-bold">—</span></div>
                             <div class="flex justify-between items-center"><span>تأثير المناسبة</span><span id="healthSeason" class="font-bold">—</span></div>
                             <div class="border-t border-outline-variant/30 pt-3 flex justify-between items-center"><span>مبيعات اليوم</span><span id="dashTodaySales" class="font-bold text-primary font-mono-data">—</span></div>
@@ -228,7 +229,7 @@
                 </div>
                 <div class="glass-panel p-4 rounded-xl border border-outline-variant/30 flex flex-col sm:flex-row gap-3 sm:items-center"><input id="mediaSearchInput" oninput="renderMediaCenter()" placeholder="ابحث باسم المنتج أو القسم..." class="flex-1 bg-surface-container border border-outline-variant rounded-lg py-2.5 px-3 text-sm text-on-surface"><button onclick="loadMediaCenter()" class="px-4 py-2.5 rounded-lg bg-primary/10 border border-primary/30 text-primary font-bold text-sm">تحديث الصور</button></div>
                 <div id="mediaGrid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"><div class="col-span-full text-center text-on-surface-variant py-10">افتح التبويب لتحميل الصور.</div></div>
-                <div class="glass-panel p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-sm text-on-surface-variant"><strong class="text-amber-400">مركز الصور آمن حالياً:</strong> للعرض والفحص فقط ولا يحذف أي ملف من Cloudinary أو أي صورة مرتبطة بمنتج.</div>
+                <div class="glass-panel p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 text-sm text-on-surface-variant"><strong class="text-amber-400">الصور والوسائط آمن حالياً:</strong> للعرض والفحص فقط ولا يحذف أي ملف من Cloudinary أو أي صورة مرتبطة بمنتج.</div>
             </div>
         </div>
 
@@ -583,7 +584,7 @@
 
                 <!-- Seasonal Experience & Banner -->
                 <div class="glass-panel p-5 rounded-xl border border-primary/20 lg:col-span-2">
-                    <div class="flex items-center justify-between gap-3 border-b border-outline-variant/30 pb-3 mb-5"><div><h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary">celebration</span> المناسبات والبانرات</h3><p class="text-xs text-on-surface-variant mt-1">تحكم في بانر علوي وتأثيرات موسمية خفيفة مثل الثلج والقلوب والورد والخريف.</p></div><span class="px-2 py-1 text-[10px] rounded-full bg-primary/10 text-primary border border-primary/20">Mobile Friendly</span></div>
+                    <div class="flex items-center justify-between gap-3 border-b border-outline-variant/30 pb-3 mb-5"><div><h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2"><span class="material-symbols-outlined text-primary">celebration</span> المناسبات والبانرات</h3><p class="text-xs text-on-surface-variant mt-1">تحكم في بانر علوي وتأثيرات موسمية خفيفة مثل الثلج والقلوب والورد والخريف.</p></div><span class="px-2 py-1 text-[10px] rounded-full bg-primary/10 text-primary border border-primary/20">متوافق مع الهاتف</span></div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <label class="flex items-center justify-between gap-3 p-3 rounded-lg bg-surface-container border border-outline-variant/30 md:col-span-2"><span><strong class="block text-sm">تفعيل البانر الإعلاني العلوي</strong><small class="text-on-surface-variant">يظهر فوق محتوى الموقع ويمكن تحديد مدة تشغيله.</small></span><input type="checkbox" id="promoBannerEnabled" class="accent-primary w-5 h-5"></label>
                         <label class="product-form-field"><span>نص البانر</span><input id="promoBannerText" maxlength="220" placeholder="مثال: عروض رأس السنة بدأت الآن 🎉"></label>
@@ -608,15 +609,15 @@
                 <div class="glass-panel p-5 rounded-xl border border-outline-variant/50 lg:col-span-1">
                     <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-primary">rocket_launch</span> تجربة التسوق والنمو</h3>
                     <div class="flex flex-col gap-3">
-                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">المفضلة Wishlist</span><input id="enableWishlist" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">المفضلة المفضلة</span><input id="enableالمفضلة" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">مقارنة المنتجات</span><input id="enableCompare" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">شوهدت مؤخراً</span><input id="enableRecentlyViewed" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">اقتراحات البحث الذكي</span><input id="enableSmartSearch" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span class="text-sm">أقسام الرئيسية الذكية</span><input id="showHomeCollections" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <div class="grid grid-cols-2 gap-2"><label class="product-form-field"><span>حد المخزون المنخفض</span><input type="number" id="lowStockThreshold" min="1" max="99" value="3"></label><label class="product-form-field"><span>مدة شارة جديد (يوم)</span><input type="number" id="newProductDays" min="1" max="365" value="30"></label></div>
-                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span><strong class="text-sm">Push Notifications</strong><small id="pushStatusText" class="block text-[10px] text-on-surface-variant mt-1">يتطلب VAPID Keys</small></span><input id="pushEnabled" type="checkbox" class="accent-primary w-5 h-5"></label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded bg-surface-container border border-outline-variant/30"><span><strong class="text-sm">إشعارات العملاء</strong><small id="pushStatusText" class="block text-[10px] text-on-surface-variant mt-1">يتطلب VAPID Keys</small></span><input id="pushEnabled" type="checkbox" class="accent-primary w-5 h-5"></label>
                         <button onclick="saveGrowthSettings()" class="w-full py-2.5 bg-primary/10 border border-primary/30 text-primary font-bold rounded-lg hover:bg-primary/20 text-sm">حفظ تجربة التسوق</button>
-                        <div class="border-t border-outline-variant/30 pt-3 mt-1"><p class="text-xs font-bold mb-2">إرسال إشعار للعملاء المشتركين</p><input id="pushTitle" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="عنوان الإشعار"><textarea id="pushBody" rows="2" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="نص الإشعار"></textarea><input id="pushUrl" dir="ltr" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" value="/products"><button onclick="sendPushNotification()" class="w-full py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-bold text-sm">إرسال Push</button></div>
+                        <div class="border-t border-outline-variant/30 pt-3 mt-1"><p class="text-xs font-bold mb-2">إرسال إشعار للعملاء المشتركين</p><input id="pushTitle" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="عنوان الإشعار"><textarea id="pushBody" rows="2" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" placeholder="نص الإشعار"></textarea><input id="pushUrl" dir="ltr" class="w-full mb-2 bg-surface-container border border-outline-variant rounded p-2 text-sm" value="/products"><button onclick="sendPushNotification()" class="w-full py-2 bg-green-500/10 border border-green-500/30 text-green-400 rounded font-bold text-sm">إرسال إشعار</button></div>
                     </div>
                 </div>
 
@@ -652,9 +653,9 @@
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_settings" class="accent-primary w-4 h-4 rounded"> إعدادات وتصميم المتجر</label>
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_backup" class="accent-primary w-4 h-4 rounded"> النسخ الاحتياطي واسترجاع البيانات</label>
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="view_reports" class="accent-primary w-4 h-4 rounded"> التقارير والإحصائيات</label>
-                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> إدارة المستخدمين والصلاحيات</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_users" class="accent-primary w-4 h-4 rounded"> المستخدمون والصلاحيات والصلاحيات</label>
                                     <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_orders" class="accent-primary w-4 h-4 rounded"> إدارة طلبات الموقع</label>
-                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_media" class="accent-primary w-4 h-4 rounded"> مركز الصور</label>
+                                    <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors"><input type="checkbox" name="permissions" value="manage_media" class="accent-primary w-4 h-4 rounded"> الصور والوسائط</label>
                                     <label class="flex items-center gap-2 text-sm font-bold text-primary cursor-pointer hover:bg-surface-variant/30 p-1 rounded transition-colors border-t border-outline-variant/30 pt-2 mt-1"><input type="checkbox" name="permissions" value="all" class="accent-primary w-4 h-4 rounded" onchange="document.querySelectorAll('input[name=permissions]').forEach(c => c.checked = this.checked)"> كل الصلاحيات (مدير عام)</label>
                                 </div>
                             </div>
@@ -937,7 +938,7 @@
         <!-- API Management & Cleanup Panel -->
         <div id="panel-api" class="tab-panel hidden p-4 sm:p-6">
             <h2 class="text-2xl font-black text-on-surface mb-6 flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-[28px]">api</span> إدارة الـ API والتنظيف
+                <span class="material-symbols-outlined text-primary text-[28px]">api</span> التكاملات والصيانة
             </h2>
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <!-- API Links -->
@@ -1223,5 +1224,6 @@
     <script src="admin.js" defer></script>
     <script src="admin-v8.js" defer></script>
     <script src="admin-v9.js" defer></script>
+    <script src="admin-v10.js" defer></script>
 </body>
 </html>

@@ -1,10 +1,11 @@
-const CACHE_NAME = 'technology-store-v8-commerce-analytics-1';
+const CACHE_NAME = 'technology-store-v10-admin-professional-1';
 const APP_SHELL = [
   '/',
   '/products',
   '/services',
   '/app.js',
   '/v8.js',
+  '/v9.js',
   '/style.css',
   '/theme.css',
   '/logo.webp',

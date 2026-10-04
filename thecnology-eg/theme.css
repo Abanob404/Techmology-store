@@ -1456,3 +1456,6 @@ body.direct-product-route #productModal{background:rgb(var(--color-background));
         margin-top: 4px !important;
     }
 }
+
+/* V10 customer review store reply */
+.v10-store-reply{margin-top:8px;padding:9px 10px;border-radius:10px;background:rgb(var(--color-primary)/.07);border-right:3px solid rgb(var(--color-primary))}.v10-store-reply strong{display:block;font-size:10px;color:rgb(var(--color-primary));font-weight:900}.v10-store-reply p{margin:3px 0 0!important;font-size:10.5px!important;line-height:1.6;color:rgb(var(--color-on-surface-variant))}
