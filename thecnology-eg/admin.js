@@ -3393,8 +3393,9 @@ document.addEventListener('keydown', (event) => {
     let slug=sel==='custom'?`campaign-${source}`:source;
     if(destination==='products')slug+='-products';
     else if(destination==='services')slug+='-services';
-    if(campaign)slug+=`-${campaign}`;
-    const url=`${location.origin}/${slug}`;
+    const urlObj=new URL(`/${slug}`,location.origin);
+    if(campaign)urlObj.searchParams.set('c',campaign);
+    const url=urlObj.toString();
     const out=document.getElementById('v8CampaignUrl'),box=document.getElementById('v8CampaignResult'),compactBox=document.getElementById('v8CampaignCompact');
     if(out)out.value=url;
     if(compactBox)compactBox.textContent=url;

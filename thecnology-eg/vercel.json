@@ -1,207 +1,363 @@
 {
-    "version": 2,
-    "cleanUrls": true,
-    "builds": [
+  "version": 2,
+  "cleanUrls": true,
+  "builds": [
+    {
+      "src": "server/index.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "*.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.js",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.{png,webp,svg,ico,jpg,jpeg}",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "*.json",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "fonts/**",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "assets/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/facebook-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/facebook-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/facebook-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/facebook-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/facebook-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/facebook",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/instagram-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/instagram-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/instagram-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/instagram-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/instagram-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/instagram",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/whatsapp-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/whatsapp-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/whatsapp-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/whatsapp-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/whatsapp-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/whatsapp",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/tiktok-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/tiktok-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/tiktok-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/tiktok-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/tiktok-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/tiktok",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/telegram-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/telegram-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/telegram-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/telegram-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/telegram-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/telegram",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/youtube-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/youtube-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/youtube-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/youtube-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/youtube-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/youtube",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/qr-products-(.*)",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/qr-services-(.*)",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/qr-products",
+      "dest": "/products_page.html"
+    },
+    {
+      "src": "/qr-services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/qr-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/qr",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/campaign-(.*)",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*\\.html)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.js)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.css)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.(?:png|webp|svg|ico|jpg|jpeg))",
+      "dest": "/$1"
+    },
+    {
+      "src": "/(.*\\.json)",
+      "dest": "/$1"
+    },
+    {
+      "src": "/fonts/(.*)",
+      "dest": "/fonts/$1"
+    },
+    {
+      "src": "/assets/(.*)",
+      "dest": "/assets/$1"
+    },
+    {
+      "src": "/robots\\.txt",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/sitemap\\.xml",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/privacy",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/shipping-policy",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/returns-policy",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/warranty",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/terms",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/p/(.*)",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/products",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/services",
+      "dest": "/services.html"
+    },
+    {
+      "src": "/admin",
+      "dest": "/admin.html"
+    },
+    {
+      "src": "/",
+      "dest": "/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/",
+      "headers": [
         {
-            "src": "server/index.js",
-            "use": "@vercel/node"
-        },
-        {
-            "src": "*.html",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "*.js",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "*.css",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "*.{png,webp,svg,ico,jpg,jpeg}",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "*.json",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "fonts/**",
-            "use": "@vercel/static"
-        },
-        {
-            "src": "assets/**",
-            "use": "@vercel/static"
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
-    ],
-    "routes": [
+      ]
+    },
+    {
+      "source": "/p/(.*)",
+      "headers": [
         {
-            "src": "/api/(.*)",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)-products(?:-[A-Za-z0-9-]+)?",
-            "dest": "/products_page.html"
-        },
-        {
-            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)-services(?:-[A-Za-z0-9-]+)?",
-            "dest": "/services.html"
-        },
-        {
-            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)(?:-[A-Za-z0-9-]+)?",
-            "dest": "/index.html"
-        },
-        {
-            "src": "/campaign-[A-Za-z0-9-]+",
-            "dest": "/index.html"
-        },
-        {
-            "src": "/(.*\\.html)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.js)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.css)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.(?:png|webp|svg|ico|jpg|jpeg))",
-            "dest": "/$1"
-        },
-        {
-            "src": "/(.*\\.json)",
-            "dest": "/$1"
-        },
-        {
-            "src": "/fonts/(.*)",
-            "dest": "/fonts/$1"
-        },
-        {
-            "src": "/assets/(.*)",
-            "dest": "/assets/$1"
-        },
-        {
-            "src": "/robots\\.txt",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/sitemap\\.xml",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/privacy",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/shipping-policy",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/returns-policy",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/warranty",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/terms",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/p/(.*)",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/products",
-            "dest": "server/index.js"
-        },
-        {
-            "src": "/services",
-            "dest": "/services.html"
-        },
-        {
-            "src": "/admin",
-            "dest": "/admin.html"
-        },
-        {
-            "src": "/",
-            "dest": "/index.html"
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
-    ],
-    "headers": [
+      ]
+    },
+    {
+      "source": "/products",
+      "headers": [
         {
-            "source": "/",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/p/(.*)",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/products",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/services",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/admin",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/(.*)\\.(html|js|css|json)",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=0, must-revalidate"
-                }
-            ]
-        },
-        {
-            "source": "/(.*)\\.(png|jpg|jpeg|webp|svg|ico)",
-            "headers": [
-                {
-                    "key": "Cache-Control",
-                    "value": "public, max-age=3600, stale-while-revalidate=86400"
-                }
-            ]
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
-    ],
-    "crons": [
+      ]
+    },
+    {
+      "source": "/services",
+      "headers": [
         {
-            "path": "/api/cron/backup",
-            "schedule": "0 2 * * *"
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
         }
-    ]
+      ]
+    },
+    {
+      "source": "/admin",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(html|js|css|json)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.(png|jpg|jpeg|webp|svg|ico)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, stale-while-revalidate=86400"
+        }
+      ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/backup",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }
