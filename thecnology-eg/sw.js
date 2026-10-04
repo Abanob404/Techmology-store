@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v10-admin-professional-1';
+const CACHE_NAME = 'technology-store-v10-1-production-hardening-1';
 const APP_SHELL = [
   '/',
   '/products',

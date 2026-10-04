@@ -35,6 +35,7 @@
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="v9.css">
     <link rel="stylesheet" href="admin-v10.css">
+    <link rel="stylesheet" href="admin-v101.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -1187,7 +1188,7 @@
                 // Update Top Header Title
                 const titleEl = document.getElementById('currentTabTitle');
                 if(titleEl) {
-                    titleEl.innerText = tab.innerText;
+                    titleEl.innerText = tab.querySelector('span:last-child')?.textContent?.trim() || tab.innerText.replace(/^[a-z_]+\s*/i,'').trim();
                 }
             }
             if (tabName === 'dashboard' && window.loadDashboard) window.loadDashboard();
@@ -1225,5 +1226,6 @@
     <script src="admin-v8.js" defer></script>
     <script src="admin-v9.js" defer></script>
     <script src="admin-v10.js" defer></script>
+    <script src="admin-v101.js" defer></script>
 </body>
 </html>

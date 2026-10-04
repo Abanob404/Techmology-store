@@ -356,6 +356,7 @@ const productSchema = new mongoose.Schema({
     publicId: String
   }],
   stockQuantity: { type: Number, default: 1 },
+  costPrice: { type: Number, default: 0 },
   sku: { type: String, default: '', index: true },
   posItemId: { type: Number, index: true, sparse: true },
   source: { type: String, default: 'website', index: true },
@@ -487,6 +488,8 @@ const reviewSchema = new mongoose.Schema({
   originalComment: { type: String, default: '' },
   publishedComment: { type: String, default: '' },
   storeReply: { type: String, default: '' },
+  verifiedPurchase: { type: Boolean, default: false, index: true },
+  verifiedOrderNumber: { type: String, default: '' },
   status: { type: String, enum: ['pending','published','rejected','hidden'], default: 'pending', index: true },
   approved: { type: Boolean, default: false, index: true },
   moderatedBy: { type: String, default: '' },
@@ -608,12 +611,13 @@ const orderSchema = new mongoose.Schema({
   customerAddress: { type: String, required: true },
   notes: { type: String, default: '' },
   visitorId: { type: String, default: '', index: true }, sessionId: { type: String, default: '' },
+  checkoutToken: { type: String, index: true, sparse: true, unique: true },
   deliveryMethod: { type: String, enum: ['shipping','pickup'], default: 'pickup' }, governorate: { type: String, default: '' }, area: { type: String, default: '' },
   shippingAmount: { type: Number, default: 0 }, paymentMethod: { type: String, default: 'cash_on_delivery' }, couponCode: { type: String, default: '' }, discountAmount: { type: Number, default: 0 },
   items: [{
     productId: { type: mongoose.Schema.Types.ObjectId, ref: 'Product' },
     posItemId: { type: Number },
-    sku: { type: String }, variant: { type: String, default: '' },
+    sku: { type: String }, variant: { type: String, default: '' }, variantId: { type: String, default: '' }, variantValue: { type: String, default: '' },
     title: { type: String },
     quantity: { type: Number, default: 1 },
     price: { type: Number, required: true },
@@ -623,9 +627,59 @@ const orderSchema = new mongoose.Schema({
   total: { type: Number, required: true },
   status: { type: String, enum: ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'], default: 'pending' },
   statusHistory: [{ status: String, at: { type: Date, default: Date.now }, note: String }], posInvoiceId: { type: String, default: '' },
+  stockReservationStatus: { type: String, enum: ['none','reserved','consumed','released'], default: 'none', index: true },
+  stockReservedAt: Date, stockReservationFinalizedAt: Date,
+  shippingCarrier: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' }, estimatedDeliveryAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
 const Order = mongoose.model('Order', orderSchema);
+
+async function reserveOrderStock(orderItems = []) {
+  const reserved = [];
+  try {
+    for (const item of orderItems) {
+      const qty = Math.max(1, Number(item.quantity) || 1);
+      if (item.variantId) {
+        const updated = await Product.findOneAndUpdate(
+          { _id: item.productId, isHidden: { $ne: true }, variants: { $elemMatch: { _id: item.variantId, stockQuantity: { $gte: qty } } }, stockQuantity: { $gte: qty } },
+          { $inc: { 'variants.$.stockQuantity': -qty, stockQuantity: -qty } },
+          { new: true }
+        );
+        if (!updated) throw Object.assign(new Error(`الكمية المطلوبة لم تعد متاحة للمنتج: ${item.title}`), { statusCode: 409 });
+      } else {
+        const updated = await Product.findOneAndUpdate(
+          { _id: item.productId, isHidden: { $ne: true }, stockQuantity: { $gte: qty } },
+          { $inc: { stockQuantity: -qty } },
+          { new: true }
+        );
+        if (!updated) throw Object.assign(new Error(`الكمية المطلوبة لم تعد متاحة للمنتج: ${item.title}`), { statusCode: 409 });
+      }
+      reserved.push(item);
+    }
+    return reserved;
+  } catch (err) {
+    for (const item of reserved.reverse()) await restoreReservedItemStock(item).catch(() => null);
+    throw err;
+  }
+}
+async function restoreReservedItemStock(item) {
+  const qty = Math.max(1, Number(item.quantity) || 1);
+  if (item.variantId) {
+    await Product.updateOne({ _id: item.productId, 'variants._id': item.variantId }, { $inc: { 'variants.$.stockQuantity': qty, stockQuantity: qty } });
+  } else {
+    await Product.updateOne({ _id: item.productId }, { $inc: { stockQuantity: qty } });
+  }
+}
+async function restoreOrderReservation(order) {
+  if (!order || order.stockReservationStatus !== 'reserved') return false;
+  for (const item of order.items || []) await restoreReservedItemStock(item);
+  order.stockReservationStatus = 'released'; order.stockReservationFinalizedAt = new Date();
+  return true;
+}
+function consumeOrderReservation(order) {
+  if (order?.stockReservationStatus === 'reserved') { order.stockReservationStatus = 'consumed'; order.stockReservationFinalizedAt = new Date(); return true; }
+  return false;
+}
 
 // دالة مساعدة لتسجيل حدث
 async function logActivity(action, details, user = 'نظام') {
@@ -960,6 +1014,15 @@ async function renderProductsPage(req, res, productIdOverride = '', productOverr
     res.status(503).send('<html dir="rtl"><body><h2>عذراً، مشكلة في الخادم. يرجى التحديث.</h2><button onclick="location.reload()">تحديث</button></body></html>');
   }
 }
+app.get('/robots.txt', (req,res)=>{res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: https://technology-store-eg.vercel.app/sitemap.xml\n');});
+app.get('/sitemap.xml', async(req,res)=>{try{const products=await Product.find({isHidden:{$ne:true}}).select('title sku updatedAt createdAt').sort({createdAt:-1}).limit(10000).lean();const base='https://technology-store-eg.vercel.app';const urls=[`${base}/`,`${base}/products`,`${base}/services`,`${base}/privacy`,`${base}/shipping-policy`,`${base}/returns-policy`,`${base}/warranty`,`${base}/terms`].concat(products.map(x=>`${base}/p/${encodeURIComponent(slugifyProductTitle(x.title))}/${encodeURIComponent(x.sku||String(x._id))}`));const xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+urls.map(u=>`<url><loc>${u.replace(/&/g,'&amp;')}</loc></url>`).join('')+'</urlset>';res.type('application/xml').send(xml);}catch(err){res.status(500).type('text/plain').send('sitemap unavailable');}});
+function renderPolicyPage(res,title,body){const logo='/logo.webp';res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} | Technology Store</title><style>body{margin:0;font-family:Cairo,Arial;background:#0f1519;color:#e8f1f7;line-height:1.9}.wrap{max-width:900px;margin:auto;padding:28px 18px 70px}.head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #24333d;padding-bottom:18px}.head img{height:52px}.head a{color:#77c9ff;text-decoration:none}.card{margin-top:28px;background:#141d23;border:1px solid #263640;border-radius:18px;padding:26px}.card h1{font-size:28px;margin:0 0 14px;color:#77c9ff}.card h2{font-size:18px;margin-top:24px}.card p,.card li{color:#c8d4db}.back{display:inline-block;margin-top:20px;color:#77c9ff}</style></head><body><div class="wrap"><div class="head"><img src="${logo}" alt="Technology Store"><a href="/">العودة للمتجر</a></div><article class="card"><h1>${title}</h1>${body}</article></div></body></html>`);}
+app.get('/privacy',(req,res)=>renderPolicyPage(res,'سياسة الخصوصية','<p>نستخدم البيانات اللازمة لتشغيل المتجر وتنفيذ الطلبات وتحسين الأداء وقياس مصادر الزيارات. لا نبيع بيانات العملاء للمعلنين.</p><h2>البيانات المستخدمة</h2><p>بيانات الطلب، مصدر الزيارة، نوع الجهاز، ومعرّف زيارة تقني لأغراض التحليل والحماية.</p><h2>التواصل</h2><p>يتم استخدام بيانات الاتصال فقط لتنفيذ الطلبات وخدمة ما بعد البيع والتواصل الذي يطلبه العميل.</p>'));
+app.get('/shipping-policy',(req,res)=>renderPolicyPage(res,'سياسة الشحن والتوصيل','<p>تظهر تكلفة الشحن والمدة المتوقعة أثناء إتمام الطلب حسب المنطقة المختارة. قد تتغير المدة في المواسم أو الظروف الاستثنائية.</p><h2>الاستلام من المعرض</h2><p>يمكن اختيار الاستلام من المعرض عند توفره بدون رسوم شحن.</p>'));
+app.get('/returns-policy',(req,res)=>renderPolicyPage(res,'سياسة الاستبدال والاسترجاع','<p>يمكن تقديم طلب استبدال أو استرجاع من خلال تتبع الطلب. تتم مراجعة الحالة والمنتج وفق الضمان وحالة المنتج وسياسة المتجر.</p>'));
+app.get('/warranty',(req,res)=>renderPolicyPage(res,'سياسة الضمان','<p>مدة وشروط الضمان تختلف حسب المنتج وتظهر في صفحة المنتج أو فاتورة الطلب عند توفرها. يحتفظ العميل برقم الطلب كمرجع للخدمة.</p>'));
+app.get('/terms',(req,res)=>renderPolicyPage(res,'الشروط والأحكام','<p>باستخدام المتجر وإرسال الطلب يوافق العميل على صحة بيانات الطلب وطريقة الاستلام المختارة. الأسعار والمخزون المعروضان يخضعان للتحديث الفعلي.</p>'));
+
 app.get('/products', (req, res) => renderProductsPage(req, res));
 app.get('/p/:slug/:ref?', async (req, res) => {
   try {
@@ -1044,6 +1107,7 @@ const handlePosSync = async (req, res) => {
       const posIdVal = item.posItemId;
       const priceVal = item.sale_price_piece || item.salePrice || item.sale_price || item.price;
       const stockVal = item.quantity !== undefined ? item.quantity : item.stockQuantity;
+      const costVal = item.cost_price_piece ?? item.costPrice ?? item.cost_price ?? item.purchasePrice ?? item.purchase_price;
       const isOnOffer = item.is_on_offer == 1 || item.is_on_offer === '1' || item.is_on_offer === true || item.isOnOffer;
       const offerPriceVal = item.offer_price || item.offerPrice;
 
@@ -1070,9 +1134,8 @@ const handlePosSync = async (req, res) => {
           }
         }
         
-        if (stockVal !== undefined && stockVal !== null && !isNaN(Number(stockVal))) {
-          product.stockQuantity = Number(stockVal);
-        }
+        if (stockVal !== undefined && stockVal !== null && !isNaN(Number(stockVal))) { product.stockQuantity = Number(stockVal); }
+        if (costVal !== undefined && costVal !== null && !isNaN(Number(costVal))) { product.costPrice = Math.max(0, Number(costVal)); }
         
         if (posIdVal !== undefined) product.posItemId = posIdVal;
         product.lastSyncedAt = new Date();
@@ -1162,6 +1225,8 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
       return res.status(404).json({ ok: false, message: "Order not found" });
     }
 
+    if (status === 'cancelled') await restoreOrderReservation(order);
+    else if (['received_by_pos','processing','out_for_delivery','completed'].includes(status)) consumeOrderReservation(order);
     order.status = status;
     order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
     order.statusHistory.push({ status, at: new Date(), note: 'تم تحديث الحالة من POS' });
@@ -1187,9 +1252,15 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
 
 // إضافة طلب جديد (عبر الموقع)
 app.post('/api/orders', orderLimiter, async (req, res) => {
+  let reservedItems = [];
   try {
     await ensureDBConnection();
-    const { customerName, customerPhone, customerAddress, notes, paymentMethod, deliveryMethod='pickup', governorate='', area='', couponCode='', visitorId='', sessionId='', items } = req.body || {};
+    const { customerName, customerPhone, customerAddress, notes, paymentMethod, deliveryMethod='pickup', governorate='', area='', couponCode='', visitorId='', sessionId='', checkoutToken='', items } = req.body || {};
+    const safeToken = sanitizePlainText(checkoutToken, 160);
+    if (safeToken) {
+      const existing = await Order.findOne({ checkoutToken: safeToken }).lean();
+      if (existing) return res.json({success:true,idempotent:true,message:'تم استلام هذا الطلب بالفعل',orderId:existing.orderNumber,orderNumber:existing.orderNumber,subtotal:existing.subtotal,discountAmount:existing.discountAmount,shippingAmount:existing.shippingAmount,total:existing.total,paymentMethod:existing.paymentMethod,deliveryMethod:existing.deliveryMethod});
+    }
     const safeName = sanitizePlainText(customerName, 100); const safePhone = normalizePhoneNumber(customerPhone); const safeAddress = sanitizePlainText(customerAddress, 600);
     if (!safeName || !safePhone) return res.status(400).json({ success:false, message:'الاسم ورقم الهاتف مطلوبان' });
     if (!Array.isArray(items) || items.length === 0 || items.length > 100) return res.status(400).json({ success:false, message:'السلة غير صالحة' });
@@ -1201,16 +1272,16 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
       else if (item.posItemId) product = await Product.findOne({ posItemId: item.posItemId });
       if (!product || product.isHidden) return res.status(404).json({ success:false, message:`المنتج غير موجود: ${sanitizePlainText(item.title,100)}` });
       const qty = Number(item.quantity); if (!Number.isInteger(qty) || qty < 1 || qty > 99) return res.status(400).json({ success:false, message:`كمية غير صالحة للمنتج: ${product.title}` });
-      let itemPrice = Number(product.price) || 0; let stock = Number(product.stockQuantity) || 0; let sku = product.sku || ''; let variantText = '';
+      let itemPrice = Number(product.price) || 0; let stock = Number(product.stockQuantity) || 0; let sku = product.sku || ''; let variantText = '', variantId='', variantValue='';
       if (item.variant && Array.isArray(product.variants) && product.variants.length) {
         const wanted = typeof item.variant === 'object' ? String(item.variant.value || '') : String(item.variant || '');
         const variant = product.variants.find(v => String(v.value) === wanted || String(v.sku) === wanted);
         if (!variant) return res.status(400).json({ success:false, message:`الخيار المحدد غير صالح للمنتج: ${product.title}` });
-        itemPrice = Number.isFinite(Number(variant.price)) ? Number(variant.price) : itemPrice; stock = Number(variant.stockQuantity) || 0; sku = variant.sku || sku; variantText = `${variant.label || 'الخيار'}: ${variant.value}`;
+        itemPrice = Number.isFinite(Number(variant.price)) ? Number(variant.price) : itemPrice; stock = Number(variant.stockQuantity) || 0; sku = variant.sku || sku; variantText = `${variant.label || 'الخيار'}: ${variant.value}`; variantId=String(variant._id||''); variantValue=String(variant.value||'');
       }
       if (stock < qty) return res.status(409).json({ success:false, message:`الكمية المطلوبة غير متاحة للمنتج: ${product.title}${variantText ? ` (${variantText})` : ''}` });
       const lineTotal = itemPrice * qty; subtotal += lineTotal;
-      orderItems.push({ productId:product._id,posItemId:product.posItemId,sku,title:product.title,variant:variantText,quantity:qty,price:itemPrice,lineTotal });
+      orderItems.push({ productId:product._id,posItemId:product.posItemId,sku,title:product.title,variant:variantText,variantId,variantValue,quantity:qty,price:itemPrice,lineTotal });
     }
     subtotal = Math.round(subtotal*100)/100;
     const settings = await getOrCreateSettings();
@@ -1225,9 +1296,10 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
     const pay = allowedPayments.includes(String(paymentMethod)) ? String(paymentMethod) : (method === 'pickup' && settings.paymentStorePickup ? 'pay_at_store' : (settings.paymentCashOnDelivery ? 'cash_on_delivery' : allowedPayments[0]));
     if (!pay) return res.status(400).json({ success:false, message:'لا توجد طريقة دفع متاحة حالياً' });
     const total = Math.max(0, Math.round((subtotal - coupon.discount + quote.amount)*100)/100);
+    reservedItems = await reserveOrderStock(orderItems);
     const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)}-${Math.floor(1000+Math.random()*9000)}`;
-    const order = new Order({ orderNumber, customerName:safeName, customerPhone:safePhone, customerAddress:method==='pickup'?'استلام من المعرض':safeAddress, notes:sanitizePlainText(notes,700), visitorId:sanitizePlainText(visitorId,120), sessionId:sanitizePlainText(sessionId,140), deliveryMethod:method, governorate:sanitizePlainText(governorate,100), area:sanitizePlainText(area,120), shippingAmount:quote.amount, paymentMethod:pay, couponCode:coupon.code, discountAmount:coupon.discount, items:orderItems, subtotal, total, statusHistory:[{status:'pending',at:new Date(),note:'تم استلام الطلب من الموقع'}] });
-    await order.save();
+    const order = new Order({ orderNumber, checkoutToken:safeToken||undefined, customerName:safeName, customerPhone:safePhone, customerAddress:method==='pickup'?'استلام من المعرض':safeAddress, notes:sanitizePlainText(notes,700), visitorId:sanitizePlainText(visitorId,120), sessionId:sanitizePlainText(sessionId,140), deliveryMethod:method, governorate:sanitizePlainText(governorate,100), area:sanitizePlainText(area,120), shippingAmount:quote.amount, paymentMethod:pay, couponCode:coupon.code, discountAmount:coupon.discount, items:orderItems, subtotal, total, stockReservationStatus:'reserved', stockReservedAt:new Date(), statusHistory:[{status:'pending',at:new Date(),note:'تم استلام الطلب من الموقع وحجز الكمية'}] });
+    await order.save(); reservedItems=[];
     if (order.visitorId) {
       await Visitor.updateOne({ visitorId: order.visitorId }, { $set: { knownCustomerName: safeName, knownCustomerPhone: safePhone, lastOrderNumber: order.orderNumber }, $inc: { ordersCount: 1 } }).catch(() => null);
       await AbandonedCart.updateMany({ visitorId: order.visitorId, status: 'active' }, { $set: { status: 'recovered', recoveredOrderNumber: order.orderNumber, lastSeenAt: new Date() } }).catch(() => null);
@@ -1239,7 +1311,11 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
     for(const item of orderItems){const idStr=String(item.productId);if(!wOrders[idStr])wOrders[idStr]={count:0,title:item.title};wOrders[idStr].count+=(item.quantity||1);wOrders[idStr].lastDate=new Date().toISOString();}
     doc.whatsapp_orders=wOrders;doc.markModified('whatsapp_orders');await doc.save();
     res.json({success:true,message:'تم إرسال الطلب بنجاح',orderId:order.orderNumber,orderNumber:order.orderNumber,subtotal,discountAmount:coupon.discount,shippingAmount:quote.amount,total,paymentMethod:pay,deliveryMethod:method});
-  } catch(err){console.error('Error submitting order:',err);res.status(err.statusCode||500).json({success:false,message:err.statusCode?err.message:'خطأ أثناء تقديم الطلب'});}
+  } catch(err){
+    for (const item of reservedItems.reverse()) await restoreReservedItemStock(item).catch(()=>null);
+    if (err?.code===11000 && req.body?.checkoutToken) { const existing=await Order.findOne({checkoutToken:sanitizePlainText(req.body.checkoutToken,160)}).lean().catch(()=>null); if(existing)return res.json({success:true,idempotent:true,orderId:existing.orderNumber,orderNumber:existing.orderNumber,total:existing.total,subtotal:existing.subtotal,shippingAmount:existing.shippingAmount,discountAmount:existing.discountAmount,paymentMethod:existing.paymentMethod,deliveryMethod:existing.deliveryMethod}); }
+    console.error('Error submitting order:',err);res.status(err.statusCode||500).json({success:false,message:err.statusCode?err.message:'خطأ أثناء تقديم الطلب'});
+  }
 });
 
 app.post('/api/checkout/quote', publicWriteLimiter, async (req,res)=>{
@@ -1248,11 +1324,11 @@ app.post('/api/checkout/quote', publicWriteLimiter, async (req,res)=>{
 app.post('/api/coupons/validate', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const r=await validateCouponCode(req.body?.code,Math.max(0,Number(req.body?.subtotal)||0));res.json({valid:true,code:r.code,discountAmount:r.discount});}catch(err){res.status(err.statusCode||400).json({valid:false,message:err.message});}});
 
 app.get('/api/orders/track', publicWriteLimiter, async (req,res)=>{
-  try{await ensureDBConnection();const orderNumber=sanitizePlainText(req.query.orderNumber,80);const phone=normalizePhoneNumber(req.query.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});const order=await Order.findOne({orderNumber,customerPhone:phone}).lean();if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});res.json({orderNumber:order.orderNumber,status:order.status,createdAt:order.createdAt,total:order.total,shippingAmount:order.shippingAmount,discountAmount:order.discountAmount,deliveryMethod:order.deliveryMethod,paymentMethod:order.paymentMethod,items:(order.items||[]).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity,price:i.price})),statusHistory:(order.statusHistory||[]).map(x=>({status:x.status,at:x.at,note:x.note}))});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}
+  try{await ensureDBConnection();const orderNumber=sanitizePlainText(req.query.orderNumber,80);const phone=normalizePhoneNumber(req.query.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});const order=await Order.findOne({orderNumber,customerPhone:phone}).lean();if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});res.json({orderNumber:order.orderNumber,status:order.status,createdAt:order.createdAt,total:order.total,shippingAmount:order.shippingAmount,discountAmount:order.discountAmount,deliveryMethod:order.deliveryMethod,paymentMethod:order.paymentMethod,shippingCarrier:order.shippingCarrier||'',trackingNumber:order.trackingNumber||'',trackingUrl:order.trackingUrl||'',estimatedDeliveryAt:order.estimatedDeliveryAt||null,items:(order.items||[]).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity,price:i.price})),statusHistory:(order.statusHistory||[]).map(x=>({status:x.status,at:x.at,note:x.note}))});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}
 });
 
 app.get('/api/reviews/:productId', async (req,res)=>{try{await ensureDBConnection();const reviews=await Review.find({productId:req.params.productId,$or:[{status:'published'},{status:{$exists:false},approved:true}]}).sort({createdAt:-1}).limit(50).lean();const clean=reviews.map(r=>({...r,comment:r.publishedComment||r.comment||r.originalComment||'',storeReply:r.storeReply||''}));const avg=clean.length?clean.reduce((a,r)=>a+Number(r.rating||0),0)/clean.length:0;res.json({reviews:clean,average:Math.round(avg*10)/10,count:clean.length});}catch(err){res.status(500).json({message:'تعذر تحميل التقييمات'});}});
-app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false});res.status(201).json({success:true,message:'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
+app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});let verifiedPurchase=false,verifiedOrderNumber='';const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(orderNumber&&phone){const order=await Order.findOne({orderNumber,customerPhone:phone,status:{$ne:'cancelled'},'items.productId':productId}).select('orderNumber').lean();if(order){verifiedPurchase=true;verifiedOrderNumber=order.orderNumber;}}await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false,verifiedPurchase,verifiedOrderNumber});res.status(201).json({success:true,verifiedPurchase,message:verifiedPurchase?'تم استلام تقييمك كمشتري موثّق وسيظهر بعد المراجعة':'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
 
 app.post('/api/stock-notify', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const product=await Product.findById(req.body?.productId).select('title stockQuantity');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const phone=normalizePhoneNumber(req.body?.phone);if(!phone)return res.status(400).json({message:'رقم الهاتف مطلوب'});const name=sanitizePlainText(req.body?.name,80);await StockNotify.findOneAndUpdate({productId:product._id,phone,status:'waiting'},{$set:{productTitle:product.title,name,createdAt:new Date()}},{upsert:true,new:true});res.json({success:true,message:'تم تسجيل طلب التنبيه عند توفر المنتج'});}catch(err){res.status(500).json({message:'تعذر تسجيل طلب التنبيه'});}});
 
@@ -2291,10 +2367,21 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
       ActivityLog.find().sort({ timestamp: -1 }).limit(6).lean()
     ]);
 
+    const profitAgg = await Order.aggregate([
+      { $match: { createdAt: { $gte: todayStart }, status: { $ne: 'cancelled' } } },
+      { $unwind: '$items' },
+      { $lookup: { from: 'products', localField: 'items.productId', foreignField: '_id', as: 'p' } },
+      { $unwind: { path: '$p', preserveNullAndEmptyArrays: true } },
+      { $group: { _id: null,
+        grossProfit: { $sum: { $cond: [ { $gt: [ { $ifNull: ['$p.costPrice', 0] }, 0 ] }, { $multiply: ['$items.quantity', { $subtract: ['$items.price', '$p.costPrice'] }] }, 0 ] } },
+        costedItems: { $sum: { $cond: [ { $gt: [ { $ifNull: ['$p.costPrice', 0] }, 0 ] }, 1, 0 ] } }
+      } }
+    ]);
+    const costedItems = Number(profitAgg?.[0]?.costedItems || 0);
     res.json({
       generatedAt: now.toISOString(),
       products: { total: totalProducts, visible: visibleProducts, hidden: hiddenProducts, outOfStock, lowStock, missingImages },
-      orders: { total: totalOrders, pending: pendingOrders, processing: processingOrders, completed: completedOrders, cancelled: cancelledOrders, today: todayOrders, todaySales: Number(todaySalesAgg?.[0]?.total || 0) },
+      orders: { total: totalOrders, pending: pendingOrders, processing: processingOrders, completed: completedOrders, cancelled: cancelledOrders, today: todayOrders, todaySales: Number(todaySalesAgg?.[0]?.total || 0), todayGrossProfit: costedItems ? Math.round(Number(profitAgg?.[0]?.grossProfit || 0)*100)/100 : null, costDataAvailable: costedItems > 0 },
       recentOrders,
       recentLogs,
       health: {
@@ -2351,6 +2438,8 @@ app.put('/api/admin/orders/:orderId/status', requireAdminAuth, requirePermission
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: 'الطلب غير موجود' });
     const previousStatus = order.status;
+    if (status === 'cancelled') await restoreOrderReservation(order);
+    else if (['received_by_pos','processing','out_for_delivery','completed'].includes(status)) consumeOrderReservation(order);
     order.status = status;
     order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
     order.statusHistory.push({ status, at: new Date(), note: sanitizePlainText(req.body?.note, 200) });
@@ -2360,6 +2449,59 @@ app.put('/api/admin/orders/:orderId/status', requireAdminAuth, requirePermission
   } catch (err) {
     res.status(500).json({ message: 'تعذر تحديث حالة الطلب', error: err.message });
   }
+});
+
+
+app.put('/api/admin/orders/:orderId/shipping', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
+  try{
+    const order=await Order.findById(req.params.orderId); if(!order)return res.status(404).json({message:'الطلب غير موجود'});
+    order.shippingCarrier=sanitizePlainText(req.body?.shippingCarrier,100); order.trackingNumber=sanitizePlainText(req.body?.trackingNumber,120);
+    const rawUrl=String(req.body?.trackingUrl||'').trim(); order.trackingUrl=/^https?:\/\//i.test(rawUrl)?rawUrl.slice(0,800):'';
+    order.estimatedDeliveryAt=parseOptionalDate(req.body?.estimatedDeliveryAt)||undefined;
+    order.statusHistory=Array.isArray(order.statusHistory)?order.statusHistory:[]; order.statusHistory.push({status:order.status,at:new Date(),note:'تم تحديث بيانات الشحن'});
+    await order.save(); await logActivity('تحديث بيانات الشحن',`${order.orderNumber} — ${order.shippingCarrier||'بدون شركة'} — ${order.trackingNumber||'بدون رقم تتبع'}`,req.adminUser.username);
+    res.json({success:true,order});
+  }catch(err){res.status(500).json({message:'تعذر تحديث بيانات الشحن'});}
+});
+
+app.get('/api/admin/notifications', requireAdminAuth, async(req,res)=>{
+  try{
+    const settings=await getOrCreateSettings(); const low=Math.max(0,Number(settings.lowStockThreshold)||3); const since=new Date(Date.now()-24*60*60*1000);
+    const [newOrders,pendingReviews,pendingReturns,lowStock,failedBackup]=await Promise.all([
+      Order.countDocuments({status:'pending'}),Review.countDocuments({$or:[{status:'pending'},{status:{$exists:false},approved:false}]}),ReturnRequest.countDocuments({status:'pending'}),Product.countDocuments({isHidden:{$ne:true},stockQuantity:{$gt:0,$lte:low}}),BackupRecord.findOne({status:'failed',createdAt:{$gte:since}}).sort({createdAt:-1}).lean()
+    ]);
+    const items=[];
+    if(newOrders)items.push({type:'orders',icon:'receipt_long',title:`${newOrders} طلب جديد`,text:'طلبات تنتظر المراجعة أو الإرسال لنظام نقاط البيع',tab:'orders',count:newOrders,priority:'high'});
+    if(pendingReviews)items.push({type:'reviews',icon:'reviews',title:`${pendingReviews} تقييم بانتظار المراجعة`,text:'راجع آراء العملاء قبل نشرها',tab:'reviews',count:pendingReviews,priority:'medium'});
+    if(pendingReturns)items.push({type:'returns',icon:'assignment_return',title:`${pendingReturns} طلب استبدال أو استرجاع`,text:'طلبات ما بعد البيع تحتاج إجراء',tab:'returns',count:pendingReturns,priority:'high'});
+    if(lowStock)items.push({type:'stock',icon:'inventory_2',title:`${lowStock} منتج منخفض المخزون`,text:`الكمية أقل من أو تساوي ${low}`,tab:'products',filter:'low_stock',count:lowStock,priority:'medium'});
+    if(failedBackup)items.push({type:'backup',icon:'cloud_off',title:'آخر نسخة احتياطية فشلت',text:new Date(failedBackup.createdAt).toLocaleString('ar-EG'),tab:'system',count:1,priority:'high'});
+    res.json({count:items.reduce((a,x)=>a+Number(x.count||1),0),items,generatedAt:new Date().toISOString()});
+  }catch(err){res.status(500).json({message:'تعذر تحميل التنبيهات'});}
+});
+
+app.get('/api/admin/customers', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
+  try{
+    const page=Math.max(1,parseInt(req.query.page)||1),limit=Math.min(100,Math.max(10,parseInt(req.query.limit)||25)),search=sanitizePlainText(req.query.search,100);
+    const match=search?{$or:[{customerName:{$regex:escapeRegexLiteral(search),$options:'i'}},{customerPhone:{$regex:escapeRegexLiteral(search),$options:'i'}},{orderNumber:{$regex:escapeRegexLiteral(search),$options:'i'}}]}:{};
+    const pipeline=[{$match:match},{$sort:{createdAt:-1}},{$group:{_id:'$customerPhone',name:{$first:'$customerName'},phone:{$first:'$customerPhone'},orders:{$sum:1},revenue:{$sum:{$cond:[{$ne:['$status','cancelled']},'$total',0]}},lastOrderAt:{$max:'$createdAt'},lastOrderNumber:{$first:'$orderNumber'},returns:{$sum:0}}},{$sort:{revenue:-1,lastOrderAt:-1}}];
+    const rows=await Order.aggregate([...pipeline,{$skip:(page-1)*limit},{$limit:limit}]); const countArr=await Order.aggregate([...pipeline,{$count:'n'}]); const total=countArr[0]?.n||0;
+    res.json({customers:rows,total,page,pages:Math.max(1,Math.ceil(total/limit)),limit});
+  }catch(err){res.status(500).json({message:'تعذر تحميل العملاء'});}
+});
+app.get('/api/admin/customers/:phone', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
+  try{const phone=normalizePhoneNumber(req.params.phone);const orders=await Order.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();if(!orders.length)return res.status(404).json({message:'العميل غير موجود'});const returns=await ReturnRequest.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();const revenue=orders.filter(o=>o.status!=='cancelled').reduce((a,o)=>a+Number(o.total||0),0);res.json({name:orders[0].customerName,phone,orders,revenue,returns});}catch(err){res.status(500).json({message:'تعذر تحميل ملف العميل'});}
+});
+
+app.post('/api/admin/products/bulk-action', requireAdminAuth, requirePermission('edit_product'), async(req,res)=>{
+  try{const ids=(Array.isArray(req.body?.ids)?req.body.ids:[]).filter(x=>mongoose.Types.ObjectId.isValid(x)).slice(0,500);if(!ids.length)return res.status(400).json({message:'اختر منتجاً واحداً على الأقل'});const action=String(req.body?.action||'');let result;
+    if(action==='hide'||action==='show')result=await Product.updateMany({_id:{$in:ids}},{$set:{isHidden:action==='hide',visibilityManuallySet:true}});
+    else if(action==='featured'||action==='unfeatured')result=await Product.updateMany({_id:{$in:ids}},{$set:{isFeatured:action==='featured'}});
+    else if(action==='category'){const category=sanitizePlainText(req.body?.category,100);if(!category)return res.status(400).json({message:'اسم القسم مطلوب'});result=await Product.updateMany({_id:{$in:ids}},{$set:{category}});}
+    else if(action==='price_percent'){const pct=Math.max(-90,Math.min(500,Number(req.body?.value)||0));const docs=await Product.find({_id:{$in:ids}}).select('_id price');const ops=docs.map(x=>({updateOne:{filter:{_id:x._id},update:{$set:{price:Math.max(0,Math.round(Number(x.price||0)*(1+pct/100)*100)/100)}}}}));result=ops.length?await Product.bulkWrite(ops):{modifiedCount:0};}
+    else return res.status(400).json({message:'الإجراء غير مدعوم'});
+    await logActivity('تعديل جماعي للمنتجات',`${action} — ${ids.length} منتج`,req.adminUser.username);res.json({success:true,modified:result.modifiedCount||0});
+  }catch(err){res.status(500).json({message:'تعذر تنفيذ الإجراء الجماعي'});}
 });
 
 app.get('/api/admin/media', requireAdminAuth, requirePermission('manage_media'), async (req, res) => {

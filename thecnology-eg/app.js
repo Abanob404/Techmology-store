@@ -1818,12 +1818,18 @@ async function checkoutWhatsApp() {
         return;
     }
 
+    let legacyCheckoutToken = sessionStorage.getItem('tech_checkout_token');
+    if (!legacyCheckoutToken) {
+        legacyCheckoutToken = 'chk_' + (window.crypto?.randomUUID ? window.crypto.randomUUID() : Date.now() + '_' + Math.random().toString(36).slice(2));
+        sessionStorage.setItem('tech_checkout_token', legacyCheckoutToken);
+    }
     const orderPayload = {
         customerName: name,
         customerPhone: phone,
         customerAddress: window.isShippingEnabled ? address : "استلام من المعرض",
         shippingAmount: 0,
         paymentMethod: "cash_on_delivery",
+        checkoutToken: legacyCheckoutToken,
         items: cart.map(item => ({
             productId: item._id,
             posItemId: item.posItemId || undefined,
@@ -2292,3 +2298,12 @@ function closeQuickBuyModal() {
 }
 
 
+
+// V10.1 — policy links are kept in the footer instead of an intrusive privacy popup.
+document.addEventListener('DOMContentLoaded',()=>{
+  const footer=document.querySelector('.site-footer');
+  if(!footer||footer.querySelector('.v101-policy-links'))return;
+  const links=document.createElement('div');links.className='v101-policy-links';
+  links.innerHTML='<a href="/privacy">سياسة الخصوصية</a><a href="/shipping-policy">الشحن والتوصيل</a><a href="/returns-policy">الاستبدال والاسترجاع</a><a href="/warranty">الضمان</a><a href="/terms">الشروط والأحكام</a>';
+  (footer.firstElementChild||footer).appendChild(links);
+});

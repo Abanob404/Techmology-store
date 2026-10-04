@@ -69,6 +69,34 @@
             "dest": "/assets/$1"
         },
         {
+            "src": "/robots\\.txt",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/sitemap\\.xml",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/privacy",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/shipping-policy",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/returns-policy",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/warranty",
+            "dest": "server/index.js"
+        },
+        {
+            "src": "/terms",
+            "dest": "server/index.js"
+        },
+        {
             "src": "/p/(.*)",
             "dest": "server/index.js"
         },
