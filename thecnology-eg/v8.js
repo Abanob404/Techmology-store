@@ -200,7 +200,11 @@
     const totalStock=Array.isArray(p.variants)&&p.variants.length?p.variants.reduce((a,v)=>a+Math.max(0,Number(v.stockQuantity)||0),0):Number(p.stockQuantity||0);
     const dock=document.createElement('div');dock.id='v8MobileProductDock';dock.className='v8-mobile-product-dock';
     dock.innerHTML=totalStock>0?`<button class="buy"><span class="material-symbols-outlined">bolt</span> شراء الآن</button><button class="cart"><span class="material-symbols-outlined">add_shopping_cart</span> للسلة</button><button class="ask"><i class="fa-brands fa-whatsapp"></i> واتساب</button>`:`<button class="notify"><span class="material-symbols-outlined">notifications_active</span> بلغني عند التوفر</button><button class="ask"><i class="fa-brands fa-whatsapp"></i> استفسر</button>`;
-    modal.appendChild(dock);
+    const primaryActions=modal.querySelector('.product-detail-primary-actions');
+    const actions=modal.querySelector('.product-detail-actions');
+    if(primaryActions) primaryActions.insertAdjacentElement('afterend',dock);
+    else if(actions) actions.prepend(dock);
+    else modal.appendChild(dock);
     dock.querySelector('.cart')?.addEventListener('click',()=>window.addToCart(p._id,selectedVariant.get(String(p._id))));
     dock.querySelector('.buy')?.addEventListener('click',()=>{
       const quickBuyEnabled=Boolean(state()?.storeSettings?.isQuickBuyEnabled);

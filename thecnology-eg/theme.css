@@ -1366,3 +1366,93 @@ body.direct-product-route #productModal{background:rgb(var(--color-background));
         font-size: 11px;
     }
 }
+
+
+/* =========================================================
+   V9.3 — Stable mobile navigation + inline product actions
+   Nothing on the primary mobile chrome auto-floats or slides.
+   ========================================================= */
+@media (max-width:767px) {
+    /* Keep the top header steady and opaque. */
+    .site-header {
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        transform: none !important;
+        transition: none !important;
+        background: rgb(var(--color-background) / .99) !important;
+    }
+
+    /* Keep the main bottom navigation centered and always visible. */
+    .mobile-site-dock,
+    .mobile-site-dock.is-hidden,
+    .mobile-site-dock.is-keyboard-hidden {
+        position: fixed !important;
+        left: 10px !important;
+        right: 10px !important;
+        bottom: max(8px, env(safe-area-inset-bottom,0px)) !important;
+        width: auto !important;
+        max-width: none !important;
+        height: var(--mobile-dock-h) !important;
+        margin: 0 !important;
+        transform: none !important;
+        transition: none !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+        border-radius: 16px !important;
+        padding: 5px 7px !important;
+        background: rgb(var(--color-surface-container-lowest) / .985) !important;
+        border: 1px solid rgb(var(--color-outline-variant) / .32) !important;
+        box-shadow: 0 8px 22px rgba(0,0,0,.20) !important;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        will-change: auto !important;
+        contain: none !important;
+    }
+
+    /* Product purchase controls now live inside the product card, not on the viewport. */
+    .v8-mobile-product-dock {
+        display: grid !important;
+        grid-template-columns: 1.25fr 1fr 1fr !important;
+        gap: 7px !important;
+        position: static !important;
+        inset: auto !important;
+        width: 100% !important;
+        margin: 2px 0 4px !important;
+        padding: 0 !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        -webkit-backdrop-filter: none !important;
+        backdrop-filter: none !important;
+        transform: none !important;
+        transition: none !important;
+    }
+    .v8-mobile-product-dock button {
+        min-height: 44px !important;
+        border-radius: 11px !important;
+        box-shadow: none !important;
+        transform: none !important;
+        transition: background-color .15s ease, border-color .15s ease, color .15s ease !important;
+    }
+    .v8-mobile-product-dock button:active {
+        transform: none !important;
+    }
+    .product-detail-actions {
+        position: static !important;
+        inset: auto !important;
+        z-index: auto !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding-bottom: 0 !important;
+    }
+    .product-detail-info {
+        padding-bottom: calc(20px + env(safe-area-inset-bottom,0px)) !important;
+    }
+    .product-detail-secondary-actions {
+        margin-top: 4px !important;
+    }
+}

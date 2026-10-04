@@ -1452,13 +1452,12 @@ function initSmartMobileChrome() {
     };
 
     const hideDock = () => {
-        if (!dock) return;
-        dock.classList.add('is-hidden');
-        document.body.classList.add('mobile-dock-hidden');
+        // V9.3: primary mobile navigation stays permanently visible while scrolling.
+        showDock();
     };
 
     const showCategories = () => categoryRail?.classList.remove('is-hidden');
-    const hideCategories = () => categoryRail?.classList.add('is-hidden');
+    const hideCategories = () => showCategories();
 
     const processScroll = () => {
         const y = Math.max(0, window.scrollY || 0);
