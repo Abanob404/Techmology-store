@@ -202,7 +202,13 @@
     dock.innerHTML=totalStock>0?`<button class="buy"><span class="material-symbols-outlined">bolt</span> شراء الآن</button><button class="cart"><span class="material-symbols-outlined">add_shopping_cart</span> للسلة</button><button class="ask"><i class="fa-brands fa-whatsapp"></i> واتساب</button>`:`<button class="notify"><span class="material-symbols-outlined">notifications_active</span> بلغني عند التوفر</button><button class="ask"><i class="fa-brands fa-whatsapp"></i> استفسر</button>`;
     modal.appendChild(dock);
     dock.querySelector('.cart')?.addEventListener('click',()=>window.addToCart(p._id,selectedVariant.get(String(p._id))));
-    dock.querySelector('.buy')?.addEventListener('click',()=>{window.addToCart(p._id,selectedVariant.get(String(p._id)));window.closeProductModal?.();setTimeout(()=>window.openCartSidebar?.(),180);});
+    dock.querySelector('.buy')?.addEventListener('click',()=>{
+      const quickBuyEnabled=Boolean(state()?.storeSettings?.isQuickBuyEnabled);
+      if(quickBuyEnabled && typeof window.openQuickBuyModal==='function'){ window.openQuickBuyModal(p._id); return; }
+      window.addToCart(p._id,selectedVariant.get(String(p._id)));
+      window.closeProductModal?.();
+      setTimeout(()=>window.openCartSidebar?.(),180);
+    });
     dock.querySelector('.notify')?.addEventListener('click',()=>openStockNotify(p));
     dock.querySelector('.ask')?.addEventListener('click',()=>window.open(state()?.buildWhatsappUrl?.(`أريد الاستفسار عن منتج: ${p.title}`)||'#','_blank','noopener'));
   }

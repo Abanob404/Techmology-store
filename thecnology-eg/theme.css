@@ -1198,3 +1198,31 @@ body.direct-product-route #productModal{background:rgb(var(--color-background));
   .v8-mobile-product-dock{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:7px;position:fixed;z-index:105;left:9px;right:9px;bottom:calc(8px + env(safe-area-inset-bottom,0px));padding:7px;border-radius:15px;background:rgb(var(--color-surface-container-lowest)/.96);border:1px solid rgb(var(--color-outline-variant)/.38);box-shadow:0 14px 36px rgba(0,0,0,.24);backdrop-filter:blur(18px)}
   .v8-mobile-product-dock button{min-height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:900;white-space:nowrap}.v8-mobile-product-dock .buy{background:#22c55e;color:#fff}.v8-mobile-product-dock .cart{background:rgb(var(--color-primary)/.14);color:rgb(var(--color-primary));border:1px solid rgb(var(--color-primary)/.3)}.v8-mobile-product-dock .ask{background:#16a34a;color:#fff}.v8-mobile-product-dock .notify{grid-column:span 2;background:#f59e0b;color:#1f1300}.v8-mobile-product-dock .material-symbols-outlined{font-size:17px}.v8-mobile-product-dock i{font-size:16px}
 }
+
+
+/* V9.1 — Mobile product actions cleanup
+   Keep exactly one purchase action bar on phones. The fixed V8 dock is the
+   canonical mobile action surface; the legacy in-card buy/cart/WhatsApp row
+   remains available on tablet/desktop only. */
+@media (max-width:767px){
+  .product-detail-primary-actions{display:none!important}
+  body.direct-product-route .product-detail-actions,
+  .product-detail-actions{
+    position:static!important;
+    bottom:auto!important;
+    z-index:auto!important;
+    background:transparent!important;
+    padding-bottom:0!important;
+    box-shadow:none!important;
+  }
+  .product-detail-secondary-actions{
+    margin-top:2px!important;
+    padding-top:2px!important;
+  }
+  .product-detail-info{
+    padding-bottom:calc(108px + env(safe-area-inset-bottom,0px))!important;
+  }
+  .v8-mobile-product-dock{
+    grid-template-columns:1.25fr 1fr 1fr;
+  }
+}
