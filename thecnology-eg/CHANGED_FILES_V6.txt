@@ -1,9 +1,0 @@
-index.html
-products_page.html
-services.html
-app.js
-theme.css
-sw.js
-server/index.js
-V6_MOBILE_FIRST_UPGRADE.md
-DEPLOY_SAFE_V6.md
