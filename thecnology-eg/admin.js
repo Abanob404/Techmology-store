@@ -3375,7 +3375,7 @@ document.addEventListener('keydown', (event) => {
   function injectGrowthTab(){if(document.getElementById('tab-growth'))return;const anchor=document.getElementById('tab-analytics');if(!anchor)return;const b=document.createElement('button');b.id='tab-growth';b.className='admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50';b.innerHTML='<span class="material-symbols-outlined">rocket_launch</span><span>التسويق والعروض</span>';b.onclick=()=>window.switchTab('growth');anchor.before(b);const parent=document.getElementById('panel-settings')?.parentElement;if(!parent)return;const panel=document.createElement('div');panel.id='panel-growth';panel.className='tab-panel hidden';panel.innerHTML=`
     <div class="v8-growth-head"><div><h2>المبيعات والعملاء</h2><p>الكوبونات، تقييمات العملاء، طلبات التنبيه عند عودة المخزون.</p></div><button class="admin-action-btn" onclick="window.v8LoadGrowth()"><span class="material-symbols-outlined">refresh</span> تحديث</button></div>
     <div class="v8-growth-grid">
-      <section class="glass-panel v8-growth-card v8-campaign-card"><h3><span class="material-symbols-outlined">link</span> منشئ روابط الحملات المتتبعة</h3><p class="v8-admin-help">استخدم رابطًا مختصرًا وواضحًا لتتبع الحملة. سيظهر لك شكل بسيط، وعند النسخ سيتم نسخ الرابط الكامل الجاهز للنشر.</p><div class="v8-campaign-form"><input id="v8CampaignPath" placeholder="رابط أو مسار مثل /products" value="/products"><select id="v8CampaignSource"><option value="facebook">Facebook</option><option value="whatsapp">WhatsApp</option><option value="instagram">Instagram</option><option value="tiktok">TikTok</option><option value="telegram">Telegram</option><option value="youtube">YouTube</option><option value="qr">QR / مطبوعات</option><option value="custom">مصدر مخصص</option></select><input id="v8CampaignCustom" class="hidden" placeholder="اسم المصدر المخصص"><input id="v8CampaignName" placeholder="اسم الحملة (مثال: october_offer)"><button id="v8MakeCampaign" class="admin-action-btn admin-action-btn--primary">إنشاء الرابط</button></div><div id="v8CampaignResult" class="v8-campaign-result hidden"><div class="v8-campaign-preview-wrap"><div id="v8CampaignCompact" class="v8-campaign-compact" dir="ltr"></div><small>سيتم نسخ الرابط الكامل عند الضغط على زر النسخ.</small><input id="v8CampaignUrl" readonly dir="ltr" class="hidden"></div><button id="v8CopyCampaign" class="admin-action-btn">نسخ الرابط</button></div></section>
+      <section class="glass-panel v8-growth-card v8-campaign-card"><h3><span class="material-symbols-outlined">link</span> منشئ الروابط المختصرة للحملات</h3><p class="v8-admin-help">أنشئ رابطًا نظيفًا مثل <b dir="ltr">/facebook</b> أو <b dir="ltr">/instagram-products-launch</b>. الموقع يتعرّف تلقائيًا على المصدر والحملة بدون إظهار UTM طويل.</p><div class="v8-campaign-form"><select id="v8CampaignSource"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="whatsapp">WhatsApp</option><option value="tiktok">TikTok</option><option value="telegram">Telegram</option><option value="youtube">YouTube</option><option value="qr">QR / مطبوعات</option><option value="custom">مصدر مخصص</option></select><select id="v8CampaignDestination"><option value="home">الرئيسية</option><option value="products">المنتجات</option><option value="services">الخدمات</option></select><input id="v8CampaignCustom" class="hidden" placeholder="اسم المصدر بالإنجليزية مثل partner"><input id="v8CampaignName" placeholder="اسم الحملة اختياري - مثال: launch"><button id="v8MakeCampaign" class="admin-action-btn admin-action-btn--primary">إنشاء الرابط</button></div><div id="v8CampaignResult" class="v8-campaign-result hidden"><div class="v8-campaign-preview-wrap"><div id="v8CampaignCompact" class="v8-campaign-compact" dir="ltr"></div><small>هذا هو نفس الرابط الذي سيتم نسخه ونشره.</small><input id="v8CampaignUrl" readonly dir="ltr" class="hidden"></div><button id="v8CopyCampaign" class="admin-action-btn">نسخ الرابط</button></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">sell</span> كوبونات الخصم</h3><div class="v8-coupon-form"><input id="v8CouponCode" placeholder="CODE"><select id="v8CouponType"><option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت</option></select><input id="v8CouponValue" type="number" min="0" placeholder="القيمة"><input id="v8CouponMin" type="number" min="0" placeholder="حد أدنى"><input id="v8CouponMax" type="number" min="0" placeholder="حد أقصى للخصم"><input id="v8CouponLimit" type="number" min="0" placeholder="مرات الاستخدام (0=∞)"><input id="v8CouponStart" type="datetime-local"><input id="v8CouponEnd" type="datetime-local"><button id="v8AddCoupon" class="admin-action-btn admin-action-btn--primary">إضافة كوبون</button></div><div id="v8CouponsList"></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">star</span> التقييمات المنتظرة</h3><div id="v8ReviewsAdmin"></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">notifications_active</span> تنبيهات توفر المخزون</h3><div id="v8StockAlerts"></div></section>
@@ -3383,19 +3383,21 @@ document.addEventListener('keydown', (event) => {
     const source=document.getElementById('v8CampaignSource');if(source)source.onchange=()=>document.getElementById('v8CampaignCustom')?.classList.toggle('hidden',source.value!=='custom');
     document.getElementById('v8MakeCampaign').onclick=makeCampaignLink;document.getElementById('v8CopyCampaign').onclick=copyCampaignLink;wrapSwitchTab();}
   function makeCampaignLink(){
-    const raw=document.getElementById('v8CampaignPath')?.value.trim()||'/products';
     const sel=document.getElementById('v8CampaignSource')?.value||'facebook';
     const custom=document.getElementById('v8CampaignCustom')?.value.trim()||'';
-    const campaign=(document.getElementById('v8CampaignName')?.value.trim()||'store_campaign').replace(/\s+/g,'_');
-    const source=sel==='custom'?(custom||'custom'):sel;
-    let u;try{u=new URL(raw,location.origin);}catch(_){u=new URL('/products',location.origin);}
-    u.searchParams.set('src',source);
-    u.searchParams.set('camp',campaign);
-    if(sel==='qr')u.searchParams.set('med','offline');
-    const compact=`${u.origin}${u.pathname} • ${source} • ${campaign}`;
+    const destination=document.getElementById('v8CampaignDestination')?.value||'home';
+    const rawCampaign=document.getElementById('v8CampaignName')?.value.trim()||'';
+    const slugify=(value,fallback='')=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||fallback;
+    const source=sel==='custom'?slugify(custom,'custom'):sel;
+    const campaign=slugify(rawCampaign,'');
+    let slug=sel==='custom'?`campaign-${source}`:source;
+    if(destination==='products')slug+='-products';
+    else if(destination==='services')slug+='-services';
+    if(campaign)slug+=`-${campaign}`;
+    const url=`${location.origin}/${slug}`;
     const out=document.getElementById('v8CampaignUrl'),box=document.getElementById('v8CampaignResult'),compactBox=document.getElementById('v8CampaignCompact');
-    if(out)out.value=u.toString();
-    if(compactBox)compactBox.textContent=compact;
+    if(out)out.value=url;
+    if(compactBox)compactBox.textContent=url;
     box?.classList.remove('hidden');
   }
   async function copyCampaignLink(){const value=document.getElementById('v8CampaignUrl')?.value||'';if(!value)return;try{await navigator.clipboard.writeText(value);toast('✅ تم نسخ رابط الحملة');}catch(_){document.getElementById('v8CampaignUrl')?.select();}}

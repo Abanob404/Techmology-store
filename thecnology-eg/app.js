@@ -2129,6 +2129,27 @@ async function trackVisitor() {
             sessionStorage.setItem('tech_store_session_landing', location.pathname + location.search);
         }
         const params = new URLSearchParams(location.search);
+        const parsePrettyCampaignPath = () => {
+            const raw = decodeURIComponent((location.pathname || '/').replace(/^\/+|\/+$/g, '')).toLowerCase();
+            if (!raw) return { source:'', medium:'', campaign:'' };
+            const known = ['facebook','instagram','whatsapp','tiktok','telegram','youtube','qr'];
+            let source='', medium='', campaign='', rest=[];
+            if (raw.startsWith('campaign-')) {
+                const bits = raw.slice(9).split('-').filter(Boolean);
+                source = bits.shift() || '';
+                rest = bits;
+            } else {
+                const bits = raw.split('-').filter(Boolean);
+                if (!known.includes(bits[0])) return { source:'', medium:'', campaign:'' };
+                source = bits.shift();
+                rest = bits;
+            }
+            if (rest[0] === 'products' || rest[0] === 'services') rest.shift();
+            campaign = rest.join('-');
+            medium = source === 'qr' ? 'offline' : 'social';
+            return { source, medium, campaign };
+        };
+        const prettyCampaign = parsePrettyCampaignPath();
         const aliasParamMap = {
             utm_source: ['utm_source', 'src', 'source'],
             utm_medium: ['utm_medium', 'med', 'medium'],
@@ -2151,6 +2172,9 @@ async function trackVisitor() {
                 const value = params.get(alias);
                 if (value) return value;
             }
+            if (key === 'utm_source') return prettyCampaign.source;
+            if (key === 'utm_medium') return prettyCampaign.medium;
+            if (key === 'utm_campaign') return prettyCampaign.campaign;
             return '';
         };
         if (sessionStorage.getItem(attrStore.referrer) === null) {
@@ -2161,7 +2185,7 @@ async function trackVisitor() {
         for (const key of ['utm_source','utm_medium','utm_campaign','utm_content','utm_term']) {
             if (sessionStorage.getItem(attrStore[key]) === null) sessionStorage.setItem(attrStore[key], getCampaignParamValue(key));
         }
-        if (sessionStorage.getItem(attrStore.share_source) === null) sessionStorage.setItem(attrStore.share_source, params.get('share_source') || params.get('src') || params.get('source') || '');
+        if (sessionStorage.getItem(attrStore.share_source) === null) sessionStorage.setItem(attrStore.share_source, params.get('share_source') || params.get('src') || params.get('source') || prettyCampaign.source || '');
         const ua = navigator.userAgent || '';
         const detect = () => {
             let os = /android/i.test(ua) ? 'Android' : /iphone|ipad|ipod/i.test(ua) ? 'iOS' : /windows/i.test(ua) ? 'Windows' : /mac os|macintosh/i.test(ua) ? 'macOS' : /linux/i.test(ua) ? 'Linux' : 'Other';

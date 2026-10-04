@@ -41,6 +41,22 @@
             "dest": "server/index.js"
         },
         {
+            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)-products(?:-[A-Za-z0-9-]+)?",
+            "dest": "/products_page.html"
+        },
+        {
+            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)-services(?:-[A-Za-z0-9-]+)?",
+            "dest": "/services.html"
+        },
+        {
+            "src": "/(facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)(?:-[A-Za-z0-9-]+)?",
+            "dest": "/index.html"
+        },
+        {
+            "src": "/campaign-[A-Za-z0-9-]+",
+            "dest": "/index.html"
+        },
+        {
             "src": "/(.*\\.html)",
             "dest": "/$1"
         },
