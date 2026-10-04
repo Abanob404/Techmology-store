@@ -1,11 +1,13 @@
 const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' : '';
 const API_URL = `${BASE_URL}/api/products`;
-const META_PIXEL_ID = '1110926641896817';
 
-function initMetaPixel(pixelId = META_PIXEL_ID) {
+// Meta Pixel is configured only from Admin > Store Settings > Marketing.
+// Do not hard-code a Pixel ID here; this keeps one source of truth and prevents duplicate pixels.
+function initMetaPixel(pixelId) {
     const id = String(pixelId || '').trim();
-    if (!id || window.__techMetaPixelInitialized) return;
-    window.__techMetaPixelInitialized = id;
+    if (!id) return false;
+    if (window.__techMetaPixelInitialized) return window.__techMetaPixelInitialized === id;
+
     if (!window.fbq) {
         !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
         n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
@@ -13,23 +15,24 @@ function initMetaPixel(pixelId = META_PIXEL_ID) {
         t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
         (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
     }
+
     window.fbq('init', id);
     window.fbq('track', 'PageView');
+    window.__techMetaPixelInitialized = id;
+    return true;
 }
 
 function trackMetaEvent(name, params = {}) {
     try {
-        initMetaPixel();
-        if (window.fbq) window.fbq('track', name, params || {});
+        const settings = window.storeSettings || {};
+        if (!settings.isPixelEnabled || !settings.fbPixelId) return;
+        if (!window.__techMetaPixelInitialized) initMetaPixel(settings.fbPixelId);
+        if (window.fbq && window.__techMetaPixelInitialized === String(settings.fbPixelId).trim()) {
+            window.fbq('track', name, params || {});
+        }
     } catch (_) {}
 }
 window.trackMetaEvent = trackMetaEvent;
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => initMetaPixel(), { once:true });
-} else {
-    initMetaPixel();
-}
 let globalProducts = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 16;
@@ -428,20 +431,10 @@ async function fetchProducts() {
                 const loadFacebookPixel = () => {
                     if (fbLoaded) return;
                     fbLoaded = true;
-                    if (!window.fbq) {
-                        !function(f,b,e,v,n,t,s)
-                        {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-                        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-                        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-                        n.queue=[];t=b.createElement(e);t.async=!0;t.defer=!0;
-                        t.src=v;s=b.getElementsByTagName(e)[0];
-                        s.parentNode.insertBefore(t,s)}(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
-                        fbq('init', settings.fbPixelId);
-                        fbq('track', 'PageView');
-                    }
+                    initMetaPixel(settings.fbPixelId);
                 };
                 ['scroll','click','touchstart'].forEach(evt => window.addEventListener(evt, loadFacebookPixel, { once:true, passive:true }));
-                setTimeout(loadFacebookPixel, 6500);
+                setTimeout(loadFacebookPixel, 1800);
             }
         });
 

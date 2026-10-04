@@ -1023,6 +1023,32 @@ app.get('/returns-policy',(req,res)=>renderPolicyPage(res,'سياسة الاست
 app.get('/warranty',(req,res)=>renderPolicyPage(res,'سياسة الضمان','<p>مدة وشروط الضمان تختلف حسب المنتج وتظهر في صفحة المنتج أو فاتورة الطلب عند توفرها. يحتفظ العميل برقم الطلب كمرجع للخدمة.</p>'));
 app.get('/terms',(req,res)=>renderPolicyPage(res,'الشروط والأحكام','<p>باستخدام المتجر وإرسال الطلب يوافق العميل على صحة بيانات الطلب وطريقة الاستلام المختارة. الأسعار والمخزون المعروضان يخضعان للتحديث الفعلي.</p>'));
 
+// Pretty campaign links: keep clean URLs such as /facebook, /instagram-products,
+// /facebook-services and /instagram-products-launch without returning a Vercel 404.
+// Vercel sends these routes to this server function; the browser URL stays unchanged
+// so app.js can still attribute the visit to the correct source/campaign.
+function renderPrettyCampaignPage(req, res) {
+  try {
+    const slug = decodeURIComponent(String(req.path || '/'))
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase();
+    const bits = slug.split('-').filter(Boolean);
+    const destination = bits.includes('products') ? 'products' : bits.includes('services') ? 'services' : 'home';
+
+    if (destination === 'products') return renderProductsPage(req, res);
+
+    const fileName = destination === 'services' ? 'services.html' : 'index.html';
+    const filePath = path.join(__dirname, '..', fileName);
+    const html = fs.readFileSync(filePath, 'utf-8');
+    res.type('html').send(html);
+  } catch (err) {
+    console.error('Pretty campaign route error:', err);
+    res.redirect('/');
+  }
+}
+app.get(/^\/(?:facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)(?:-[a-z0-9_-]+)*\/?$/i, renderPrettyCampaignPage);
+app.get(/^\/campaign-[a-z0-9_-]+\/?$/i, renderPrettyCampaignPage);
+
 app.get('/products', (req, res) => renderProductsPage(req, res));
 app.get('/p/:slug/:ref?', async (req, res) => {
   try {
