@@ -30,3 +30,7 @@ Historical FIX scripts, release notes, local `.git/.vercel/.vscode` metadata, un
 ## V10.4.3 — POS authoritative sales flow
 
 طلبات الموقع أصبحت Requests فقط: لا يتم خصم أو حجز المخزون من الموقع، ولا يعتبر الطلب بيعاً أو إيراداً قبل إنشاء فاتورة فعلية داخل Technology POS. راجع `V10_4_3_POS_ORDER_FLOW.md` لتفاصيل الربط.
+
+## V10.4.4 — Cart single-scroll fix
+
+تم إلغاء السكرول الداخلي المنفصل لقائمة المنتجات داخل عربة التسوق. قائمة المنتجات الآن تتمدد بالكامل، والسلة كلها تستخدم Scroll واحد طبيعي على الموبايل والكمبيوتر، مع بقاء رأس السلة ثابتاً أثناء التمرير.

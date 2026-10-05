@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v10-4-3-pos-authoritative-1';
+const CACHE_NAME = 'technology-store-v10-4-4-cart-scroll-1';
 const APP_SHELL = [
   '/',
   '/products',

@@ -1561,7 +1561,7 @@ function injectCartUI() {
         <div id="cartOverlay" class="fixed inset-0 bg-background/60 backdrop-blur-sm z-[90] hidden opacity-0 transition-opacity duration-300" onclick="closeCartSidebar()"></div>
         
         <!-- Sidebar -->
-        <div id="cartSidebar" class="cart-shell fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed">
+        <div id="cartSidebar" class="cart-shell fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed overflow-y-auto overflow-x-hidden">
             <div class="cart-header flex items-center justify-between p-6 border-b border-outline-variant/30">
                 <div class="flex items-center gap-3 text-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
@@ -1572,7 +1572,7 @@ function injectCartUI() {
                 </button>
             </div>
             
-            <div id="cartItemsContainer" class="cart-items flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+            <div id="cartItemsContainer" class="cart-items p-6 flex flex-col gap-4 shrink-0">
                 <!-- المنتجات تضاف هنا -->
             </div>
             
