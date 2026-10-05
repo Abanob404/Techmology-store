@@ -457,6 +457,21 @@ const analyticsSchema = new mongoose.Schema({
 });
 const Analytics = mongoose.model('Analytics', analyticsSchema);
 
+// Monthly analytics snapshots keep historical reports separated by month without deleting raw tracking data.
+const analyticsMonthlyArchiveSchema = new mongoose.Schema({
+  month: { type: String, required: true, unique: true, index: true }, // YYYY-MM
+  periodStart: { type: Date, required: true },
+  periodEnd: { type: Date, required: true },
+  summary: { type: Object, default: {} },
+  funnel: { type: Object, default: {} },
+  sources: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  topProducts: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  topPages: { type: [mongoose.Schema.Types.Mixed], default: [] },
+  generatedAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+}, { minimize: false });
+const AnalyticsMonthlyArchive = mongoose.model('AnalyticsMonthlyArchive', analyticsMonthlyArchiveSchema);
+
 // تعريف موديل تتبع الزوار (Visitor Schema) — V8 source attribution & sessions
 const visitorSchema = new mongoose.Schema({
   visitorId: { type: String, required: true, unique: true }, ip: { type: String, default: '' }, location: { type: String, default: '' }, country: String, city: String,
@@ -659,6 +674,132 @@ async function getOrCreateAnalytics() {
     await doc.save();
   }
   return doc;
+}
+
+function analyticsMonthBounds(monthValue) {
+  const month = String(monthValue || '').trim();
+  if (!/^\d{4}-\d{2}$/.test(month)) return null;
+  const [year, monthNumber] = month.split('-').map(Number);
+  if (monthNumber < 1 || monthNumber > 12) return null;
+  const start = new Date(Date.UTC(year, monthNumber - 1, 1, 0, 0, 0, 0));
+  const end = new Date(Date.UTC(year, monthNumber, 1, 0, 0, 0, 0));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  return { month, start, end };
+}
+
+function previousClosedAnalyticsMonth() {
+  const now = new Date();
+  const firstThisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  const prev = new Date(Date.UTC(firstThisMonth.getUTCFullYear(), firstThisMonth.getUTCMonth() - 1, 1));
+  return `${prev.getUTCFullYear()}-${String(prev.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+async function buildMonthlyAnalyticsArchive(monthValue) {
+  const bounds = analyticsMonthBounds(monthValue);
+  if (!bounds) throw new Error('صيغة الشهر غير صحيحة');
+  const { month, start, end } = bounds;
+  const currentMonth = `${new Date().getUTCFullYear()}-${String(new Date().getUTCMonth() + 1).padStart(2, '0')}`;
+  if (month >= currentMonth) throw new Error('يمكن أرشفة الشهور المكتملة فقط');
+
+  const sessionQ = { startedAt: { $gte: start, $lt: end } };
+  const eventQ = { createdAt: { $gte: start, $lt: end } };
+  const submittedOrderQ = { createdAt: { $gte: start, $lt: end }, status: { $ne: 'cancelled' } };
+  const invoicedSaleQ = {
+    invoiceCreatedAt: { $gte: start, $lt: end },
+    posInvoiceId: { $exists: true, $nin: ['', null] },
+    status: { $ne: 'cancelled' }
+  };
+
+  const [sessions, eventAgg, submittedOrders, invoicedSales, topPages, topProducts] = await Promise.all([
+    VisitorSession.find(sessionQ).select('visitorId sessionId source utmCampaign startedAt').lean(),
+    VisitorEvent.aggregate([
+      { $match: eventQ },
+      { $group: { _id: '$type', count: { $sum: 1 }, sessions: { $addToSet: '$sessionId' } } }
+    ]),
+    Order.find(submittedOrderQ).select('visitorId orderNumber total status createdAt').lean(),
+    Order.find(invoicedSaleQ).select('visitorId orderNumber total status invoiceCreatedAt items').lean(),
+    VisitorEvent.aggregate([
+      { $match: { ...eventQ, type: 'page_view' } },
+      { $group: { _id: '$path', views: { $sum: 1 } } },
+      { $sort: { views: -1 } },
+      { $limit: 15 }
+    ]),
+    Order.aggregate([
+      { $match: invoicedSaleQ },
+      { $unwind: '$items' },
+      { $group: { _id: '$items.title', qty: { $sum: '$items.quantity' }, revenue: { $sum: '$items.lineTotal' } } },
+      { $sort: { revenue: -1, qty: -1 } },
+      { $limit: 15 }
+    ])
+  ]);
+
+  const eventMap = {};
+  for (const row of eventAgg) eventMap[row._id] = { count: row.count || 0, sessions: (row.sessions || []).filter(Boolean).length };
+  const uniqueVisitors = new Set(sessions.map(x => x.visitorId).filter(Boolean)).size;
+  const totalSessions = sessions.length;
+  const revenue = invoicedSales.reduce((sum, order) => sum + Number(order.total || 0), 0);
+  const aov = invoicedSales.length ? revenue / invoicedSales.length : 0;
+
+  const visitsBySource = {};
+  const firstSessionByVisitor = new Map();
+  for (const session of sessions) {
+    const source = session.source || 'Direct';
+    visitsBySource[source] = (visitsBySource[source] || 0) + 1;
+    if (session.visitorId && !firstSessionByVisitor.has(session.visitorId)) firstSessionByVisitor.set(session.visitorId, session);
+  }
+  const salesBySource = {};
+  for (const order of invoicedSales) {
+    const session = firstSessionByVisitor.get(order.visitorId);
+    const source = session?.source || 'Direct';
+    if (!salesBySource[source]) salesBySource[source] = { orders: 0, revenue: 0 };
+    salesBySource[source].orders += 1;
+    salesBySource[source].revenue += Number(order.total || 0);
+  }
+  const sources = [...new Set([...Object.keys(visitsBySource), ...Object.keys(salesBySource)])]
+    .map(source => ({
+      source,
+      visits: visitsBySource[source] || 0,
+      orders: salesBySource[source]?.orders || 0,
+      revenue: Math.round((salesBySource[source]?.revenue || 0) * 100) / 100,
+      conversion: (visitsBySource[source] || 0) ? Math.round(((salesBySource[source]?.orders || 0) / (visitsBySource[source] || 1)) * 10000) / 100 : 0
+    }))
+    .sort((a, b) => b.revenue - a.revenue || b.visits - a.visits);
+
+  const summary = {
+    uniqueVisitors,
+    totalSessions,
+    submittedOrders: submittedOrders.length,
+    invoicedSales: invoicedSales.length,
+    revenue: Math.round(revenue * 100) / 100,
+    aov: Math.round(aov * 100) / 100,
+    conversion: totalSessions ? Math.round((invoicedSales.length / totalSessions) * 10000) / 100 : 0
+  };
+  const funnel = {
+    pageViews: eventMap.page_view?.sessions || totalSessions,
+    productViews: eventMap.product_view?.sessions || 0,
+    addToCart: eventMap.add_to_cart?.sessions || 0,
+    checkoutStarted: eventMap.checkout_started?.sessions || 0,
+    submittedOrders: submittedOrders.length,
+    invoicedSales: invoicedSales.length
+  };
+
+  return AnalyticsMonthlyArchive.findOneAndUpdate(
+    { month },
+    {
+      $set: {
+        periodStart: start,
+        periodEnd: end,
+        summary,
+        funnel,
+        sources,
+        topProducts: topProducts.map(x => ({ title: x._id || 'منتج', qty: x.qty || 0, revenue: Math.round(Number(x.revenue || 0) * 100) / 100 })),
+        topPages: topPages.map(x => ({ path: x._id || '/', views: x.views || 0 })),
+        generatedAt: new Date(),
+        updatedAt: new Date()
+      }
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  ).lean();
 }
 
 // دالة لجلب أو إنشاء وثيقة الإعدادات الافتراضية
@@ -2301,6 +2442,54 @@ app.get('/api/analytics', requireAdminAuth, requirePermission('view_reports'), a
   }
 });
 
+
+// Monthly report archive. Raw analytics data is kept; these snapshots make each closed month easy to browse.
+app.get('/api/admin/analytics/archives', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const limit = Math.max(1, Math.min(60, parseInt(req.query.limit) || 24));
+    const archives = await AnalyticsMonthlyArchive.find({}).sort({ month: -1 }).limit(limit).lean();
+    res.json({ archives, previousMonth: previousClosedAnalyticsMonth() });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحميل أرشيف التقارير', error: err.message });
+  }
+});
+
+app.post('/api/admin/analytics/archives/ensure-previous', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const month = previousClosedAnalyticsMonth();
+    const archive = await buildMonthlyAnalyticsArchive(month);
+    res.json({ success: true, archive });
+  } catch (err) {
+    res.status(400).json({ message: err.message || 'تعذر أرشفة الشهر السابق' });
+  }
+});
+
+app.post('/api/admin/analytics/archives/:month', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const archive = await buildMonthlyAnalyticsArchive(req.params.month);
+    await logActivity('أرشفة تقرير شهري', `تم إنشاء/تحديث أرشيف ${archive.month}`, req.adminUser?.username || 'نظام');
+    res.json({ success: true, archive });
+  } catch (err) {
+    res.status(400).json({ message: err.message || 'تعذر إنشاء الأرشيف' });
+  }
+});
+
+app.get('/api/admin/analytics/archives/:month', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const bounds = analyticsMonthBounds(req.params.month);
+    if (!bounds) return res.status(400).json({ message: 'صيغة الشهر غير صحيحة' });
+    const archive = await AnalyticsMonthlyArchive.findOne({ month: bounds.month }).lean();
+    if (!archive) return res.status(404).json({ message: 'هذا الشهر غير موجود في الأرشيف بعد' });
+    res.json(archive);
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر فتح الأرشيف', error: err.message });
+  }
+});
+
 app.post('/api/analytics/track', async (req, res) => {
   await ensureDBConnection();
   try {
@@ -2392,24 +2581,26 @@ app.post('/api/analytics/session-ping', publicWriteLimiter, async (req,res)=>{
 app.get('/api/analytics/visitors', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
   try {
     await ensureDBConnection();
-    const limit=Math.max(1,Math.min(500,parseInt(req.query.limit)||200)); const q={};
+    const limit=Math.max(1,Math.min(500,parseInt(req.query.limit)||25));
+    const page=Math.max(1,parseInt(req.query.page)||1); const skip=(page-1)*limit; const q={};
     if(req.query.source) q.source=sanitizePlainText(req.query.source,80);
     const from=parseOptionalDate(req.query.from), to=parseOptionalDate(req.query.to);
     if(from || to){q.lastSeenAt={};if(from)q.lastSeenAt.$gte=from;if(to){const end=new Date(to);if(String(req.query.to||'').length<=10)end.setHours(23,59,59,999);q.lastSeenAt.$lte=end;}}
     const [visitors,uniqueCount,sourceAgg]=await Promise.all([
-      Visitor.find(q).sort({lastSeenAt:-1,timestamp:-1}).limit(limit).lean(),
+      Visitor.find(q).sort({lastSeenAt:-1,timestamp:-1}).skip(skip).limit(limit).lean(),
       Visitor.countDocuments(q),
       Visitor.aggregate([{ $match:q },{ $group:{_id:'$source',count:{$sum:1}}},{ $sort:{count:-1}},{ $limit:30}])
     ]);
-    res.json({visitors,uniqueCount,sources:sourceAgg.map(x=>({source:x._id||'Direct',count:x.count}))});
+    res.json({visitors,uniqueCount,page,limit,pages:Math.max(1,Math.ceil(uniqueCount/limit)),sources:sourceAgg.map(x=>({source:x._id||'Direct',count:x.count}))});
   } catch(err){res.status(500).json({message:'Error fetching visitors',error:err.message});}
 });
 app.get('/api/analytics/sessions', requireAdminAuth, requirePermission('view_reports'), async (req,res)=>{
   try{
-    await ensureDBConnection();const limit=Math.max(1,Math.min(1000,parseInt(req.query.limit)||300));const q={};
+    await ensureDBConnection();const limit=Math.max(1,Math.min(1000,parseInt(req.query.limit)||25));const page=Math.max(1,parseInt(req.query.page)||1);const skip=(page-1)*limit;const q={};
     if(req.query.visitorId)q.visitorId=sanitizePlainText(req.query.visitorId,120);if(req.query.source)q.source=sanitizePlainText(req.query.source,80);
     const from=parseOptionalDate(req.query.from),to=parseOptionalDate(req.query.to);if(from||to){q.startedAt={};if(from)q.startedAt.$gte=from;if(to){const end=new Date(to);if(String(req.query.to||'').length<=10)end.setHours(23,59,59,999);q.startedAt.$lte=end;}}
-    const sessions=await VisitorSession.find(q).sort({startedAt:-1}).limit(limit).lean();res.json({sessions});
+    const [sessions,total]=await Promise.all([VisitorSession.find(q).sort({startedAt:-1}).skip(skip).limit(limit).lean(),VisitorSession.countDocuments(q)]);
+    res.json({sessions,total,page,limit,pages:Math.max(1,Math.ceil(total/limit))});
   }catch(err){res.status(500).json({message:'Error fetching sessions',error:err.message});}
 });
 
@@ -2890,7 +3081,7 @@ app.get('/api/admin/v9/overview', requireAdminAuth, requirePermission('view_repo
     const sessionByVisitor=new Map(); for(const ss of sessions){if(ss.visitorId&&!sessionByVisitor.has(ss.visitorId))sessionByVisitor.set(ss.visitorId,ss);}
     const sourceSales={}; for(const o of orders){const ss=sessionByVisitor.get(o.visitorId);const k=ss?.source||'Direct';if(!sourceSales[k])sourceSales[k]={orders:0,revenue:0};sourceSales[k].orders++;sourceSales[k].revenue+=Number(o.total||0);}
     const sources=[...new Set([...Object.keys(visitsBySource),...Object.keys(sourceSales)])].map(source=>({source,visits:visitsBySource[source]||0,orders:sourceSales[source]?.orders||0,revenue:Math.round((sourceSales[source]?.revenue||0)*100)/100,conversion:(visitsBySource[source]||0)?Math.round(((sourceSales[source]?.orders||0)/(visitsBySource[source]||1))*10000)/100:0})).sort((a,b)=>b.revenue-a.revenue||b.visits-a.visits);
-    res.json({generatedAt:new Date().toISOString(),kpis:{uniqueVisitors,totalSessions,orders:orders.length,revenue:Math.round(revenue*100)/100,aov:Math.round(aov*100)/100,abandoned:abandoned.length,pendingReturns:returns,conversion:totalSessions?Math.round(orders.length/totalSessions*10000)/100:0},funnel:{pageViews:eventMap.page_view?.sessions||totalSessions,productViews:eventMap.product_view?.sessions||0,addToCart:eventMap.add_to_cart?.sessions||0,checkout:eventMap.checkout_started?.sessions||0,contact:eventMap.checkout_contact?.sessions||0,orders:orders.length},sources,topProducts,abandoned:abandoned.slice(0,30),lastBackup});
+    res.json({generatedAt:new Date().toISOString(),kpis:{uniqueVisitors,totalSessions,orders:orders.length,revenue:Math.round(revenue*100)/100,aov:Math.round(aov*100)/100,abandoned:abandoned.length,pendingReturns:returns,conversion:totalSessions?Math.round(orders.length/totalSessions*10000)/100:0},funnel:{pageViews:eventMap.page_view?.sessions||totalSessions,productViews:eventMap.product_view?.sessions||0,addToCart:eventMap.add_to_cart?.sessions||0,checkout:eventMap.checkout_started?.sessions||0,contact:eventMap.checkout_contact?.sessions||0,submittedOrders:eventMap.order_submitted?.count||0,invoicedSales:orders.length,orders:orders.length},sources,topProducts,abandoned:abandoned.slice(0,30),lastBackup});
   }catch(err){res.status(500).json({message:'تعذر تحميل مركز ذكاء المبيعات',error:err.message});}
 });
 

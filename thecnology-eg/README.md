@@ -34,3 +34,16 @@ Historical FIX scripts, release notes, local `.git/.vercel/.vscode` metadata, un
 ## V10.4.4 — Cart single-scroll fix
 
 تم إلغاء السكرول الداخلي المنفصل لقائمة المنتجات داخل عربة التسوق. قائمة المنتجات الآن تتمدد بالكامل، والسلة كلها تستخدم Scroll واحد طبيعي على الموبايل والكمبيوتر، مع بقاء رأس السلة ثابتاً أثناء التمرير.
+
+
+## V10.4.5 — Analytics organization + monthly archive
+- Reorganized Visitors & Sessions into compact paginated tables (25 rows/page).
+- Added quick date filters (today / 7 days / 30 days / current month / all).
+- Long referrer/URL values are hidden from the main table and remain available in visitor journey details/exports.
+- Added Monthly Analytics Archive in MongoDB for completed months.
+- Previous month is automatically archived when Analytics is opened in a new month.
+- Archive keeps POS-confirmed invoices/revenue separate from submitted website orders.
+- Archive snapshots do not delete raw visitor/session/event records.
+- Inventory report now states that quantities are last received from Technology POS.
+- Replaced destructive analytics-reset action in the visible footer with a safe "clear cache on this device" action.
+- Service worker cache version bumped; old frontend caches are removed automatically on activation.

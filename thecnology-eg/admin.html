@@ -828,34 +828,122 @@
                 </div>
             </div>
 
-            <!-- Unique Visitors Tracker -->
-            <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8">
-                <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
-                    <span class="material-symbols-outlined text-primary">person_search</span> سجل الزوار الفريدين (الإجمالي: <span id="stat-unique-visitors">0</span>)
-                </h3>
-                <div class="overflow-x-auto max-h-[400px] overflow-y-auto relative rounded-lg border border-outline-variant/30">
-                    <table class="w-full text-right border-collapse min-w-[700px]">
-                        <thead class="bg-surface-container sticky top-0 z-10 shadow-sm">
-                            <tr class="text-on-surface-variant text-sm border-b border-outline-variant/30">
-                                <th class="py-3 px-4 w-[160px]">تاريخ الزيارة</th>
-                                <th class="py-3 px-4 w-[180px]">الموقع / IP</th>
-                                <th class="py-3 px-4 w-[120px]">الجهاز</th>
-                                <th class="py-3 px-4 w-[200px]">المصدر (Referrer)</th>
-                                <th class="py-3 px-4">حملة (UTM)</th>
+            <!-- Analytics period + visitor activity -->
+            <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8 v105-analytics-card" id="analytics-visitors-card">
+                <div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4 border-b border-outline-variant/30 pb-4 mb-4">
+                    <div>
+                        <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                            <span class="material-symbols-outlined text-primary">person_search</span> الزوار والجلسات
+                        </h3>
+                        <p class="text-xs text-on-surface-variant mt-1">عرض مختصر ومنظم — التفاصيل الكاملة متاحة من زر «رحلة الزائر».</p>
+                    </div>
+                    <div class="text-sm text-on-surface-variant">إجمالي الزوار في الفترة: <strong id="stat-unique-visitors" class="text-primary">0</strong></div>
+                </div>
+
+                <div id="v105AnalyticsToolbar" class="v105-analytics-toolbar">
+                    <div class="v105-quick-ranges" role="group" aria-label="فلترة الفترة">
+                        <button type="button" data-range="today">اليوم</button>
+                        <button type="button" data-range="7">7 أيام</button>
+                        <button type="button" data-range="30">30 يوم</button>
+                        <button type="button" data-range="month" class="active">هذا الشهر</button>
+                        <button type="button" data-range="all">الكل</button>
+                    </div>
+                    <label>من <input type="date" id="v8AnalyticsFrom"></label>
+                    <label>إلى <input type="date" id="v8AnalyticsTo"></label>
+                    <button type="button" id="v8AnalyticsApply" class="admin-action-btn">تطبيق</button>
+                    <button type="button" id="v8ExportVisitors" class="admin-action-btn">تصدير الزوار</button>
+                    <button type="button" id="v8ExportSessions" class="admin-action-btn">تصدير الجلسات</button>
+                </div>
+
+                <div id="v8SourceSummary" class="v8-source-summary"></div>
+
+                <div id="v105CurrentFunnel" class="v105-live-funnel" aria-live="polite">
+                    <span><small>مشاهدة صفحة</small><b>—</b></span>
+                    <span><small>مشاهدة منتج</small><b>—</b></span>
+                    <span><small>إضافة للسلة</small><b>—</b></span>
+                    <span><small>بدء الطلب</small><b>—</b></span>
+                    <span><small>طلبات الموقع</small><b>—</b></span>
+                    <span class="is-sale"><small>فواتير POS</small><b>—</b></span>
+                </div>
+
+                <div class="v105-section-title">
+                    <div><span class="material-symbols-outlined">groups</span><strong>الزوار</strong></div>
+                    <small>25 سجل في الصفحة</small>
+                </div>
+                <div class="v105-table-wrap">
+                    <table class="w-full text-right border-collapse v105-compact-table">
+                        <thead>
+                            <tr>
+                                <th>الزائر / العميل</th>
+                                <th>آخر زيارة</th>
+                                <th>المصدر</th>
+                                <th>الحملة / الدخول</th>
+                                <th>الموقع والجهاز</th>
+                                <th>النشاط</th>
+                                <th>التفاصيل</th>
                             </tr>
                         </thead>
                         <tbody id="analytics-visitors-table" class="text-sm">
-                            <tr><td colspan="5" class="text-center py-8 text-on-surface-variant">جاري التحميل...</td></tr>
+                            <tr><td colspan="7" class="text-center py-8 text-on-surface-variant">جاري التحميل...</td></tr>
                         </tbody>
                     </table>
+                </div>
+                <div id="v105VisitorsPager" class="v105-pager"></div>
+
+                <div class="v105-section-title mt-6">
+                    <div><span class="material-symbols-outlined">route</span><strong>أحدث جلسات التصفح</strong></div>
+                    <small>25 جلسة في الصفحة</small>
+                </div>
+                <div class="v105-table-wrap">
+                    <table class="w-full text-right border-collapse v105-compact-table v105-session-table">
+                        <thead>
+                            <tr>
+                                <th>الوقت</th>
+                                <th>المصدر</th>
+                                <th>مسار التصفح</th>
+                                <th>الصفحات</th>
+                                <th>المدة</th>
+                                <th>الجهاز / الحملة</th>
+                            </tr>
+                        </thead>
+                        <tbody id="v8SessionsBody" class="text-sm">
+                            <tr><td colspan="6" class="text-center py-8 text-on-surface-variant">جاري التحميل...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="v105SessionsPager" class="v105-pager"></div>
+            </div>
+
+            <!-- Monthly Analytics Archive -->
+            <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8 v105-archive-card" id="analytics-monthly-archive">
+                <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/30 pb-4 mb-4">
+                    <div>
+                        <h3 class="font-headline-md text-lg text-on-surface flex items-center gap-2">
+                            <span class="material-symbols-outlined text-secondary">archive</span> أرشيف التقارير الشهرية
+                        </h3>
+                        <p class="text-xs text-on-surface-variant mt-1">كل شهر مكتمل يُحفظ كتقرير مستقل. الأرشفة لا تحذف البيانات الخام.</p>
+                    </div>
+                    <div class="v105-archive-actions">
+                        <input type="month" id="v105ArchiveMonth" aria-label="اختر شهر للأرشفة">
+                        <button type="button" id="v105ArchiveChosenMonth" class="admin-action-btn">
+                            <span class="material-symbols-outlined text-[18px]">archive</span> أرشفة الشهر المحدد
+                        </button>
+                        <button type="button" id="v105ArchivePreviousMonth" class="admin-action-btn">
+                            <span class="material-symbols-outlined text-[18px]">inventory_2</span> تحديث الشهر السابق
+                        </button>
+                    </div>
+                </div>
+                <div id="v105ArchiveList" class="v105-archive-list">
+                    <p class="text-on-surface-variant text-sm text-center py-5">جاري تحميل الأرشيف...</p>
                 </div>
             </div>
 
             <!-- Inventory Reports -->
             <div class="glass-panel p-6 rounded-xl border border-outline-variant/30 mb-8" id="inventory-report-section">
-                <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-4 flex items-center gap-2">
+                <h3 class="font-headline-md text-lg text-on-surface border-b border-outline-variant/30 pb-3 mb-2 flex items-center gap-2">
                     <span class="material-symbols-outlined text-primary">inventory</span> تقرير حالة المخزون المفصل
                 </h3>
+                <p class="text-xs text-on-surface-variant mb-4 flex items-center gap-2"><span class="material-symbols-outlined text-[16px] text-primary">sync</span> آخر حالة مخزون مستلمة من Technology POS — الموقع لا يعدّل كميات المخزون.</p>
                 
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <div class="bg-surface-container rounded-lg p-4 border-l-4 border-green-500">
@@ -891,8 +979,8 @@
                 <button onclick="exportAnalyticsExcel()" class="px-6 py-3 bg-surface-container-high border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-all flex items-center gap-2 text-sm">
                     <span class="material-symbols-outlined text-[18px]">table</span> تصدير البيانات (Excel)
                 </button>
-                <button onclick="resetAnalytics()" class="px-6 py-3 bg-error/10 border border-error/30 text-error font-bold rounded-lg hover:bg-error hover:text-on-primary transition-all flex items-center gap-2 text-sm">
-                    <span class="material-symbols-outlined text-[18px]">delete_sweep</span> تصفير الإحصائيات
+                <button onclick="clearSiteCache()" class="px-6 py-3 bg-surface-container-high border border-outline-variant text-on-surface font-bold rounded-lg hover:bg-surface-variant transition-all flex items-center gap-2 text-sm">
+                    <span class="material-symbols-outlined text-[18px]">cached</span> تنظيف كاش هذا الجهاز
                 </button>
             </div>
         </div>
