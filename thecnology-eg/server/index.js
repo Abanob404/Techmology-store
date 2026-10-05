@@ -625,8 +625,13 @@ const orderSchema = new mongoose.Schema({
   }],
   subtotal: { type: Number, required: true },
   total: { type: Number, required: true },
-  status: { type: String, enum: ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'], default: 'pending' },
-  statusHistory: [{ status: String, at: { type: Date, default: Date.now }, note: String }], posInvoiceId: { type: String, default: '' },
+  status: { type: String, enum: ['pending', 'received_by_pos', 'confirmed', 'processing', 'out_for_delivery', 'completed', 'cancelled'], default: 'pending' },
+  statusHistory: [{ status: String, at: { type: Date, default: Date.now }, note: String }],
+  posInvoiceId: { type: String, default: '', index: true },
+  invoiceCreatedAt: Date,
+  paymentStatus: { type: String, enum: ['pending','reserved','paid','cash_on_delivery','cancelled','refunded'], default: 'pending', index: true },
+  paymentStatusUpdatedAt: Date,
+  // Legacy fields kept only for backward compatibility. New website orders never reserve/decrement stock.
   stockReservationStatus: { type: String, enum: ['none','reserved','consumed','released'], default: 'none', index: true },
   stockReservedAt: Date, stockReservationFinalizedAt: Date,
   shippingCarrier: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' }, estimatedDeliveryAt: Date,
@@ -634,52 +639,8 @@ const orderSchema = new mongoose.Schema({
 });
 const Order = mongoose.model('Order', orderSchema);
 
-async function reserveOrderStock(orderItems = []) {
-  const reserved = [];
-  try {
-    for (const item of orderItems) {
-      const qty = Math.max(1, Number(item.quantity) || 1);
-      if (item.variantId) {
-        const updated = await Product.findOneAndUpdate(
-          { _id: item.productId, isHidden: { $ne: true }, variants: { $elemMatch: { _id: item.variantId, stockQuantity: { $gte: qty } } }, stockQuantity: { $gte: qty } },
-          { $inc: { 'variants.$.stockQuantity': -qty, stockQuantity: -qty } },
-          { new: true }
-        );
-        if (!updated) throw Object.assign(new Error(`الكمية المطلوبة لم تعد متاحة للمنتج: ${item.title}`), { statusCode: 409 });
-      } else {
-        const updated = await Product.findOneAndUpdate(
-          { _id: item.productId, isHidden: { $ne: true }, stockQuantity: { $gte: qty } },
-          { $inc: { stockQuantity: -qty } },
-          { new: true }
-        );
-        if (!updated) throw Object.assign(new Error(`الكمية المطلوبة لم تعد متاحة للمنتج: ${item.title}`), { statusCode: 409 });
-      }
-      reserved.push(item);
-    }
-    return reserved;
-  } catch (err) {
-    for (const item of reserved.reverse()) await restoreReservedItemStock(item).catch(() => null);
-    throw err;
-  }
-}
-async function restoreReservedItemStock(item) {
-  const qty = Math.max(1, Number(item.quantity) || 1);
-  if (item.variantId) {
-    await Product.updateOne({ _id: item.productId, 'variants._id': item.variantId }, { $inc: { 'variants.$.stockQuantity': qty, stockQuantity: qty } });
-  } else {
-    await Product.updateOne({ _id: item.productId }, { $inc: { stockQuantity: qty } });
-  }
-}
-async function restoreOrderReservation(order) {
-  if (!order || order.stockReservationStatus !== 'reserved') return false;
-  for (const item of order.items || []) await restoreReservedItemStock(item);
-  order.stockReservationStatus = 'released'; order.stockReservationFinalizedAt = new Date();
-  return true;
-}
-function consumeOrderReservation(order) {
-  if (order?.stockReservationStatus === 'reserved') { order.stockReservationStatus = 'consumed'; order.stockReservationFinalizedAt = new Date(); return true; }
-  return false;
-}
+// Website orders never reserve, decrement, restore, or otherwise mutate inventory.
+// Product quantities are read-only on the website and are supplied by Technology POS sync.
 
 // دالة مساعدة لتسجيل حدث
 async function logActivity(action, details, user = 'نظام') {
@@ -1085,7 +1046,7 @@ async function requirePosApiKey(req, res, next) {
 app.get('/api/pos/ping', requirePosApiKey, async (req, res) => {
   try {
     const productsCount = await Product.countDocuments();
-    const pendingOrdersCount = await Order.countDocuments({ status: 'pending' });
+    const pendingOrdersCount = await Order.countDocuments({ status: { $in: ['pending','received_by_pos'] }, $or: [{ posInvoiceId: '' }, { posInvoiceId: null }, { posInvoiceId: { $exists: false } }] });
     
     res.json({
       ok: true,
@@ -1164,6 +1125,7 @@ const handlePosSync = async (req, res) => {
         if (costVal !== undefined && costVal !== null && !isNaN(Number(costVal))) { product.costPrice = Math.max(0, Number(costVal)); }
         
         if (posIdVal !== undefined) product.posItemId = posIdVal;
+        product.source = 'pos';
         product.lastSyncedAt = new Date();
         
         await product.save();
@@ -1196,10 +1158,13 @@ app.post('/api/pos-sync', requirePosApiKey, handlePosSync);
 // 3. جلب طلبات الموقع داخل البرنامج
 app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
   try {
-    const status = req.query.status || 'pending';
-    const limit = parseInt(req.query.limit) || 500;
+    const status = String(req.query.status || 'awaiting_invoice').trim();
+    const limit = Math.min(500, Math.max(1, parseInt(req.query.limit) || 500));
+    const filter = status === 'awaiting_invoice'
+      ? { status: { $in: ['pending','received_by_pos'] }, $or: [{ posInvoiceId: '' }, { posInvoiceId: null }, { posInvoiceId: { $exists: false } }] }
+      : { status };
 
-    const orders = await Order.find({ status: status }).limit(limit).sort({ createdAt: 1 });
+    const orders = await Order.find(filter).limit(limit).sort({ createdAt: 1 });
     
     const formattedOrders = orders.map(order => ({
       _id: order._id.toString(),
@@ -1208,11 +1173,19 @@ app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
       customerPhone: order.customerPhone,
       customerAddress: order.customerAddress,
       notes: order.notes,
+      deliveryMethod: order.deliveryMethod,
+      governorate: order.governorate,
+      area: order.area,
       shippingAmount: order.shippingAmount,
       paymentMethod: order.paymentMethod,
+      paymentStatus: order.paymentStatus || 'pending',
+      couponCode: order.couponCode,
+      discountAmount: order.discountAmount,
       subtotal: order.subtotal,
       total: order.total,
       status: order.status,
+      posInvoiceId: order.posInvoiceId || '',
+      invoiceCreatedAt: order.invoiceCreatedAt || null,
       createdAt: order.createdAt.toISOString(),
       items: order.items.map(item => ({
         productId: item.productId ? item.productId.toString() : null,
@@ -1239,38 +1212,120 @@ app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
 app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { status, posInvoiceId } = req.body;
+    const requestedStatus = String(req.body?.status || '').trim();
+    const incomingInvoiceId = sanitizePlainText(req.body?.posInvoiceId, 120);
+    const incomingPaymentStatus = String(req.body?.paymentStatus || '').trim();
+    const note = sanitizePlainText(req.body?.note, 300);
 
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ ok: false, message: "Invalid status" });
+    const validStatuses = ['pending', 'received_by_pos', 'confirmed', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validPaymentStatuses = ['pending','reserved','paid','cash_on_delivery','cancelled','refunded'];
+    if (requestedStatus && !validStatuses.includes(requestedStatus)) {
+      return res.status(400).json({ ok: false, message: 'Invalid status' });
+    }
+    if (incomingPaymentStatus && !validPaymentStatuses.includes(incomingPaymentStatus)) {
+      return res.status(400).json({ ok: false, message: 'Invalid paymentStatus' });
     }
 
     const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({ ok: false, message: "Order not found" });
+    if (!order) return res.status(404).json({ ok: false, message: 'Order not found' });
+
+    const hadInvoice = Boolean(String(order.posInvoiceId || '').trim());
+    if (incomingInvoiceId && order.status === 'cancelled') {
+      return res.status(409).json({ ok:false, message:'Cancelled order cannot be invoiced' });
+    }
+    if (hadInvoice && incomingInvoiceId && String(order.posInvoiceId) !== incomingInvoiceId) {
+      return res.status(409).json({ ok:false, message:'Order is already linked to a different POS invoice' });
+    }
+    if (incomingInvoiceId) {
+      order.posInvoiceId = incomingInvoiceId;
+      if (!order.invoiceCreatedAt) order.invoiceCreatedAt = new Date();
+    }
+    const hasInvoice = Boolean(String(order.posInvoiceId || '').trim());
+
+    // Any state that means the order has actually entered the sales flow requires a real POS invoice.
+    const invoiceRequiredStatuses = ['confirmed','processing','out_for_delivery','completed'];
+    if (requestedStatus && invoiceRequiredStatuses.includes(requestedStatus) && !hasInvoice) {
+      return res.status(409).json({ ok: false, message: 'POS invoice is required before confirming/processing this order' });
+    }
+    if (incomingPaymentStatus && ['reserved','paid','cash_on_delivery','refunded'].includes(incomingPaymentStatus) && !hasInvoice) {
+      return res.status(409).json({ ok: false, message: 'POS invoice is required before updating payment status' });
     }
 
-    if (status === 'cancelled') await restoreOrderReservation(order);
-    else if (['received_by_pos','processing','out_for_delivery','completed'].includes(status)) consumeOrderReservation(order);
-    order.status = status;
-    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
-    order.statusHistory.push({ status, at: new Date(), note: 'تم تحديث الحالة من POS' });
-    if (posInvoiceId) {
-      order.posInvoiceId = posInvoiceId;
+    const nextStatus = requestedStatus || (incomingInvoiceId ? 'confirmed' : order.status);
+    if (nextStatus !== order.status) {
+      order.status = nextStatus;
+      order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+      order.statusHistory.push({ status: nextStatus, at: new Date(), note: note || (hasInvoice ? 'تم تحديث الطلب من Technology POS' : 'تم استلام الطلب داخل Technology POS') });
+    } else if (note) {
+      order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+      order.statusHistory.push({ status: order.status, at: new Date(), note });
+    }
+
+    if (incomingPaymentStatus) {
+      order.paymentStatus = incomingPaymentStatus;
+      order.paymentStatusUpdatedAt = new Date();
+    }
+
+    // Important: website stock is NEVER changed here. POS remains the only inventory authority.
+    order.stockReservationStatus = 'none';
+    order.stockReservedAt = undefined;
+    order.stockReservationFinalizedAt = undefined;
+
+    // Count coupon usage only when a real POS invoice is created for the first time.
+    if (!hadInvoice && hasInvoice && order.couponCode) {
+      await Coupon.updateOne({ code: order.couponCode }, { $inc: { usedCount: 1 } }).catch(() => null);
+    }
+    if (!hadInvoice && hasInvoice && order.visitorId) {
+      await VisitorEvent.create({ visitorId:order.visitorId, sessionId:order.sessionId||'', type:'order_completed', orderNumber:order.orderNumber, value:order.total, metadata:{posInvoiceId:order.posInvoiceId,paymentStatus:order.paymentStatus||'pending'} }).catch(() => null);
     }
 
     await order.save();
 
     res.json({
       ok: true,
-      message: "Order status updated successfully",
+      message: 'Order updated successfully',
       orderId: order._id,
-      status: order.status
+      orderNumber: order.orderNumber,
+      status: order.status,
+      paymentStatus: order.paymentStatus,
+      posInvoiceId: order.posInvoiceId || '',
+      invoiceCreatedAt: order.invoiceCreatedAt || null
     });
-
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Dedicated endpoint for the moment Technology POS creates the real sales invoice.
+app.post('/api/pos/orders/:orderId/invoice', requirePosApiKey, async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.orderId);
+    if (!order) return res.status(404).json({ ok:false, message:'Order not found' });
+    const posInvoiceId = sanitizePlainText(req.body?.posInvoiceId, 120);
+    if (!posInvoiceId) return res.status(400).json({ ok:false, message:'posInvoiceId is required' });
+    const paymentStatus = String(req.body?.paymentStatus || 'pending').trim();
+    const validPaymentStatuses = ['pending','reserved','paid','cash_on_delivery','cancelled','refunded'];
+    if (!validPaymentStatuses.includes(paymentStatus)) return res.status(400).json({ ok:false, message:'Invalid paymentStatus' });
+
+    const hadInvoice = Boolean(String(order.posInvoiceId || '').trim());
+    if (order.status === 'cancelled') return res.status(409).json({ ok:false, message:'Cancelled order cannot be invoiced' });
+    if (hadInvoice && String(order.posInvoiceId) !== posInvoiceId) return res.status(409).json({ ok:false, message:'Order is already linked to a different POS invoice' });
+    order.posInvoiceId = posInvoiceId;
+    if (!order.invoiceCreatedAt) order.invoiceCreatedAt = new Date();
+    order.paymentStatus = paymentStatus;
+    order.paymentStatusUpdatedAt = new Date();
+    order.status = 'confirmed';
+    order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
+    order.statusHistory.push({ status:'confirmed', at:new Date(), note:sanitizePlainText(req.body?.note,300) || `تم إنشاء فاتورة البيع من Technology POS رقم ${posInvoiceId}` });
+    order.stockReservationStatus = 'none';
+    order.stockReservedAt = undefined;
+    order.stockReservationFinalizedAt = undefined;
+    if (!hadInvoice && order.couponCode) await Coupon.updateOne({ code: order.couponCode }, { $inc: { usedCount: 1 } }).catch(() => null);
+    if (!hadInvoice && order.visitorId) await VisitorEvent.create({ visitorId:order.visitorId, sessionId:order.sessionId||'', type:'order_completed', orderNumber:order.orderNumber, value:order.total, metadata:{posInvoiceId:order.posInvoiceId,paymentStatus:order.paymentStatus||'pending'} }).catch(() => null);
+    await order.save();
+    res.json({ ok:true, orderId:order._id, orderNumber:order.orderNumber, status:order.status, paymentStatus:order.paymentStatus, posInvoiceId:order.posInvoiceId, invoiceCreatedAt:order.invoiceCreatedAt });
+  } catch (err) {
+    res.status(500).json({ ok:false, error:err.message });
   }
 });
 
@@ -1278,7 +1333,6 @@ app.put('/api/pos/orders/:orderId/status', requirePosApiKey, async (req, res) =>
 
 // إضافة طلب جديد (عبر الموقع)
 app.post('/api/orders', orderLimiter, async (req, res) => {
-  let reservedItems = [];
   try {
     await ensureDBConnection();
     const { customerName, customerPhone, customerAddress, notes, paymentMethod, deliveryMethod='pickup', governorate='', area='', couponCode='', visitorId='', sessionId='', checkoutToken='', items } = req.body || {};
@@ -1322,23 +1376,20 @@ app.post('/api/orders', orderLimiter, async (req, res) => {
     const pay = allowedPayments.includes(String(paymentMethod)) ? String(paymentMethod) : (method === 'pickup' && settings.paymentStorePickup ? 'pay_at_store' : (settings.paymentCashOnDelivery ? 'cash_on_delivery' : allowedPayments[0]));
     if (!pay) return res.status(400).json({ success:false, message:'لا توجد طريقة دفع متاحة حالياً' });
     const total = Math.max(0, Math.round((subtotal - coupon.discount + quote.amount)*100)/100);
-    reservedItems = await reserveOrderStock(orderItems);
     const orderNumber = `WEB-${new Date().toISOString().replace(/[-:T]/g,'').slice(0,14)}-${Math.floor(1000+Math.random()*9000)}`;
-    const order = new Order({ orderNumber, checkoutToken:safeToken||undefined, customerName:safeName, customerPhone:safePhone, customerAddress:method==='pickup'?'استلام من المعرض':safeAddress, notes:sanitizePlainText(notes,700), visitorId:sanitizePlainText(visitorId,120), sessionId:sanitizePlainText(sessionId,140), deliveryMethod:method, governorate:sanitizePlainText(governorate,100), area:sanitizePlainText(area,120), shippingAmount:quote.amount, paymentMethod:pay, couponCode:coupon.code, discountAmount:coupon.discount, items:orderItems, subtotal, total, stockReservationStatus:'reserved', stockReservedAt:new Date(), statusHistory:[{status:'pending',at:new Date(),note:'تم استلام الطلب من الموقع وحجز الكمية'}] });
-    await order.save(); reservedItems=[];
+    const order = new Order({ orderNumber, checkoutToken:safeToken||undefined, customerName:safeName, customerPhone:safePhone, customerAddress:method==='pickup'?'استلام من المعرض':safeAddress, notes:sanitizePlainText(notes,700), visitorId:sanitizePlainText(visitorId,120), sessionId:sanitizePlainText(sessionId,140), deliveryMethod:method, governorate:sanitizePlainText(governorate,100), area:sanitizePlainText(area,120), shippingAmount:quote.amount, paymentMethod:pay, paymentStatus:'pending', couponCode:coupon.code, discountAmount:coupon.discount, items:orderItems, subtotal, total, stockReservationStatus:'none', statusHistory:[{status:'pending',at:new Date(),note:'تم استلام الطلب من الموقع — في انتظار إنشاء فاتورة البيع من Technology POS'}] });
+    await order.save();
     if (order.visitorId) {
       await Visitor.updateOne({ visitorId: order.visitorId }, { $set: { knownCustomerName: safeName, knownCustomerPhone: safePhone, lastOrderNumber: order.orderNumber }, $inc: { ordersCount: 1 } }).catch(() => null);
       await AbandonedCart.updateMany({ visitorId: order.visitorId, status: 'active' }, { $set: { status: 'recovered', recoveredOrderNumber: order.orderNumber, lastSeenAt: new Date() } }).catch(() => null);
       const session = order.sessionId ? await VisitorSession.findOne({ sessionId: order.sessionId }).lean().catch(() => null) : null;
-      await VisitorEvent.create({ visitorId: order.visitorId, sessionId: order.sessionId, type: 'order_completed', source: session?.source || 'Direct', medium: session?.medium || '', campaign: session?.utmCampaign || '', path: '/checkout', orderNumber: order.orderNumber, value: total }).catch(() => null);
+      await VisitorEvent.create({ visitorId: order.visitorId, sessionId: order.sessionId, type: 'order_submitted', source: session?.source || 'Direct', medium: session?.medium || '', campaign: session?.utmCampaign || '', path: '/checkout', orderNumber: order.orderNumber, value: total }).catch(() => null);
     }
-    if (coupon.coupon) await Coupon.updateOne({_id:coupon.coupon._id},{$inc:{usedCount:1}});
     let doc=await Analytics.findOne({key:'main'}); if(!doc) doc=new Analytics({key:'main'}); const wOrders={...(doc.whatsapp_orders||{})};
     for(const item of orderItems){const idStr=String(item.productId);if(!wOrders[idStr])wOrders[idStr]={count:0,title:item.title};wOrders[idStr].count+=(item.quantity||1);wOrders[idStr].lastDate=new Date().toISOString();}
     doc.whatsapp_orders=wOrders;doc.markModified('whatsapp_orders');await doc.save();
-    res.json({success:true,message:'تم إرسال الطلب بنجاح',orderId:order.orderNumber,orderNumber:order.orderNumber,subtotal,discountAmount:coupon.discount,shippingAmount:quote.amount,total,paymentMethod:pay,deliveryMethod:method});
+    res.json({success:true,message:'تم استلام طلبك وسيتم تأكيده بعد إنشاء الفاتورة من المتجر',orderId:order.orderNumber,orderNumber:order.orderNumber,subtotal,discountAmount:coupon.discount,shippingAmount:quote.amount,total,paymentMethod:pay,deliveryMethod:method});
   } catch(err){
-    for (const item of reservedItems.reverse()) await restoreReservedItemStock(item).catch(()=>null);
     if (err?.code===11000 && req.body?.checkoutToken) { const existing=await Order.findOne({checkoutToken:sanitizePlainText(req.body.checkoutToken,160)}).lean().catch(()=>null); if(existing)return res.json({success:true,idempotent:true,orderId:existing.orderNumber,orderNumber:existing.orderNumber,total:existing.total,subtotal:existing.subtotal,shippingAmount:existing.shippingAmount,discountAmount:existing.discountAmount,paymentMethod:existing.paymentMethod,deliveryMethod:existing.deliveryMethod}); }
     console.error('Error submitting order:',err);res.status(err.statusCode||500).json({success:false,message:err.statusCode?err.message:'خطأ أثناء تقديم الطلب'});
   }
@@ -1350,11 +1401,11 @@ app.post('/api/checkout/quote', publicWriteLimiter, async (req,res)=>{
 app.post('/api/coupons/validate', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const r=await validateCouponCode(req.body?.code,Math.max(0,Number(req.body?.subtotal)||0));res.json({valid:true,code:r.code,discountAmount:r.discount});}catch(err){res.status(err.statusCode||400).json({valid:false,message:err.message});}});
 
 app.get('/api/orders/track', publicWriteLimiter, async (req,res)=>{
-  try{await ensureDBConnection();const orderNumber=sanitizePlainText(req.query.orderNumber,80);const phone=normalizePhoneNumber(req.query.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});const order=await Order.findOne({orderNumber,customerPhone:phone}).lean();if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});res.json({orderNumber:order.orderNumber,status:order.status,createdAt:order.createdAt,total:order.total,shippingAmount:order.shippingAmount,discountAmount:order.discountAmount,deliveryMethod:order.deliveryMethod,paymentMethod:order.paymentMethod,shippingCarrier:order.shippingCarrier||'',trackingNumber:order.trackingNumber||'',trackingUrl:order.trackingUrl||'',estimatedDeliveryAt:order.estimatedDeliveryAt||null,items:(order.items||[]).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity,price:i.price})),statusHistory:(order.statusHistory||[]).map(x=>({status:x.status,at:x.at,note:x.note}))});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}
+  try{await ensureDBConnection();const orderNumber=sanitizePlainText(req.query.orderNumber,80);const phone=normalizePhoneNumber(req.query.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});const order=await Order.findOne({orderNumber,customerPhone:phone}).lean();if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});res.json({orderNumber:order.orderNumber,status:order.status,createdAt:order.createdAt,total:order.total,shippingAmount:order.shippingAmount,discountAmount:order.discountAmount,deliveryMethod:order.deliveryMethod,paymentMethod:order.paymentMethod,paymentStatus:order.paymentStatus||'pending',posInvoiceId:order.posInvoiceId||'',invoiceCreatedAt:order.invoiceCreatedAt||null,shippingCarrier:order.shippingCarrier||'',trackingNumber:order.trackingNumber||'',trackingUrl:order.trackingUrl||'',estimatedDeliveryAt:order.estimatedDeliveryAt||null,items:(order.items||[]).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity,price:i.price})),statusHistory:(order.statusHistory||[]).map(x=>({status:x.status,at:x.at,note:x.note}))});}catch(err){res.status(500).json({message:'تعذر تتبع الطلب'});}
 });
 
 app.get('/api/reviews/:productId', async (req,res)=>{try{await ensureDBConnection();const reviews=await Review.find({productId:req.params.productId,$or:[{status:'published'},{status:{$exists:false},approved:true}]}).sort({createdAt:-1}).limit(50).lean();const clean=reviews.map(r=>({...r,comment:r.publishedComment||r.comment||r.originalComment||'',storeReply:r.storeReply||''}));const avg=clean.length?clean.reduce((a,r)=>a+Number(r.rating||0),0)/clean.length:0;res.json({reviews:clean,average:Math.round(avg*10)/10,count:clean.length});}catch(err){res.status(500).json({message:'تعذر تحميل التقييمات'});}});
-app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});let verifiedPurchase=false,verifiedOrderNumber='';const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(orderNumber&&phone){const order=await Order.findOne({orderNumber,customerPhone:phone,status:{$ne:'cancelled'},'items.productId':productId}).select('orderNumber').lean();if(order){verifiedPurchase=true;verifiedOrderNumber=order.orderNumber;}}await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false,verifiedPurchase,verifiedOrderNumber});res.status(201).json({success:true,verifiedPurchase,message:verifiedPurchase?'تم استلام تقييمك كمشتري موثّق وسيظهر بعد المراجعة':'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
+app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});let verifiedPurchase=false,verifiedOrderNumber='';const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(orderNumber&&phone){const order=await Order.findOne({orderNumber,customerPhone:phone,posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'},'items.productId':productId}).select('orderNumber').lean();if(order){verifiedPurchase=true;verifiedOrderNumber=order.orderNumber;}}await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false,verifiedPurchase,verifiedOrderNumber});res.status(201).json({success:true,verifiedPurchase,message:verifiedPurchase?'تم استلام تقييمك كمشتري موثّق وسيظهر بعد المراجعة':'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
 
 app.post('/api/stock-notify', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const product=await Product.findById(req.body?.productId).select('title stockQuantity');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const phone=normalizePhoneNumber(req.body?.phone);if(!phone)return res.status(400).json({message:'رقم الهاتف مطلوب'});const name=sanitizePlainText(req.body?.name,80);await StockNotify.findOneAndUpdate({productId:product._id,phone,status:'waiting'},{$set:{productTitle:product.title,name,createdAt:new Date()}},{upsert:true,new:true});res.json({success:true,message:'تم تسجيل طلب التنبيه عند توفر المنتج'});}catch(err){res.status(500).json({message:'تعذر تسجيل طلب التنبيه'});}});
 
@@ -1502,6 +1553,33 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
   } catch (error) {
     console.error('GET /api/products error:', error);
     res.status(500).json({ message: error.message || 'Internal Server Error' });
+  }
+});
+
+
+// Read-only live availability endpoint. The website can verify the latest POS-synced stock
+// before adding/increasing cart quantity, but it never changes stock itself.
+app.get('/api/products/:id/availability', async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const product = await Product.findOne({ _id: req.params.id, isHidden: { $ne: true } })
+      .select('stockQuantity variants.label variants.value variants.sku variants.stockQuantity lastSyncedAt')
+      .lean();
+    if (!product) return res.status(404).json({ message: 'المنتج غير موجود' });
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      productId: String(product._id),
+      stockQuantity: Math.max(0, Number(product.stockQuantity) || 0),
+      lastSyncedAt: product.lastSyncedAt || null,
+      variants: (product.variants || []).map(v => ({
+        label: v.label || 'الخيار',
+        value: v.value || '',
+        sku: v.sku || '',
+        stockQuantity: Math.max(0, Number(v.stockQuantity) || 0)
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر التحقق من الكمية الحالية' });
   }
 });
 
@@ -2381,20 +2459,20 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
       ]}),
       Order.countDocuments(),
       Order.countDocuments({ status: 'pending' }),
-      Order.countDocuments({ status: { $in: ['received_by_pos', 'processing'] } }),
+      Order.countDocuments({ status: { $in: ['received_by_pos', 'confirmed', 'processing'] } }),
       Order.countDocuments({ status: 'completed' }),
       Order.countDocuments({ status: 'cancelled' }),
       Order.countDocuments({ createdAt: { $gte: todayStart } }),
       Order.aggregate([
-        { $match: { createdAt: { $gte: todayStart }, status: { $ne: 'cancelled' } } },
+        { $match: { createdAt: { $gte: todayStart }, posInvoiceId: { $exists: true, $nin: ['', null] }, status: { $ne: 'cancelled' } } },
         { $group: { _id: null, total: { $sum: '$total' } } }
       ]),
-      Order.find().select('orderNumber customerName total status createdAt').sort({ createdAt: -1 }).limit(6).lean(),
+      Order.find().select('orderNumber customerName total status paymentStatus posInvoiceId createdAt').sort({ createdAt: -1 }).limit(6).lean(),
       ActivityLog.find().sort({ timestamp: -1 }).limit(6).lean()
     ]);
 
     const profitAgg = await Order.aggregate([
-      { $match: { createdAt: { $gte: todayStart }, status: { $ne: 'cancelled' } } },
+      { $match: { createdAt: { $gte: todayStart }, posInvoiceId: { $exists: true, $nin: ['', null] }, status: { $ne: 'cancelled' } } },
       { $unwind: '$items' },
       { $lookup: { from: 'products', localField: 'items.productId', foreignField: '_id', as: 'p' } },
       { $unwind: { path: '$p', preserveNullAndEmptyArrays: true } },
@@ -2436,7 +2514,7 @@ app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'
     const status = String(req.query.status || '').trim();
     const search = String(req.query.search || '').trim();
     const filter = {};
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'received_by_pos', 'confirmed', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
     if (status && validStatuses.includes(status)) filter.status = status;
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2458,15 +2536,21 @@ app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'
 
 app.put('/api/admin/orders/:orderId/status', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
   try {
-    const validStatuses = ['pending', 'received_by_pos', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'received_by_pos', 'confirmed', 'processing', 'out_for_delivery', 'completed', 'cancelled'];
     const status = String(req.body.status || '').trim();
     if (!validStatuses.includes(status)) return res.status(400).json({ message: 'حالة الطلب غير صالحة' });
     const order = await Order.findById(req.params.orderId);
     if (!order) return res.status(404).json({ message: 'الطلب غير موجود' });
     const previousStatus = order.status;
-    if (status === 'cancelled') await restoreOrderReservation(order);
-    else if (['received_by_pos','processing','out_for_delivery','completed'].includes(status)) consumeOrderReservation(order);
+    const hasPosInvoice = Boolean(String(order.posInvoiceId || '').trim());
+    if (['confirmed','processing','out_for_delivery','completed'].includes(status) && !hasPosInvoice) {
+      return res.status(409).json({ message: 'لا يمكن اعتبار الطلب بيعاً أو تجهيزه قبل إنشاء فاتورة فعلية من Technology POS' });
+    }
+    if (hasPosInvoice && ['pending','received_by_pos','cancelled'].includes(status)) {
+      return res.status(409).json({ message: 'بعد إصدار فاتورة البيع، الإلغاء أو الرجوع يجب أن يتم من Technology POS حتى تظل حركة المخزون والحسابات صحيحة' });
+    }
     order.status = status;
+    order.stockReservationStatus = 'none';
     order.statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : [];
     order.statusHistory.push({ status, at: new Date(), note: sanitizePlainText(req.body?.note, 200) });
     await order.save();
@@ -2497,7 +2581,7 @@ app.get('/api/admin/notifications', requireAdminAuth, async(req,res)=>{
       Order.countDocuments({status:'pending'}),Review.countDocuments({$or:[{status:'pending'},{status:{$exists:false},approved:false}]}),ReturnRequest.countDocuments({status:'pending'}),Product.countDocuments({isHidden:{$ne:true},stockQuantity:{$gt:0,$lte:low}}),BackupRecord.findOne({status:'failed',createdAt:{$gte:since}}).sort({createdAt:-1}).lean()
     ]);
     const items=[];
-    if(newOrders)items.push({type:'orders',icon:'receipt_long',title:`${newOrders} طلب جديد`,text:'طلبات تنتظر المراجعة أو الإرسال لنظام نقاط البيع',tab:'orders',count:newOrders,priority:'high'});
+    if(newOrders)items.push({type:'orders',icon:'receipt_long',title:`${newOrders} طلب جديد`,text:'طلبات من الموقع تنتظر إنشاء فاتورة البيع داخل Technology POS',tab:'orders',count:newOrders,priority:'high'});
     if(pendingReviews)items.push({type:'reviews',icon:'reviews',title:`${pendingReviews} تقييم بانتظار المراجعة`,text:'راجع آراء العملاء قبل نشرها',tab:'reviews',count:pendingReviews,priority:'medium'});
     if(pendingReturns)items.push({type:'returns',icon:'assignment_return',title:`${pendingReturns} طلب استبدال أو استرجاع`,text:'طلبات ما بعد البيع تحتاج إجراء',tab:'returns',count:pendingReturns,priority:'high'});
     if(lowStock)items.push({type:'stock',icon:'inventory_2',title:`${lowStock} منتج منخفض المخزون`,text:`الكمية أقل من أو تساوي ${low}`,tab:'products',filter:'low_stock',count:lowStock,priority:'medium'});
@@ -2510,13 +2594,13 @@ app.get('/api/admin/customers', requireAdminAuth, requirePermission('manage_orde
   try{
     const page=Math.max(1,parseInt(req.query.page)||1),limit=Math.min(100,Math.max(10,parseInt(req.query.limit)||25)),search=sanitizePlainText(req.query.search,100);
     const match=search?{$or:[{customerName:{$regex:escapeRegexLiteral(search),$options:'i'}},{customerPhone:{$regex:escapeRegexLiteral(search),$options:'i'}},{orderNumber:{$regex:escapeRegexLiteral(search),$options:'i'}}]}:{};
-    const pipeline=[{$match:match},{$sort:{createdAt:-1}},{$group:{_id:'$customerPhone',name:{$first:'$customerName'},phone:{$first:'$customerPhone'},orders:{$sum:1},revenue:{$sum:{$cond:[{$ne:['$status','cancelled']},'$total',0]}},lastOrderAt:{$max:'$createdAt'},lastOrderNumber:{$first:'$orderNumber'},returns:{$sum:0}}},{$sort:{revenue:-1,lastOrderAt:-1}}];
+    const pipeline=[{$match:match},{$sort:{createdAt:-1}},{$group:{_id:'$customerPhone',name:{$first:'$customerName'},phone:{$first:'$customerPhone'},orders:{$sum:1},revenue:{$sum:{$cond:[{$and:[{$ne:['$status','cancelled']},{$ne:[{$ifNull:['$posInvoiceId','']},'']}]},'$total',0]}},lastOrderAt:{$max:'$createdAt'},lastOrderNumber:{$first:'$orderNumber'},returns:{$sum:0}}},{$sort:{revenue:-1,lastOrderAt:-1}}];
     const rows=await Order.aggregate([...pipeline,{$skip:(page-1)*limit},{$limit:limit}]); const countArr=await Order.aggregate([...pipeline,{$count:'n'}]); const total=countArr[0]?.n||0;
     res.json({customers:rows,total,page,pages:Math.max(1,Math.ceil(total/limit)),limit});
   }catch(err){res.status(500).json({message:'تعذر تحميل العملاء'});}
 });
 app.get('/api/admin/customers/:phone', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
-  try{const phone=normalizePhoneNumber(req.params.phone);const orders=await Order.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();if(!orders.length)return res.status(404).json({message:'العميل غير موجود'});const returns=await ReturnRequest.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();const revenue=orders.filter(o=>o.status!=='cancelled').reduce((a,o)=>a+Number(o.total||0),0);res.json({name:orders[0].customerName,phone,orders,revenue,returns});}catch(err){res.status(500).json({message:'تعذر تحميل ملف العميل'});}
+  try{const phone=normalizePhoneNumber(req.params.phone);const orders=await Order.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();if(!orders.length)return res.status(404).json({message:'العميل غير موجود'});const returns=await ReturnRequest.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();const revenue=orders.filter(o=>o.status!=='cancelled'&&String(o.posInvoiceId||'').trim()).reduce((a,o)=>a+Number(o.total||0),0);res.json({name:orders[0].customerName,phone,orders,revenue,returns});}catch(err){res.status(500).json({message:'تعذر تحميل ملف العميل'});}
 });
 
 app.post('/api/admin/products/bulk-action', requireAdminAuth, requirePermission('edit_product'), async(req,res)=>{
@@ -2765,7 +2849,7 @@ function parseAnalyticsRange(req) {
 app.post('/api/analytics/event', publicWriteLimiter, async (req,res) => {
   try {
     await ensureDBConnection(); const body=req.body||{}; const visitorId=sanitizePlainText(body.visitorId,120), sessionId=sanitizePlainText(body.sessionId,140);
-    const allowed=new Set(['page_view','product_view','add_to_cart','remove_from_cart','checkout_started','checkout_contact','checkout_quote','order_completed','whatsapp_click','share','search','return_started']);
+    const allowed=new Set(['page_view','product_view','add_to_cart','remove_from_cart','checkout_started','checkout_contact','checkout_quote','order_submitted','order_completed','whatsapp_click','share','search','return_started']);
     const type=sanitizePlainText(body.type,50); if(!visitorId||!sessionId||!allowed.has(type)) return res.status(400).json({message:'invalid event'});
     const session=await VisitorSession.findOne({sessionId}).lean();
     await VisitorEvent.create({visitorId,sessionId,type,source:session?.source||sanitizePlainText(body.source,80)||'Direct',medium:session?.medium||'',campaign:session?.utmCampaign||sanitizePlainText(body.campaign,120),path:String(body.path||'').slice(0,500),productId:sanitizePlainText(body.productId,120),productTitle:sanitizePlainText(body.productTitle,180),orderNumber:sanitizePlainText(body.orderNumber,80),value:Math.max(0,Number(body.value)||0),metadata:typeof body.metadata==='object'&&body.metadata?body.metadata:{}});
@@ -2792,11 +2876,11 @@ app.get('/api/admin/v9/overview', requireAdminAuth, requirePermission('view_repo
     const sessionQ={}; if(range.createdAt) sessionQ.startedAt=range.createdAt;
     const [events,orders,sessions,abandoned,returns,topProducts,lastBackup]=await Promise.all([
       VisitorEvent.aggregate([{ $match:eventQ },{ $group:{_id:'$type',count:{$sum:1},sessions:{$addToSet:'$sessionId'}}}]),
-      Order.find({...orderQ,status:{$ne:'cancelled'}}).select('visitorId total items createdAt').lean(),
+      Order.find({...orderQ,posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'}}).select('visitorId total items createdAt').lean(),
       VisitorSession.find(sessionQ).select('visitorId sessionId source utmCampaign startedAt').lean(),
       AbandonedCart.find({status:'active',...(range.createdAt?{lastSeenAt:range.createdAt}:{})}).sort({lastSeenAt:-1}).limit(300).lean(),
       ReturnRequest.countDocuments({status:{$in:['pending','approved','received']}}),
-      Order.aggregate([{ $match:{...orderQ,status:{$ne:'cancelled'}}},{ $unwind:'$items'},{ $group:{_id:'$items.title',qty:{$sum:'$items.quantity'},revenue:{$sum:'$items.lineTotal'}}},{ $sort:{revenue:-1}},{ $limit:8}]),
+      Order.aggregate([{ $match:{...orderQ,posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'}}},{ $unwind:'$items'},{ $group:{_id:'$items.title',qty:{$sum:'$items.quantity'},revenue:{$sum:'$items.lineTotal'}}},{ $sort:{revenue:-1}},{ $limit:8}]),
       BackupRecord.findOne({status:'success'}).sort({createdAt:-1}).lean()
     ]);
     const eventMap={}; for(const e of events)eventMap[e._id]={count:e.count,sessions:e.sessions.filter(Boolean).length};
@@ -2820,6 +2904,7 @@ app.post('/api/returns', publicWriteLimiter, async(req,res)=>{
     await ensureDBConnection(); const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(!orderNumber||!phone)return res.status(400).json({message:'رقم الطلب ورقم الهاتف مطلوبان'});
     const order=await Order.findOne({orderNumber,customerPhone:phone});if(!order)return res.status(404).json({message:'لم يتم العثور على الطلب بهذه البيانات'});
     if(order.status==='cancelled')return res.status(400).json({message:'لا يمكن إنشاء طلب استرجاع لطلب ملغي'});
+    if(!String(order.posInvoiceId||'').trim())return res.status(400).json({message:'لا يمكن طلب استبدال أو استرجاع قبل إنشاء فاتورة البيع من Technology POS'});
     const reason=sanitizePlainText(req.body?.reason,300);if(!reason)return res.status(400).json({message:'سبب الطلب مطلوب'}); const type=req.body?.type==='exchange'?'exchange':'return';
     const requested=Array.isArray(req.body?.items)?req.body.items:[]; const items=(order.items||[]).filter((_,i)=>!requested.length||requested.some(x=>Number(x.index)===i)).map(i=>({title:i.title,variant:i.variant,quantity:i.quantity}));
     const returnNumber=`RET-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000+Math.random()*9000)}`;
@@ -2841,9 +2926,9 @@ app.post('/api/admin/security/2fa/enable', requireAdminAuth, async(req,res)=>{co
 app.post('/api/admin/security/2fa/disable', requireAdminAuth, async(req,res)=>{const user=await AdminUser.findById(req.adminUser._id);if(user.totpEnabled&&user.totpSecret&&!verifyTotp(user.totpSecret,req.body?.code))return res.status(400).json({message:'رمز التحقق غير صحيح'});user.totpEnabled=false;user.totpSecret='';user.totpPendingSecret='';await user.save();await logActivity('إلغاء 2FA','تم إلغاء المصادقة الثنائية',user.username);res.json({success:true});});
 
 app.get('/api/admin/system/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{
-  try{const settings=await getOrCreateSettings();const [lastSync,pendingPos,lastBackup,activeCarts,pendingReturns,totalProducts,totalOrders]=await Promise.all([Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean(),Order.countDocuments({status:'pending'}),BackupRecord.findOne().sort({createdAt:-1}).lean(),AbandonedCart.countDocuments({status:'active'}),ReturnRequest.countDocuments({status:'pending'}),Product.countDocuments(),Order.countDocuments()]);res.json({generatedAt:new Date().toISOString(),database:{ok:mongoose.connection.readyState===1,state:mongoose.connection.readyState},cloudinary:{ok:Boolean(process.env.CLOUDINARY_CLOUD_NAME&&process.env.CLOUDINARY_API_KEY&&process.env.CLOUDINARY_API_SECRET)},pos:{configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:lastSync?.lastSyncedAt||null,pendingOrders:pendingPos},backup:{last:lastBackup,cronConfigured:Boolean(process.env.CRON_SECRET)},store:{products:totalProducts,orders:totalOrders,activeAbandonedCarts:activeCarts,pendingReturns},runtime:{node:process.version,uptimeSeconds:Math.round(process.uptime()),environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'local'}});}catch(err){res.status(500).json({message:'تعذر فحص النظام',error:err.message});}
+  try{const settings=await getOrCreateSettings();const [lastSync,pendingPos,lastBackup,activeCarts,pendingReturns,totalProducts,totalOrders]=await Promise.all([Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean(),Order.countDocuments({status:{$in:['pending','received_by_pos']},$or:[{posInvoiceId:''},{posInvoiceId:null},{posInvoiceId:{$exists:false}}]}),BackupRecord.findOne().sort({createdAt:-1}).lean(),AbandonedCart.countDocuments({status:'active'}),ReturnRequest.countDocuments({status:'pending'}),Product.countDocuments(),Order.countDocuments()]);res.json({generatedAt:new Date().toISOString(),database:{ok:mongoose.connection.readyState===1,state:mongoose.connection.readyState},cloudinary:{ok:Boolean(process.env.CLOUDINARY_CLOUD_NAME&&process.env.CLOUDINARY_API_KEY&&process.env.CLOUDINARY_API_SECRET)},pos:{configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:lastSync?.lastSyncedAt||null,pendingOrders:pendingPos},backup:{last:lastBackup,cronConfigured:Boolean(process.env.CRON_SECRET)},store:{products:totalProducts,orders:totalOrders,activeAbandonedCarts:activeCarts,pendingReturns},runtime:{node:process.version,uptimeSeconds:Math.round(process.uptime()),environment:process.env.VERCEL_ENV||process.env.NODE_ENV||'local'}});}catch(err){res.status(500).json({message:'تعذر فحص النظام',error:err.message});}
 });
-app.get('/api/admin/pos/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{const settings=await getOrCreateSettings();const last=await Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean();const [syncedProducts,pendingOrders,receivedOrders]=await Promise.all([Product.countDocuments({source:'pos'}),Order.countDocuments({status:'pending'}),Order.countDocuments({status:'received_by_pos'})]);res.json({configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:last?.lastSyncedAt||null,syncedProducts,pendingOrders,receivedOrders});});
+app.get('/api/admin/pos/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{const settings=await getOrCreateSettings();const last=await Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean();const [syncedProducts,pendingOrders,receivedOrders]=await Promise.all([Product.countDocuments({source:'pos'}),Order.countDocuments({status:'pending'}),Order.countDocuments({status:'received_by_pos'})]);const invoicedOrders=await Order.countDocuments({posInvoiceId:{$exists:true,$nin:['',null]}});res.json({configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:last?.lastSyncedAt||null,syncedProducts,pendingOrders,receivedOrders,invoicedOrders});});
 
 async function buildV9BackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean()]);return{backupVersion:9,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns};}
 async function createCloudBackup(trigger='manual',triggeredBy='system'){

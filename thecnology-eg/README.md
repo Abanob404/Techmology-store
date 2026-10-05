@@ -26,3 +26,7 @@ This folder is the consolidated V10.2 production project.
 Real environment secrets are not included. Copy `.env.example` to `.env` for local development or configure the same values in Vercel Environment Variables.
 
 Historical FIX scripts, release notes, local `.git/.vercel/.vscode` metadata, unused backup files, and unused fonts were removed because they are not required at runtime.
+
+## V10.4.3 — POS authoritative sales flow
+
+طلبات الموقع أصبحت Requests فقط: لا يتم خصم أو حجز المخزون من الموقع، ولا يعتبر الطلب بيعاً أو إيراداً قبل إنشاء فاتورة فعلية داخل Technology POS. راجع `V10_4_3_POS_ORDER_FLOW.md` لتفاصيل الربط.

@@ -2363,7 +2363,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   const selectedVariant = new Map();
   const checkoutState = { shippingAmount:0, discountAmount:0, couponCode:'', quotePending:false };
   const statusLabels = {
-    pending:'تم استلام الطلب', received_by_pos:'تم استلامه في النظام', processing:'جاري التجهيز', out_for_delivery:'خرج للتوصيل', completed:'تم التسليم', cancelled:'تم الإلغاء'
+    pending:'تم استلام الطلب — في انتظار تأكيد المتجر', received_by_pos:'وصل الطلب إلى Technology POS — في انتظار الفاتورة', confirmed:'تم إنشاء فاتورة البيع وتأكيد الطلب', processing:'جاري التجهيز', out_for_delivery:'خرج للتوصيل', completed:'تم التسليم', cancelled:'تم الإلغاء'
   };
 
   function products(){ return state()?.getProducts?.() || []; }
@@ -2380,6 +2380,21 @@ document.addEventListener('DOMContentLoaded',()=>{
   function cartKey(id, variant){ return `${id}::${variant?.value || ''}`; }
   function itemKey(item){ return item.cartKey || cartKey(item._id, item.variantData || (item.variantValue ? {value:item.variantValue}:null)); }
   function subtotal(){ return cart().reduce((sum, i) => sum + Number(i.price||0) * Number(i.quantity||0), 0); }
+  async function getLiveStock(product, variantRaw){
+    const fallbackVariant=variantFor(product,variantRaw);
+    const fallback=fallbackVariant?Number(fallbackVariant.stockQuantity||0):Number(product?.stockQuantity||0);
+    try{
+      const r=await fetch(`/api/products/${encodeURIComponent(product._id)}/availability`,{cache:'no-store'});
+      if(!r.ok)throw new Error('availability');
+      const d=await r.json();
+      if(Array.isArray(d.variants)&&d.variants.length&&variantRaw){
+        const wanted=typeof variantRaw==='object'?String(variantRaw?.value||variantRaw?.sku||''):String(variantRaw||'');
+        const v=d.variants.find(x=>String(x.value)===wanted||String(x.sku||'')===wanted);
+        if(v)return Math.max(0,Number(v.stockQuantity)||0);
+      }
+      return Math.max(0,Number(d.stockQuantity)||0);
+    }catch(_){return Math.max(0,fallback||0);}
+  }
 
   // ---------- Exact share-source attribution ----------
   function attributedUrl(baseUrl, source){
@@ -2426,10 +2441,11 @@ document.addEventListener('DOMContentLoaded',()=>{
   };
 
   // ---------- Cart with variants ----------
-  window.addToCart = function(productId, variantValue){
+  window.addToCart = async function(productId, variantValue){
     const p=productById(productId); if(!p) return;
-    const v=variantFor(p, variantValue || selectedVariant.get(String(productId)));
-    const stock=v ? Number(v.stockQuantity||0) : Number(p.stockQuantity||0);
+    const selected=variantValue || selectedVariant.get(String(productId));
+    const v=variantFor(p, selected);
+    const stock=await getLiveStock(p, selected);
     if(stock<=0){ openStockNotify(p); return; }
     const price=v && Number.isFinite(Number(v.price)) ? Number(v.price) : Number(p.price)||0;
     const next=[...cart()]; const key=cartKey(p._id,v); const existing=next.find(i=>itemKey(i)===key);
@@ -2439,9 +2455,15 @@ document.addEventListener('DOMContentLoaded',()=>{
     try{ window.trackEvent?.('cart_adds',p._id,p.title); if(window.fbq) fbq('track','AddToCart',{value:price,currency:'EGP'}); }catch(_){}
   };
   window.removeFromCart = function(key){ const next=cart().filter(i=>itemKey(i)!==String(key) && String(i._id)!==String(key)); saveCart(next); window.renderCart?.(); window.updateCartBadge?.(); };
-  window.updateCartQuantity = function(key,change){
+  window.updateCartQuantity = async function(key,change){
     const next=[...cart()]; const item=next.find(i=>itemKey(i)===String(key) || String(i._id)===String(key)); if(!item) return;
-    const q=Number(item.quantity||0)+Number(change||0); if(q<=0){window.removeFromCart(itemKey(item));return;} if(q>Number(item.stockQuantity||0)){alert('لا يوجد مخزون كافٍ.');return;} item.quantity=q; saveCart(next); window.renderCart?.(); window.updateCartBadge?.();
+    const q=Number(item.quantity||0)+Number(change||0); if(q<=0){window.removeFromCart(itemKey(item));return;}
+    if(Number(change)>0){
+      const p=productById(item._id);
+      if(p){const live=await getLiveStock(p,item.variantValue||item.variantData);item.stockQuantity=live;if(q>live){alert(live<=0?'عذراً، نفدت الكمية حالياً.':'لا يوجد مخزون كافٍ لهذه الكمية.');return;}}
+      else if(q>Number(item.stockQuantity||0)){alert('لا يوجد مخزون كافٍ.');return;}
+    }
+    item.quantity=q; saveCart(next); window.renderCart?.(); window.updateCartBadge?.();
   };
 
   window.renderCart = function(){
@@ -2522,12 +2544,12 @@ document.addEventListener('DOMContentLoaded',()=>{
     await requestQuote();
     let checkoutToken=sessionStorage.getItem('tech_checkout_token');if(!checkoutToken){checkoutToken='chk_'+(window.crypto?.randomUUID?window.crypto.randomUUID():Date.now()+'_'+Math.random().toString(36).slice(2));sessionStorage.setItem('tech_checkout_token',checkoutToken);}const payload={customerName:name,customerPhone:phone,customerAddress:d==='shipping'?address:'استلام من المعرض',deliveryMethod:d,governorate:gov,area,notes:document.getElementById('v8OrderNotes')?.value.trim()||'',paymentMethod:payment,couponCode:checkoutState.couponCode||document.getElementById('v8Coupon')?.value.trim()||'',visitorId:localStorage.getItem('tech_store_vid')||'',sessionId:sessionStorage.getItem('tech_store_session_id')||'',checkoutToken,items:cart().map(i=>({productId:i._id,sku:i.sku,posItemId:i.posItemId,title:i.title,quantity:i.quantity,variant:i.variantValue?{value:i.variantValue}:undefined}))};
     const btn=document.querySelector('button[onclick="checkoutWhatsApp()"]'); const old=btn?.innerHTML;if(btn){btn.disabled=true;btn.innerHTML='<span class="material-symbols-outlined animate-spin">sync</span> جاري إنشاء الطلب...';}
-    try{const r=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.message||'تعذر إرسال الطلب');showOrderSuccess(data,name,phone);try{window.v9TrackEvent?.('order_completed',{orderNumber:data.orderNumber||data.orderId,value:Number(data.total)||0});}catch(_){} }
+    try{const r=await fetch('/api/orders',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.message||'تعذر إرسال الطلب');showOrderSuccess(data,name,phone);try{window.v9TrackEvent?.('order_submitted',{orderNumber:data.orderNumber||data.orderId,value:Number(data.total)||0});}catch(_){} }
     catch(err){alert(err.message);}finally{if(btn){btn.disabled=false;btn.innerHTML=old;}}
   };
   function showOrderSuccess(data,name,phone){
     const msg=`مرحباً، أريد متابعة الطلب رقم ${data.orderNumber||data.orderId}\nالاسم: ${name}\nالهاتف: ${phone}\nالإجمالي: ${money(data.total)}`; const wa=state()?.buildWhatsappUrl?.(msg)||'#';
-    const m=document.createElement('div');m.className='v8-overlay';m.innerHTML=`<div class="v8-backdrop"></div><section class="v8-sheet v8-success"><span class="material-symbols-outlined success-icon">check_circle</span><h2>تم استلام طلبك</h2><p>احتفظ برقم الطلب لتتبعه في أي وقت.</p><code>${esc(data.orderNumber||data.orderId)}</code><div class="v8-order-mini"><span>الشحن: ${money(data.shippingAmount)}</span><span>الخصم: ${money(data.discountAmount)}</span><strong>الإجمالي: ${money(data.total)}</strong></div><div class="v8-actions"><button id="v8TrackNow">تتبع الطلب</button><a href="${wa}" target="_blank" rel="noopener">متابعة عبر واتساب</a></div><button id="v8DoneOrder" class="v8-secondary-btn">تم</button></section>`;document.body.appendChild(m);
+    const m=document.createElement('div');m.className='v8-overlay';m.innerHTML=`<div class="v8-backdrop"></div><section class="v8-sheet v8-success"><span class="material-symbols-outlined success-icon">check_circle</span><h2>تم استلام طلبك</h2><p>طلبك لم يُعتبر بيعًا بعد. سيتم تأكيده فقط بعد إنشاء فاتورة البيع من Technology POS.</p><code>${esc(data.orderNumber||data.orderId)}</code><div class="v8-order-mini"><span>الشحن: ${money(data.shippingAmount)}</span><span>الخصم: ${money(data.discountAmount)}</span><strong>الإجمالي: ${money(data.total)}</strong></div><div class="v8-actions"><button id="v8TrackNow">تتبع الطلب</button><a href="${wa}" target="_blank" rel="noopener">متابعة عبر واتساب</a></div><button id="v8DoneOrder" class="v8-secondary-btn">تم</button></section>`;document.body.appendChild(m);
     localStorage.setItem('tech_last_order',JSON.stringify({orderNumber:data.orderNumber||data.orderId,phone}));sessionStorage.removeItem('tech_checkout_token');
     document.getElementById('v8DoneOrder').onclick=()=>{saveCart([]);window.renderCart?.();window.closeCartSidebar?.();m.remove();};
     document.getElementById('v8TrackNow').onclick=()=>{m.remove();saveCart([]);window.renderCart?.();window.closeCartSidebar?.();openOrderTracking(data.orderNumber||data.orderId,phone);};
@@ -2622,7 +2644,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   const state = () => window.__techStoreState;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money = n => `${new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 }).format(Number(n)||0)} ج.م`;
-  const statusLabels = {pending:'تم استلام الطلب',received_by_pos:'تم استلامه في النظام',processing:'جاري التجهيز',out_for_delivery:'خرج للتوصيل',completed:'تم التسليم',cancelled:'تم الإلغاء'};
+  const statusLabels = {pending:'تم استلام الطلب — في انتظار تأكيد المتجر',received_by_pos:'وصل الطلب إلى Technology POS — في انتظار الفاتورة',confirmed:'تم إنشاء فاتورة البيع وتأكيد الطلب',processing:'جاري التجهيز',out_for_delivery:'خرج للتوصيل',completed:'تم التسليم',cancelled:'تم الإلغاء'};
+  const paymentLabels = {pending:'في انتظار تأكيد الدفع',reserved:'تم حجز الطلب',paid:'تم الدفع',cash_on_delivery:'الدفع عند الاستلام',cancelled:'تم إلغاء الدفع',refunded:'تم رد المبلغ'};
   const returnLabels = {pending:'قيد المراجعة',approved:'تمت الموافقة',rejected:'مرفوض',received:'تم استلام المنتج',refunded:'تم رد المبلغ',replaced:'تم الاستبدال',closed:'مغلق'};
 
   function ensureIds(){
@@ -2641,6 +2664,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(type==='product_view') window.trackMetaEvent?.('ViewContent',{...metaBase,content_ids:extra.productId?[String(extra.productId)]:[],content_name:extra.productTitle||'',content_type:'product',value:Number(extra.value)||0});
       else if(type==='add_to_cart') window.trackMetaEvent?.('AddToCart',{...metaBase,content_ids:extra.productId?[String(extra.productId)]:[],content_name:extra.productTitle||'',content_type:'product',value:Number(extra.value)||0});
       else if(type==='checkout_started') window.trackMetaEvent?.('InitiateCheckout',{...metaBase,value:Number(extra.value)||0});
+      else if(type==='order_submitted') window.trackMetaEvent?.('Lead',{...metaBase,value:Number(extra.value)||0,order_id:extra.orderNumber||''});
       else if(type==='order_completed') window.trackMetaEvent?.('Purchase',{...metaBase,value:Number(extra.value)||0,order_id:extra.orderNumber||''});
       else if(type==='whatsapp_click') window.trackMetaEvent?.('Contact',{content_name:'WhatsApp'});
     }catch(_){ }
@@ -2682,9 +2706,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   }
 
   function printInvoice(order){
+    if(!order?.posInvoiceId){alert('الفاتورة غير متاحة حتى يتم إنشاء فاتورة البيع من Technology POS.');return;}
     const items=(order.items||[]).map(i=>`<tr><td>${esc(i.title)}${i.variant?`<small>${esc(i.variant)}</small>`:''}</td><td>${i.quantity}</td><td>${money(i.price)}</td><td>${money((Number(i.price)||0)*(Number(i.quantity)||0))}</td></tr>`).join('');
     const w=window.open('','_blank','noopener,noreferrer,width=900,height=900');if(!w)return;
-    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة ${esc(order.orderNumber)}</title><style>body{font-family:Tahoma,Arial,sans-serif;padding:32px;color:#111}header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:18px;margin-bottom:24px}h1{margin:0;font-size:26px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border-bottom:1px solid #ddd;padding:10px;text-align:right}td small{display:block;color:#666;margin-top:4px}.totals{margin-right:auto;width:min(360px,100%)}.totals div{display:flex;justify-content:space-between;padding:8px 0}.total{font-size:20px;font-weight:bold;border-top:2px solid #111}.badge{display:inline-block;padding:5px 10px;border-radius:20px;background:#eee}@media print{button{display:none}}</style></head><body><header><div><h1>TECHNOLOGY STORE</h1><div class="muted">فاتورة / ملخص طلب إلكتروني</div></div><div><b>${esc(order.orderNumber)}</b><br><span class="muted">${new Date(order.createdAt).toLocaleString('ar-EG')}</span></div></header><p><span class="badge">${esc(statusLabels[order.status]||order.status)}</span></p><table><thead><tr><th>المنتج</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>${items}</tbody></table><div class="totals"><div><span>الشحن</span><b>${money(order.shippingAmount)}</b></div><div><span>الخصم</span><b>${money(order.discountAmount)}</b></div><div class="total"><span>الإجمالي</span><b>${money(order.total)}</b></div></div><p class="muted">هذه الفاتورة تم إنشاؤها من بيانات الطلب المسجلة في المتجر.</p><button onclick="print()">طباعة</button><script>setTimeout(()=>print(),350)<\/script></body></html>`);w.document.close();
+    w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>فاتورة ${esc(order.posInvoiceId)}</title><style>body{font-family:Tahoma,Arial,sans-serif;padding:32px;color:#111}header{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:18px;margin-bottom:24px}h1{margin:0;font-size:26px}.muted{color:#666;font-size:12px}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{border-bottom:1px solid #ddd;padding:10px;text-align:right}td small{display:block;color:#666;margin-top:4px}.totals{margin-right:auto;width:min(360px,100%)}.totals div{display:flex;justify-content:space-between;padding:8px 0}.total{font-size:20px;font-weight:bold;border-top:2px solid #111}.badge{display:inline-block;padding:5px 10px;border-radius:20px;background:#eee}@media print{button{display:none}}</style></head><body><header><div><h1>TECHNOLOGY STORE</h1><div class="muted">فاتورة بيع صادرة من Technology POS</div></div><div><b>فاتورة ${esc(order.posInvoiceId)}</b><br><span class="muted">طلب الموقع: ${esc(order.orderNumber)}</span><br><span class="muted">${new Date(order.invoiceCreatedAt||order.createdAt).toLocaleString('ar-EG')}</span></div></header><p><span class="badge">${esc(statusLabels[order.status]||order.status)}</span></p><table><thead><tr><th>المنتج</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>${items}</tbody></table><div class="totals"><div><span>الشحن</span><b>${money(order.shippingAmount)}</b></div><div><span>الخصم</span><b>${money(order.discountAmount)}</b></div><div class="total"><span>الإجمالي</span><b>${money(order.total)}</b></div></div><p class="muted">تم تأكيد هذه الفاتورة بواسطة Technology POS. حالة الدفع: ${esc(paymentLabels[order.paymentStatus]||order.paymentStatus||'في انتظار التأكيد')}.</p><button onclick="print()">طباعة</button><script>setTimeout(()=>print(),350)<\/script></body></html>`);w.document.close();
   }
 
   function openReturnForm(order,phone){
@@ -2703,7 +2728,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     window.openOrderTracking=function(orderNumber='',phone=''){
       document.getElementById('v8OrderTrack')?.remove();
       const m=document.createElement('div');m.id='v8OrderTrack';m.className='v8-overlay';m.innerHTML=`<div class="v8-backdrop"></div><section class="v8-sheet v8-track-sheet"><header><div><small>متابعة حالة الشحنة</small><h3>تتبع طلبك</h3></div><button class="v9-close">×</button></header><div class="v8-checkout-grid"><input id="v8TrackNumber" dir="ltr" placeholder="رقم الطلب" value="${esc(orderNumber)}"><input id="v8TrackPhone" dir="ltr" placeholder="رقم الهاتف" value="${esc(phone)}"></div><button id="v8TrackSubmit" class="v8-primary-btn">عرض حالة الطلب</button><button id="v9TrackReturn" class="v9-link-btn">لدي رقم استبدال/استرجاع</button><div id="v8TrackResult"></div></section>`;document.body.appendChild(m);const close=()=>m.remove();m.querySelector('.v8-backdrop').onclick=close;m.querySelector('.v9-close').onclick=close;document.getElementById('v9TrackReturn').onclick=()=>{close();openReturnTracking();};
-      document.getElementById('v8TrackSubmit').onclick=async()=>{const n=document.getElementById('v8TrackNumber').value.trim(),p=document.getElementById('v8TrackPhone').value.trim(),out=document.getElementById('v8TrackResult');if(!n||!p){out.innerHTML='<p class="v8-error">أدخل رقم الطلب والهاتف.</p>';return;}out.innerHTML='<p class="v8-muted">جاري التحميل...</p>';try{const r=await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}`);const d=await r.json();if(!r.ok)throw new Error(d.message||'الطلب غير موجود');const hist=(d.statusHistory?.length?d.statusHistory:[{status:d.status,at:d.createdAt}]);out.innerHTML=`<div class="v8-track-card"><div class="v8-track-head"><strong>${esc(d.orderNumber)}</strong><b>${money(d.total)}</b></div>${(d.shippingCarrier||d.trackingNumber)?`<div class="v101-shipping-track"><div><small>شركة الشحن</small><strong>${esc(d.shippingCarrier||'—')}</strong></div><div><small>رقم التتبع</small><strong dir="ltr">${esc(d.trackingNumber||'—')}</strong></div>${d.estimatedDeliveryAt?`<div><small>التسليم المتوقع</small><strong>${new Date(d.estimatedDeliveryAt).toLocaleDateString('ar-EG')}</strong></div>`:''}${d.trackingUrl?`<a href="${esc(d.trackingUrl)}" target="_blank" rel="noopener">فتح رابط شركة الشحن</a>`:''}</div>`:''}<div class="v8-timeline">${hist.map((h,i)=>`<div class="${i===hist.length-1?'active':''}"><span></span><p><strong>${esc(statusLabels[h.status]||h.status)}</strong><small>${h.at?new Date(h.at).toLocaleString('ar-EG'):''}${h.note?` — ${esc(h.note)}`:''}</small></p></div>`).join('')}</div><div class="v9-order-care"><button id="v9PrintInvoice"><span class="material-symbols-outlined">print</span> فاتورة</button>${d.status!=='cancelled'?'<button id="v9StartReturn"><span class="material-symbols-outlined">assignment_return</span> استبدال / استرجاع</button>':''}</div></div>`;document.getElementById('v9PrintInvoice')?.addEventListener('click',()=>printInvoice(d));document.getElementById('v9StartReturn')?.addEventListener('click',()=>openReturnForm(d,p));}catch(err){out.innerHTML=`<p class="v8-error">${esc(err.message)}</p>`;}};
+      document.getElementById('v8TrackSubmit').onclick=async()=>{const n=document.getElementById('v8TrackNumber').value.trim(),p=document.getElementById('v8TrackPhone').value.trim(),out=document.getElementById('v8TrackResult');if(!n||!p){out.innerHTML='<p class="v8-error">أدخل رقم الطلب والهاتف.</p>';return;}out.innerHTML='<p class="v8-muted">جاري التحميل...</p>';try{const r=await fetch(`/api/orders/track?orderNumber=${encodeURIComponent(n)}&phone=${encodeURIComponent(p)}`);const d=await r.json();if(!r.ok)throw new Error(d.message||'الطلب غير موجود');const hist=(d.statusHistory?.length?d.statusHistory:[{status:d.status,at:d.createdAt}]);out.innerHTML=`<div class="v8-track-card"><div class="v8-track-head"><strong>${esc(d.orderNumber)}</strong><b>${money(d.total)}</b></div><div class="v101-shipping-track"><div><small>حالة البيع</small><strong>${d.posInvoiceId?'تم إنشاء الفاتورة':'في انتظار فاتورة Technology POS'}</strong></div><div><small>حالة الدفع</small><strong>${esc(paymentLabels[d.paymentStatus]||d.paymentStatus||'في انتظار التأكيد')}</strong></div>${d.posInvoiceId?`<div><small>رقم الفاتورة</small><strong dir="ltr">${esc(d.posInvoiceId)}</strong></div>`:''}</div>${(d.shippingCarrier||d.trackingNumber)?`<div class="v101-shipping-track"><div><small>شركة الشحن</small><strong>${esc(d.shippingCarrier||'—')}</strong></div><div><small>رقم التتبع</small><strong dir="ltr">${esc(d.trackingNumber||'—')}</strong></div>${d.estimatedDeliveryAt?`<div><small>التسليم المتوقع</small><strong>${new Date(d.estimatedDeliveryAt).toLocaleDateString('ar-EG')}</strong></div>`:''}${d.trackingUrl?`<a href="${esc(d.trackingUrl)}" target="_blank" rel="noopener">فتح رابط شركة الشحن</a>`:''}</div>`:''}<div class="v8-timeline">${hist.map((h,i)=>`<div class="${i===hist.length-1?'active':''}"><span></span><p><strong>${esc(statusLabels[h.status]||h.status)}</strong><small>${h.at?new Date(h.at).toLocaleString('ar-EG'):''}${h.note?` — ${esc(h.note)}`:''}</small></p></div>`).join('')}</div>${d.posInvoiceId?`<div class="v9-order-care"><button id="v9PrintInvoice"><span class="material-symbols-outlined">print</span> فاتورة البيع</button>${d.status!=='cancelled'?'<button id="v9StartReturn"><span class="material-symbols-outlined">assignment_return</span> استبدال / استرجاع</button>':''}</div>`:'<p class="v8-muted">سيظهر رقم الفاتورة وخيارات ما بعد البيع هنا بعد تنفيذ الفاتورة داخل Technology POS.</p>'}</div>`;document.getElementById('v9PrintInvoice')?.addEventListener('click',()=>printInvoice(d));document.getElementById('v9StartReturn')?.addEventListener('click',()=>openReturnForm(d,p));}catch(err){out.innerHTML=`<p class="v8-error">${esc(err.message)}</p>`;}};
       if(orderNumber&&phone)setTimeout(()=>document.getElementById('v8TrackSubmit')?.click(),50);
     };
   }
