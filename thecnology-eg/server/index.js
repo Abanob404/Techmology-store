@@ -1167,6 +1167,8 @@ app.get('/p/:slug/:ref?', async (req, res) => {
 
 async function requirePosApiKey(req, res, next) {
   try {
+    res.set('Cache-Control', 'no-store');
+    await ensureDBConnection();
     const settings = await Settings.findOne().maxTimeMS(5000).lean();
     const configured = (settings && settings.posApiKey) ? String(settings.posApiKey).trim() : String(process.env.POS_API_KEY || '').trim();
     const supplied = String(req.headers['x-pos-api-key'] || req.query['x-pos-api-key'] || "").trim();
@@ -1183,118 +1185,139 @@ async function requirePosApiKey(req, res, next) {
   }
 }
 
-// 1. اختبار الاتصال
+// POS sync protocol v2: authenticated creation + price/stock updates.
+const POS_SYNC_VERSION = 2;
+const posText = value => typeof value === 'string' || typeof value === 'number' ? String(value).trim() : '';
+const posId = value => { const n = typeof value === 'number' || typeof value === 'string' ? Number(value) : NaN; return Number.isSafeInteger(n) && n > 0 ? n : null; };
+const posSkuKey = value => posText(value).toLowerCase();
+const posNumber = value => value == null || value === '' ? null : (typeof value === 'number' || (typeof value === 'string' && value.trim()) ? Number(value) : NaN);
+const posBool = value => value === true || value === 1 || value === '1' || value === 'true';
+
 app.get('/api/pos/ping', requirePosApiKey, async (req, res) => {
   try {
-    const productsCount = await Product.countDocuments();
-    const pendingOrdersCount = await Order.countDocuments({ status: { $in: ['pending','received_by_pos'] }, $or: [{ posInvoiceId: '' }, { posInvoiceId: null }, { posInvoiceId: { $exists: false } }] });
-    
-    res.json({
-      ok: true,
-      service: "technology-store-pos-link",
-      products: productsCount,
-      pendingOrders: pendingOrdersCount,
-      serverTime: new Date().toISOString()
-    });
-  } catch (err) {
-    res.status(500).json({ ok: false, error: err.message });
-  }
+    const [products, pendingOrders] = await Promise.all([
+      Product.countDocuments(),
+      Order.countDocuments({ status: { $in: ['pending','received_by_pos'] }, $or: [{ posInvoiceId: '' }, { posInvoiceId: null }, { posInvoiceId: { $exists: false } }] })
+    ]);
+    res.set('Cache-Control', 'no-store').json({ ok: true, service: 'technology-store-pos-link', products, pendingOrders, syncVersion: POS_SYNC_VERSION, canCreateProducts: true, serverTime: new Date().toISOString() });
+  } catch (err) { res.status(500).json({ ok: false, error: err.message }); }
 });
 
-// جلب المنتجات للمقارنة (للـ POS) مع تحسين الذاكرة
+// Keep the legacy response shape for older POS builds.
 app.get('/api/pos/products', requirePosApiKey, async (req, res) => {
   try {
-    // جلب الحقول الضرورية فقط كما طلب الـ POS لتقليل استهلاك الذاكرة ومنع انهيار السيرفر 500
-    const products = await Product.find({})
-      .select('sku posItemId price stockQuantity oldPrice barcode quantity is_on_offer offer_price -_id')
-      .lean();
-    res.json(products);
-  } catch (err) {
-    res.status(503).json({ ok: false, error: err.message });
-  }
+    const products = await Product.find({}).select('sku posItemId price stockQuantity oldPrice barcode quantity is_on_offer offer_price -_id').lean();
+    res.set('Cache-Control', 'no-store').json(products);
+  } catch (err) { res.status(503).json({ ok: false, error: err.message }); }
 });
 
-// 2. مزامنة المنتجات (Update Only - تحديث السعر والكمية فقط للمنتجات الموجودة)
-const handlePosSync = async (req, res) => {
+// Authenticated complete state (including hidden/out-of-stock products).
+app.get('/api/pos/products/state', requirePosApiKey, async (req, res) => {
   try {
-    const { fullSync, warehouseId, syncedAt, products } = req.body;
-    
-    if (!Array.isArray(products)) {
-      return res.status(400).json({ ok: false, message: "Products must be an array" });
+    const rows = await Product.find({}).select('posItemId sku title category price oldPrice stockQuantity description warranty brand image isHidden visibilityManuallySet -_id').lean();
+    const products = rows.map(p => ({ ...p, oldPrice: p.oldPrice ?? null, isActive: p.isHidden !== true }));
+    res.set('Cache-Control', 'no-store').json({ ok: true, syncVersion: POS_SYNC_VERSION, canCreateProducts: true, products });
+  } catch (err) { res.status(503).json({ ok: false, message: 'تعذر قراءة حالة الأصناف' }); }
+});
+
+const handlePosSync = async (req, res) => {
+  const started = Date.now();
+  try {
+    const products = req.body?.products;
+    if (!Array.isArray(products) || products.length > 5000) return res.status(400).json({ ok: false, message: 'يجب إرسال مصفوفة أصناف (حتى 5000 صنف)' });
+    const existing = await Product.find({}).select('sku posItemId price oldPrice stockQuantity costPrice source').lean();
+    const byId = new Map(), bySku = new Map();
+    const add = (map, key, p) => { if (key) { if (!map.has(key)) map.set(key, []); map.get(key).push(p); } };
+    for (const p of existing) { add(byId, posId(p.posItemId), p); add(bySku, posSkuKey(p.sku), p); }
+    const inputIds = new Map(), inputSkus = new Map();
+    for (const raw of products) {
+      const id = posId(raw?.posItemId), sku = posSkuKey(posText(raw?.barcode) || posText(raw?.sku) || (id ? `POS-${id}` : ''));
+      if (id) inputIds.set(id, (inputIds.get(id) || 0) + 1);
+      if (sku) inputSkus.set(sku, (inputSkus.get(sku) || 0) + 1);
     }
-
-    let received = products.length;
-    let processed = 0;
-    let modified = 0;
-
+    let created = 0, updated = 0, unchanged = 0, failed = 0;
+    const details = [];
+    const categoryTasks = new Map();
+    async function ensureCategory(name) {
+      if (!categoryTasks.has(name)) categoryTasks.set(name, Category.updateOne({ name }, { $setOnInsert: { name } }, { upsert: true }).catch(err => { if (err.code !== 11000) throw err; }));
+      await categoryTasks.get(name);
+    }
+    const touched = new Set();
+    const plans = [];
     for (const item of products) {
-      processed++;
-      
-      // مطابقة الحقول مع أسماء الـ POS الفعلية
-      const skuVal = item.barcode || item.sku;
-      const posIdVal = item.posItemId;
-      const priceVal = item.sale_price_piece || item.salePrice || item.sale_price || item.price;
-      const stockVal = item.quantity !== undefined ? item.quantity : item.stockQuantity;
-      const costVal = item.cost_price_piece ?? item.costPrice ?? item.cost_price ?? item.purchasePrice ?? item.purchase_price;
-      const isOnOffer = item.is_on_offer == 1 || item.is_on_offer === '1' || item.is_on_offer === true || item.isOnOffer;
-      const offerPriceVal = item.offer_price || item.offerPrice;
-
-      const searchCriteria = {};
-      if (skuVal && String(skuVal).trim() !== '') {
-        searchCriteria.sku = String(skuVal).trim();
-      } else if (posIdVal !== undefined && posIdVal !== null) {
-        searchCriteria.posItemId = posIdVal;
-      } else {
-        continue;
-      }
-
-      let product = await Product.findOne(searchCriteria);
-
-      if (product) {
-        // تحديث السعر والكمية فقط للمنتجات التي سبق إنشاؤها في المتجر
-        if (priceVal !== undefined && priceVal !== null && !isNaN(Number(priceVal))) {
-          if (isOnOffer && offerPriceVal !== undefined && !isNaN(Number(offerPriceVal))) {
-            product.price = Number(offerPriceVal);
-            product.oldPrice = Number(priceVal);
-          } else {
-            product.price = Number(priceVal);
-            product.oldPrice = undefined; // مسح السعر القديم إذا لم يكن هناك عرض
-          }
-        }
-        
-        if (stockVal !== undefined && stockVal !== null && !isNaN(Number(stockVal))) { product.stockQuantity = Number(stockVal); }
-        if (costVal !== undefined && costVal !== null && !isNaN(Number(costVal))) { product.costPrice = Math.max(0, Number(costVal)); }
-        
-        if (posIdVal !== undefined) product.posItemId = posIdVal;
-        product.source = 'pos';
-        product.lastSyncedAt = new Date();
-        
-        await product.save();
-        modified++;
-      } else {
-        // التجاهل التام وعدم إنشاء أي منتج جديد في المتجر
-        continue;
-      }
+      const id = posId(item?.posItemId);
+      const sku = posText(item?.barcode) || posText(item?.sku) || (id ? `POS-${id}` : '');
+      const key = id ? `id:${id}` : `sku:${posSkuKey(sku)}`;
+      const title = posText(item?.title ?? item?.name);
+      const detail = { key, sku, title };
+      try {
+        if (!item || typeof item !== 'object' || !sku || sku.length > 200 || (item.posItemId != null && !id)) throw new Error('كود الصنف أو معرف POS غير صالح');
+        if ((id && inputIds.get(id) > 1) || inputSkus.get(posSkuKey(sku)) > 1) throw new Error('كود أو معرف مكرر في بيانات POS');
+        const ids = id ? (byId.get(id) || []) : [];
+        const skus = bySku.get(posSkuKey(sku)) || [];
+        if (ids.length > 1 || skus.length > 1 || (ids.length && skus.length && String(ids[0]._id) !== String(skus[0]._id))) throw new Error('تعارض المعرف والباركود أو تكرار الصنف في الموقع');
+        const current = ids[0] || skus[0];
+        if (current && id && posId(current.posItemId) && posId(current.posItemId) !== id) throw new Error('الباركود مرتبط بمعرف POS مختلف');
+        if (current && touched.has(String(current._id))) throw new Error('أكثر من صنف POS يطابق نفس المنتج');
+        if (current) touched.add(String(current._id));
+        const modernPrice = Object.prototype.hasOwnProperty.call(item, 'oldPrice');
+        const regular = posNumber(item.sale_price_piece ?? item.salePrice ?? item.sale_price ?? item.price);
+        let price = regular, oldPrice = null;
+        if (modernPrice) { price = posNumber(item.price ?? regular); oldPrice = posNumber(item.oldPrice); }
+        else if (posBool(item.is_on_offer ?? item.isOnOffer)) { const offer = posNumber(item.offer_price ?? item.offerPrice); if (offer !== null && offer < regular) { price = offer; oldPrice = regular; } }
+        const stock = posNumber(item.quantity ?? item.stockQuantity);
+        const cost = posNumber(item.cost_price_piece ?? item.costPrice ?? item.cost_price ?? item.purchasePrice ?? item.purchase_price);
+        if ([price, oldPrice, stock, cost].some(v => v !== null && !Number.isFinite(v)) || price < 0 || oldPrice < 0 || cost < 0) throw new Error('سعر أو كمية غير صالحة');
+        if (stock === null || price === null) throw new Error('السعر والكمية مطلوبان');
+        if (!current && !title) throw new Error('اسم الصنف مطلوب لإنشاء منتج جديد');
+        if (oldPrice !== null && oldPrice <= price) oldPrice = null;
+        const generated = item.skuGenerated === true || (id && sku.toUpperCase() === `POS-${id}`);
+        const finalSku = generated && current && posText(current.sku) ? posText(current.sku) : sku;
+        const set = { sku: finalSku, price, stockQuantity: Math.max(0, stock), source: 'pos' };
+        if (id) set.posItemId = id;
+        if (cost !== null) set.costPrice = cost;
+        if (oldPrice !== null) set.oldPrice = oldPrice;
+        const changed = current ? Object.keys(set).filter(k => current[k] !== set[k]) : [];
+        if (current && oldPrice === null && current.oldPrice != null) changed.push('oldPrice');
+        const category = sanitizePlainText(item.category, 200) || 'غير مصنف';
+        const insert = { title: sanitizePlainText(title, 500), category,
+          description: (Array.isArray(item.description) ? item.description : posText(item.description).split(/\r?\n/)).map(v => sanitizePlainText(v, 2000)).filter(Boolean).slice(0, 100),
+          image: /^https?:\/\//i.test(posText(item.image)) ? posText(item.image).slice(0, 2000) : '/assets/no-image.svg',
+          warranty: sanitizePlainText(item.warranty, 100), isHidden: item.isActive === false };
+        // POS brand currently contains supplier data: never expose it as publicBrand.
+        if (!current && !insert.title) throw new Error('اسم الصنف غير صالح');
+        plans.push({ current, set, oldPrice, changed, insert, detail, category });
+      } catch (err) { failed++; details.push({ ...detail, action: 'failed', reason: err.message }); }
     }
-
-    res.json({
-      ok: true,
-      message: "تم تحديث كميات وأسعار المنتجات الموجودة فقط (Update Only)",
-      received,
-      processed,
-      modified,
-      upserted: 0,
-      syncedAt: new Date().toISOString()
-    });
-
+    async function apply(plan) {
+      const { current, set, oldPrice, changed, insert, detail, category } = plan;
+      try {
+        if (current && !changed.length) { unchanged++; return; }
+        const update = { $set: { ...set, lastSyncedAt: new Date() } };
+        if (oldPrice === null) update.$unset = { oldPrice: 1 };
+        if (!current) {
+          await ensureCategory(category);
+          update.$setOnInsert = insert;
+        }
+        const filter = current ? { _id: current._id } : (set.posItemId ? { posItemId: set.posItemId } : { sku: set.sku });
+        const result = await Product.updateOne(filter, update, { upsert: !current, runValidators: true, setDefaultsOnInsert: true });
+        if (result.upsertedCount) { created++; details.push({ ...detail, action: 'created' }); }
+        else if (result.matchedCount) { updated++; details.push({ ...detail, action: 'updated', fields: changed.length ? changed : ['price', 'stockQuantity'] }); }
+        else throw new Error('المنتج لم يعد موجودًا أثناء المزامنة');
+      } catch (err) { failed++; details.push({ ...detail, action: 'failed', reason: err.code === 11000 ? 'تعارض كود أثناء الحفظ' : posText(err.message).slice(0, 300) }); }
+    }
+    // Bounded parallel writes to avoid hundreds of sequential round trips.
+    for (let i = 0; i < plans.length; i += 5) await Promise.all(plans.slice(i, i + 5).map(apply));
+    details.sort((a,b) => (a.action === 'failed' ? 0 : 1) - (b.action === 'failed' ? 0 : 1));
+    res.json({ ok: failed === 0, syncVersion: POS_SYNC_VERSION, canCreateProducts: true, received: products.length, processed: products.length, created, updated, unchanged, skipped: 0, failed, upserted: created, modified: updated, details, durationMs: Date.now() - started, syncedAt: new Date().toISOString() });
   } catch (err) {
     console.error('POS Sync Error:', err);
-    res.status(500).json({ ok: false, error: err.message });
+    res.status(500).json({ ok: false, message: 'تعذر تنفيذ مزامنة الأصناف' });
   }
 };
-
 app.post('/api/pos/products/sync', requirePosApiKey, handlePosSync);
 app.post('/api/pos-sync', requirePosApiKey, handlePosSync);
+
 
 // 3. جلب طلبات الموقع داخل البرنامج
 app.get('/api/pos/orders', requirePosApiKey, async (req, res) => {
