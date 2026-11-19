@@ -1,4 +1,4 @@
-const CACHE_NAME = 'technology-store-v10-4-5-analytics-archive-1';
+const CACHE_NAME = 'technology-store-v10-4-5-catalog-links-1';
 const APP_SHELL = [
   '/',
   '/products',

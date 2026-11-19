@@ -1497,3 +1497,8 @@ body.direct-product-route #productModal{background:rgb(var(--color-background));
   .site-footer p,.site-footer a,.site-footer span{line-height:1.6}
   .site-footer .v101-policy-links{gap:8px!important;margin-top:8px!important}
 }
+
+/* Short catalog links and editable offers label */
+.v8-campaign-form.v8-offers-label-form { grid-template-columns: minmax(180px,1fr) auto auto; margin-top:10px; }
+.v8-offers-label-form button:disabled { opacity:.5; cursor:not-allowed; }
+@media(max-width:767px) { .v8-campaign-form.v8-offers-label-form { grid-template-columns:1fr; } }

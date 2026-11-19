@@ -36,7 +36,38 @@ window.trackMetaEvent = trackMetaEvent;
 let globalProducts = [];
 let currentPage = 1;
 const ITEMS_PER_PAGE = 16;
-let activeCategory = sessionStorage.getItem('tech_activeCategory') || "all";
+const OFFERS_CATEGORY_KEY = '__store_offers__';
+const DEFAULT_OFFERS_LABEL = '🔥 عروض وخصومات';
+let catalogCategoryRecords = [];
+function offersCategoryLabel() {
+    return String(window.storeSettings?.offersCategoryLabel || DEFAULT_OFFERS_LABEL);
+}
+function normalizeCatalogCategory(value) {
+    return value === DEFAULT_OFFERS_LABEL ? OFFERS_CATEGORY_KEY : value;
+}
+function readCatalogLink(pathname = window.location.pathname) {
+    const path = String(pathname || '').replace(/\/+$/, '');
+    if (/^\/offers$/i.test(path)) return { type: 'offers' };
+    const match = path.match(/^\/c\/([^/]+)$/i);
+    if (!match) return null;
+    try {
+        const token = decodeURIComponent(match[1]);
+        if (/^[a-f0-9]{24}$/i.test(token)) return { type: 'id', value: token.toLowerCase() };
+        if (token.startsWith('n-') && token.length > 2) return { type: 'name', value: token.slice(2) };
+    } catch (_) {}
+    return { type: 'invalid' };
+}
+function resolveCatalogLink(link, records) {
+    if (link?.type === 'offers') return OFFERS_CATEGORY_KEY;
+    if (link?.type === 'name') return link.value;
+    if (link?.type === 'id') return records.find(c => String(c._id).toLowerCase() === link.value)?.name || '__store_missing_category__';
+    return '__store_missing_category__';
+}
+function isActiveCatalogOffer(product, now = Date.now()) {
+    if (!(Number(product.oldPrice) > Number(product.price))) return false;
+    return !product.discountExpiresAt || new Date(product.discountExpiresAt).getTime() > now;
+}
+let activeCategory = normalizeCatalogCategory(sessionStorage.getItem('tech_activeCategory') || 'all');
 let activeSearchTerm = sessionStorage.getItem('tech_activeSearch') || "";
 let currentSort = sessionStorage.getItem('tech_currentSort') || "featured";
 let activeBrand = sessionStorage.getItem('tech_activeBrand') || '';
@@ -409,6 +440,14 @@ async function fetchProducts() {
         renderRecentlyViewed();
         renderHomeGrowthSections();
 
+        const incomingCatalogLink = readCatalogLink();
+        const explicitCategory = new URLSearchParams(window.location.search).get('category');
+        if (incomingCatalogLink || explicitCategory) {
+            // Shared links must not inherit another category's saved search/price/brand filters.
+            activeSearchTerm = ''; activeBrand = ''; minPriceFilter = ''; maxPriceFilter = '';
+            wishlistOnly = false; offersOnly = false; currentPage = 1;
+            document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."], #mobileCatalogSearch').forEach(el => el.value = '');
+        }
         populateCatalogBrandFilter();
         const minPriceInput = document.getElementById('minPriceFilter');
         const maxPriceInput = document.getElementById('maxPriceFilter');
@@ -440,8 +479,10 @@ async function fetchProducts() {
 
         analyticsPromise = fetch(`${BASE_URL}/api/analytics/popular`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
         analyticsPromise.then(data => { window.globalAnalytics = data || {}; renderHomeGrowthSections(); });
-        // تحديث الأقسام في الخلفية ولا نمنع ظهور الكتالوج أثناء انتظارها.
-        renderDynamicCategoryFilters().catch(() => {});
+        // Normal browsing keeps its quick first paint; direct links wait for the correct category.
+        if (!incomingCatalogLink && !explicitCategory) renderProducts(activeCategory, activeSearchTerm);
+        await settingsPromise;
+        await renderDynamicCategoryFilters();
 
         // تفعيل فلتر الترتيب وإخفاء المنتجات النافدة
         const sortSelect = document.getElementById('sortSelect');
@@ -460,7 +501,7 @@ async function fetchProducts() {
         const sharePathParts = sharePathMatch ? sharePathMatch[1].split('/').filter(Boolean) : [];
         const legacyShortCode = sharePathParts.length === 1 ? decodeProductShareCode(sharePathParts[0]) : '';
         const initialId = urlParams.get('id') || String(window.__SHARED_PRODUCT_ID__ || '') || legacyShortCode;
-        const initialCategory = urlParams.get('category');
+        const initialCategory = incomingCatalogLink ? resolveCatalogLink(incomingCatalogLink, catalogCategoryRecords) : normalizeCatalogCategory(urlParams.get('category'));
 
         if (initialId) {
             // روابط /p/... تعمل كتجربة صفحة منتج مستقلة بصرياً، مع بقاء نفس منطق المنتج الآمن.
@@ -472,18 +513,10 @@ async function fetchProducts() {
                 }
             }, 300);
         } else if (initialCategory) {
-            // تفعيل الفلترة للفئة المحددة في الرابط
-            const filterButtons = document.querySelectorAll('.filter-btn');
-            let found = false;
-            filterButtons.forEach(btn => {
-                if (btn.dataset.category === initialCategory) {
-                    btn.click();
-                    found = true;
-                }
-            });
-            if (!found) {
-                renderProducts(initialCategory, initialSearch || "");
-            }
+            activeSearchTerm = initialSearch || '';
+            document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."], #mobileCatalogSearch').forEach(el => el.value = activeSearchTerm);
+            renderProducts(initialCategory, activeSearchTerm);
+            syncCatalogCategoryButtons(initialCategory);
         } else if (initialSearch) {
             document.querySelectorAll('input[placeholder="ابحث في الكتالوج..."]').forEach(input => input.value = initialSearch);
             renderProducts("all", initialSearch);
@@ -497,19 +530,7 @@ async function fetchProducts() {
                 if (sortSelect) sortSelect.value = currentSort;
             }
             
-            // تفعيل زر القسم المحفوظ
-            if (activeCategory !== 'all') {
-                const filterButtons = document.querySelectorAll('.filter-btn');
-                filterButtons.forEach(btn => {
-                    if (btn.dataset.category === activeCategory) {
-                        btn.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
-                        btn.classList.add('bg-primary', 'text-on-primary', 'border-primary', 'active');
-                    } else {
-                        btn.classList.remove('bg-primary', 'text-on-primary', 'border-primary', 'active');
-                        btn.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
-                    }
-                });
-            }
+            syncCatalogCategoryButtons(activeCategory);
             
             // تحميل كل الصفحات حتى الصفحة المحفوظة
             renderProducts(activeCategory, activeSearchTerm);
@@ -544,19 +565,22 @@ async function renderDynamicCategoryFilters() {
     // جلب الأقسام من السيرفر ودمجها مع الأقسام الموجودة في المنتجات
     let uniqueCategories = [];
     const productCategories = [...new Set(globalProducts.map(p => p.category).filter(Boolean))];
+    catalogCategoryRecords = [];
     try {
         const res = await fetch(`${BASE_URL}/api/categories`);
         const data = await res.json();
-        const apiCategories = Array.isArray(data) ? data.map(c => c.name) : [];
+        catalogCategoryRecords = Array.isArray(data) ? data.filter(c => c && typeof c.name === 'string' && c.name) : [];
+        const apiCategories = catalogCategoryRecords.map(c => c.name);
         uniqueCategories = [...new Set([...apiCategories, ...productCategories])];
     } catch(err) {
         uniqueCategories = productCategories;
     }
 
     // أضف قسم العروض إذا كان هناك خصومات فعالة
-    const hasActiveDiscounts = globalProducts.some(p => p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date());
-    if (hasActiveDiscounts) {
-        uniqueCategories.unshift('🔥 عروض وخصومات');
+    const requestedOffers = readCatalogLink()?.type === 'offers' || normalizeCatalogCategory(new URLSearchParams(window.location.search).get('category')) === OFFERS_CATEGORY_KEY;
+    const hasActiveDiscounts = globalProducts.some(p => isActiveCatalogOffer(p));
+    if (hasActiveDiscounts || requestedOffers || activeCategory === OFFERS_CATEGORY_KEY) {
+        uniqueCategories.unshift(OFFERS_CATEGORY_KEY);
     }
 
     // أيقونات الأقسام الافتراضية (SVG)
@@ -569,11 +593,12 @@ async function renderDynamicCategoryFilters() {
         'إكسسوارات': '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>',
         'اكسسوارات': '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path></svg>',
         'صيانة واصلاح': '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>',
-        '🔥 عروض وخصومات': '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"></path></svg>',
+        [OFFERS_CATEGORY_KEY]: '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z"></path></svg>',
         'أخرى': '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>'
     };
     const defaultCatSvg = '<svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>';
-    const getIconSvg = (cat) => iconSvgMap[cat] || defaultCatSvg;
+    const getIconSvg = (cat) => Object.prototype.hasOwnProperty.call(iconSvgMap, cat) ? iconSvgMap[cat] : defaultCatSvg;
+    const categoryLabel = cat => cat === OFFERS_CATEGORY_KEY ? offersCategoryLabel() : cat;
 
     // 1. رندرة القائمة الجانبية (شاشات الكمبيوتر)
     if (sidebar) {
@@ -584,8 +609,8 @@ async function renderDynamicCategoryFilters() {
         `;
         uniqueCategories.forEach(cat => {
             html += `
-                <button class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg" data-category="${cat}">
-                    ${getIconSvg(cat)} ${cat}
+                <button class="filter-btn flex w-full items-center gap-3 p-3 rounded-lg text-on-surface-variant hover:bg-surface-variant/50 hover:border-primary/40 transition-all duration-200 text-lg" data-category="${escapeStoreHtml(cat)}">
+                    ${getIconSvg(cat)} ${escapeStoreHtml(categoryLabel(cat))}
                 </button>
             `;
         });
@@ -599,7 +624,7 @@ async function renderDynamicCategoryFilters() {
         `;
         uniqueCategories.forEach(cat => {
             html += `
-                <button class="filter-btn shrink-0 px-4 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant text-sm whitespace-nowrap" data-category="${cat}">${cat}</button>
+                <button class="filter-btn shrink-0 px-4 py-2 rounded-full bg-surface-container text-on-surface-variant border border-outline-variant text-sm whitespace-nowrap" data-category="${escapeStoreHtml(cat)}">${escapeStoreHtml(categoryLabel(cat))}</button>
             `;
         });
         mobileBar.innerHTML = html;
@@ -611,31 +636,23 @@ async function renderDynamicCategoryFilters() {
         btn.addEventListener('click', (e) => {
             const selectedCat = e.currentTarget.dataset.category;
 
-            // مزامنة حالة النشاط في القائمتين
-            allFilters.forEach(f => {
-                if (f.dataset.category === selectedCat) {
-                    f.classList.add('active');
-                    if (f.classList.contains('flex')) {
-                        f.classList.add('bg-primary/10', 'text-primary', 'border-r-4', 'border-primary');
-                        f.classList.remove('text-on-surface-variant');
-                    } else {
-                        f.classList.add('bg-primary/20', 'text-primary', 'border-primary/30');
-                        f.classList.remove('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
-                    }
-                } else {
-                    f.classList.remove('active');
-                    if (f.classList.contains('flex')) {
-                        f.classList.remove('bg-primary/10', 'text-primary', 'border-r-4', 'border-primary');
-                        f.classList.add('text-on-surface-variant');
-                    } else {
-                        f.classList.remove('bg-primary/20', 'text-primary', 'border-primary/30');
-                        f.classList.add('bg-surface-container', 'text-on-surface-variant', 'border-outline-variant');
-                    }
-                }
-            });
+            syncCatalogCategoryButtons(selectedCat);
 
             renderProducts(selectedCat, activeSearchTerm || '');
         });
+    });
+}
+
+function syncCatalogCategoryButtons(selectedCat) {
+    document.querySelectorAll('.filter-btn').forEach(f => {
+        const active = f.dataset.category === selectedCat;
+        const desktop = f.classList.contains('flex');
+        f.classList.toggle('active', active);
+        f.setAttribute('aria-pressed', String(active));
+        const activeClasses = desktop ? ['bg-primary/10','text-primary','border-r-4','border-primary'] : ['bg-primary/20','text-primary','border-primary/30'];
+        const inactiveClasses = desktop ? ['text-on-surface-variant'] : ['bg-surface-container','text-on-surface-variant','border-outline-variant'];
+        f.classList.remove(...activeClasses, ...inactiveClasses, 'bg-primary','text-on-primary');
+        f.classList.add(...(active ? activeClasses : inactiveClasses));
     });
 }
 
@@ -730,13 +747,16 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     };
 
     let filtered = [...globalProducts];
-    if (categoryFilter === '🔥 عروض وخصومات') {
-        filtered = globalProducts.filter(p => p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date());
+    if (categoryFilter === '__store_missing_category__') {
+        filtered = [];
+    } else if (categoryFilter === OFFERS_CATEGORY_KEY || categoryFilter === DEFAULT_OFFERS_LABEL) {
+        filtered = globalProducts.filter(p => isActiveCatalogOffer(p));
     } else if (categoryFilter !== "all") {
+        const exactCategoryExists = catalogCategoryRecords.some(c => c.name === categoryFilter) || globalProducts.some(item => item.category === categoryFilter);
+        const mappedValues = !exactCategoryExists && Object.prototype.hasOwnProperty.call(categoryMap, categoryFilter) ? categoryMap[categoryFilter] : null;
         filtered = globalProducts.filter(p => {
             if (p.category === categoryFilter) return true;
-            const mappedValues = categoryMap[categoryFilter];
-            if (mappedValues) {
+            if (mappedValues && p.category) {
                 return mappedValues.some(val => p.category.toLowerCase().includes(val.toLowerCase()) || val.toLowerCase().includes(p.category.toLowerCase()));
             }
             return false;
@@ -771,7 +791,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     if (minPriceFilter !== '' && Number.isFinite(minPrice)) filtered = filtered.filter(p => Number(p.price) >= minPrice);
     if (maxPriceFilter !== '' && Number.isFinite(maxPrice)) filtered = filtered.filter(p => Number(p.price) <= maxPrice);
     if (wishlistOnly && featureEnabled('enableWishlist')) { const wishes=new Set(getWishlistIds()); filtered=filtered.filter(p=>wishes.has(String(p._id))); }
-    if (offersOnly) filtered = filtered.filter(p => Number(p.oldPrice) > Number(p.price));
+    if (offersOnly) filtered = filtered.filter(p => isActiveCatalogOffer(p));
 
     // إخفاء المنتجات الصفرية من الكتالوج العام
     filtered = filtered.filter(p => Number(p.price) > 0 && Number(p.stockQuantity) > 0);
@@ -2150,7 +2170,8 @@ async function trackVisitor() {
         }
         const params = new URLSearchParams(location.search);
         const parsePrettyCampaignPath = () => {
-            const raw = decodeURIComponent((location.pathname || '/').replace(/^\/+|\/+$/g, '')).toLowerCase();
+            let raw = '';
+            try { raw = decodeURIComponent((location.pathname || '/').replace(/^\/+|\/+$/g, '')).toLowerCase(); } catch (_) { return { source:'', medium:'', campaign:'' }; }
             if (!raw) return { source:'', medium:'', campaign:'' };
             const known = ['facebook','instagram','whatsapp','tiktok','telegram','youtube','qr'];
             let source='', medium='', campaign='', rest=[];

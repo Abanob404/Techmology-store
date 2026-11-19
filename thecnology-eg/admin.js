@@ -3382,36 +3382,87 @@ document.addEventListener('keydown', (event) => {
   function injectGrowthTab(){if(document.getElementById('tab-growth'))return;const anchor=document.getElementById('tab-analytics');if(!anchor)return;const b=document.createElement('button');b.id='tab-growth';b.className='admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50';b.innerHTML='<span class="material-symbols-outlined">rocket_launch</span><span>التسويق والعروض</span>';b.onclick=()=>window.switchTab('growth');anchor.before(b);const parent=document.getElementById('panel-settings')?.parentElement;if(!parent)return;const panel=document.createElement('div');panel.id='panel-growth';panel.className='tab-panel hidden';panel.innerHTML=`
     <div class="v8-growth-head"><div><h2>المبيعات والعملاء</h2><p>الكوبونات، تقييمات العملاء، طلبات التنبيه عند عودة المخزون.</p></div><button class="admin-action-btn" onclick="window.v8LoadGrowth()"><span class="material-symbols-outlined">refresh</span> تحديث</button></div>
     <div class="v8-growth-grid">
-      <section class="glass-panel v8-growth-card v8-campaign-card"><h3><span class="material-symbols-outlined">link</span> منشئ الروابط المختصرة للحملات</h3><p class="v8-admin-help">أنشئ رابطًا نظيفًا مثل <b dir="ltr">/facebook</b> أو <b dir="ltr">/instagram-products-launch</b>. الموقع يتعرّف تلقائيًا على المصدر والحملة بدون إظهار UTM طويل.</p><div class="v8-campaign-form"><select id="v8CampaignSource"><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="whatsapp">WhatsApp</option><option value="tiktok">TikTok</option><option value="telegram">Telegram</option><option value="youtube">YouTube</option><option value="qr">QR / مطبوعات</option><option value="custom">مصدر مخصص</option></select><select id="v8CampaignDestination"><option value="home">الرئيسية</option><option value="products">المنتجات</option><option value="services">الخدمات</option></select><input id="v8CampaignCustom" class="hidden" placeholder="اسم المصدر بالإنجليزية مثل partner"><input id="v8CampaignName" placeholder="اسم الحملة اختياري - مثال: launch"><button id="v8MakeCampaign" class="admin-action-btn admin-action-btn--primary">إنشاء الرابط</button></div><div id="v8CampaignResult" class="v8-campaign-result hidden"><div class="v8-campaign-preview-wrap"><div id="v8CampaignCompact" class="v8-campaign-compact" dir="ltr"></div><small>هذا هو نفس الرابط الذي سيتم نسخه ونشره.</small><input id="v8CampaignUrl" readonly dir="ltr" class="hidden"></div><button id="v8CopyCampaign" class="admin-action-btn">نسخ الرابط</button></div></section>
+      <section class="glass-panel v8-growth-card v8-campaign-card"><h3><span class="material-symbols-outlined">link</span> منشئ الروابط المختصرة للحملات</h3><p class="v8-admin-help">اختر صفحة أو قسمًا من الكتالوج، وأنشئ رابطًا مباشرًا أو رابط حملة يتتبع مصدر الزائر. رابط العروض ثابت حتى عند تغيير اسمه.</p><div class="v8-campaign-form"><select id="v8CampaignSource"><option value="direct">رابط مباشر (بدون مصدر)</option><option value="facebook">Facebook</option><option value="instagram">Instagram</option><option value="whatsapp">WhatsApp</option><option value="tiktok">TikTok</option><option value="telegram">Telegram</option><option value="youtube">YouTube</option><option value="qr">QR / مطبوعات</option><option value="custom">مصدر مخصص</option></select><select id="v8CampaignDestination"><option value="home">الرئيسية</option><option value="products">المنتجات</option><option value="services">الخدمات</option><option value="offers">🔥 عروض وخصومات</option></select><input id="v8CampaignCustom" class="hidden" placeholder="اسم المصدر بالإنجليزية مثل partner"><input id="v8CampaignName" placeholder="اسم الحملة اختياري - مثال: launch"><button id="v8MakeCampaign" class="admin-action-btn admin-action-btn--primary">إنشاء الرابط</button></div><div id="v8CampaignResult" class="v8-campaign-result hidden"><div class="v8-campaign-preview-wrap"><div id="v8CampaignCompact" class="v8-campaign-compact" dir="ltr"></div><small>هذا هو نفس الرابط الذي سيتم نسخه ونشره.</small><input id="v8CampaignUrl" readonly dir="ltr" class="hidden"></div><button id="v8CopyCampaign" class="admin-action-btn">نسخ الرابط</button></div></section>
+      <section class="glass-panel v8-growth-card v8-campaign-card"><h3><span class="material-symbols-outlined">edit</span> اسم قسم العروض والخصومات</h3><p class="v8-admin-help">الاسم يظهر للعملاء على الموبايل والكمبيوتر. تغيير الاسم لا يغيّر رابط القسم /offers ولا الأسعار أو الخصومات.</p><div class="v8-offers-label-form v8-campaign-form"><input id="v8OffersLabel" maxlength="80" aria-label="اسم قسم العروض" placeholder="مثال: 🔥 عروض الجمعة" disabled><button id="v8SaveOffersLabel" type="button" class="admin-action-btn admin-action-btn--primary" disabled>حفظ الاسم</button><button id="v8ResetOffersLabel" type="button" class="admin-action-btn" disabled>استعادة الاسم الافتراضي</button></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">sell</span> كوبونات الخصم</h3><div class="v8-coupon-form"><input id="v8CouponCode" placeholder="CODE"><select id="v8CouponType"><option value="percent">نسبة %</option><option value="fixed">مبلغ ثابت</option></select><input id="v8CouponValue" type="number" min="0" placeholder="القيمة"><input id="v8CouponMin" type="number" min="0" placeholder="حد أدنى"><input id="v8CouponMax" type="number" min="0" placeholder="حد أقصى للخصم"><input id="v8CouponLimit" type="number" min="0" placeholder="مرات الاستخدام (0=∞)"><input id="v8CouponStart" type="datetime-local"><input id="v8CouponEnd" type="datetime-local"><button id="v8AddCoupon" class="admin-action-btn admin-action-btn--primary">إضافة كوبون</button></div><div id="v8CouponsList"></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">star</span> التقييمات المنتظرة</h3><div id="v8ReviewsAdmin"></div></section>
       <section class="glass-panel v8-growth-card"><h3><span class="material-symbols-outlined">notifications_active</span> تنبيهات توفر المخزون</h3><div id="v8StockAlerts"></div></section>
     </div>`;parent.appendChild(panel);document.getElementById('v8AddCoupon').onclick=addCoupon;
     const source=document.getElementById('v8CampaignSource');if(source)source.onchange=()=>document.getElementById('v8CampaignCustom')?.classList.toggle('hidden',source.value!=='custom');
-    document.getElementById('v8MakeCampaign').onclick=makeCampaignLink;document.getElementById('v8CopyCampaign').onclick=copyCampaignLink;wrapSwitchTab();}
+    document.getElementById('v8MakeCampaign').onclick=makeCampaignLink;document.getElementById('v8CopyCampaign').onclick=copyCampaignLink;
+    document.getElementById('v8SaveOffersLabel').onclick=()=>saveOffersLabel(false);
+    document.getElementById('v8ResetOffersLabel').onclick=()=>saveOffersLabel(true);
+    wrapSwitchTab();}
+  const DEFAULT_OFFERS_LABEL = '🔥 عروض وخصومات';
+  function categoryDestinationOptions(categories, products) {
+    const byName = new Map();
+    for (const c of (Array.isArray(categories)?categories:[])) {
+      if (typeof c?.name !== 'string' || !c.name) continue;
+      byName.set(c.name, /^[a-f0-9]{24}$/i.test(String(c._id||'')) ? String(c._id) : 'n-'+c.name);
+    }
+    for (const p of (Array.isArray(products)?products:[])) {
+      if (typeof p?.category === 'string' && p.category && !byName.has(p.category)) byName.set(p.category,'n-'+p.category);
+    }
+    return [...byName].map(([name,token])=>({name,value:'category:'+token}));
+  }
+  function updateOffersLabelUI(label) {
+    const input=document.getElementById('v8OffersLabel');
+    if(input){input.value=label;input.disabled=false;}
+    const opt=document.querySelector('#v8CampaignDestination option[value="offers"]');if(opt)opt.textContent=label;
+    for(const id of ['v8SaveOffersLabel','v8ResetOffersLabel']){const el=document.getElementById(id);if(el)el.disabled=false;}
+  }
+  async function loadCampaignDestinations(){
+    const select=document.getElementById('v8CampaignDestination');if(!select)return;
+    const prev=select.value;
+    const [settings, cats, prods]=await Promise.allSettled([api('/api/settings'),api('/api/categories'),api('/api/products')]);
+    if(settings.status==='fulfilled')updateOffersLabelUI(settings.value.offersCategoryLabel||DEFAULT_OFFERS_LABEL);
+    if(cats.status==='rejected'&&prods.status==='rejected'){toast('تعذر تحميل أقسام المنتجات - اضغط تحديث');return;}
+    const categories=categoryDestinationOptions(cats.status==='fulfilled'?cats.value:[],prods.status==='fulfilled'?prods.value:(window.adminProducts||[]));
+    select.querySelector('optgroup[data-store-categories]')?.remove();
+    const group=document.createElement('optgroup');group.label='أقسام المنتجات';group.dataset.storeCategories='1';
+    categories.forEach(c=>{const option=document.createElement('option');option.value=c.value;option.textContent=c.name;group.appendChild(option);});
+    if(categories.length)select.appendChild(group);
+    if([...select.options].some(o=>o.value===prev))select.value=prev;
+  }
+  async function saveOffersLabel(reset){
+    const input=document.getElementById('v8OffersLabel');if(!input||input.disabled)return;
+    const label=reset?DEFAULT_OFFERS_LABEL:input.value.trim();if(!label){toast('اكتب اسم قسم العروض أولاً');return;}
+    const buttons=['v8SaveOffersLabel','v8ResetOffersLabel'].map(id=>document.getElementById(id));buttons.forEach(b=>b.disabled=true);input.disabled=true;
+    try{const saved=await api('/api/admin/offers-label',{method:'PUT',body:{label}});updateOffersLabelUI(saved.offersCategoryLabel||DEFAULT_OFFERS_LABEL);toast('✅ تم حفظ اسم قسم العروض');}
+    catch(e){toast('❌ '+e.message);}
+    finally{input.disabled=false;buttons.forEach(b=>b.disabled=false);}
+  }
+  function campaignUrl(origin, source, destination, campaign, customSource=false){
+    let path;
+    if(destination==='offers')path='/offers';
+    else if(destination.startsWith('category:'))path='/c/'+encodeURIComponent(destination.slice(9));
+    else if(source==='direct')path=destination==='home'?'/':'/'+destination;
+    else {path='/'+(customSource?'campaign-':'')+source;if(destination==='products'||destination==='services')path+='-'+destination;}
+    const url=new URL(path,origin);
+    if((destination==='offers'||destination.startsWith('category:'))&&source!=='direct'){
+      url.searchParams.set('src',source);if(source==='qr')url.searchParams.set('med','offline');
+    }
+    if(campaign)url.searchParams.set('c',campaign);
+    return url.toString();
+  }
   function makeCampaignLink(){
-    const sel=document.getElementById('v8CampaignSource')?.value||'facebook';
+    const sel=document.getElementById('v8CampaignSource')?.value||'direct';
     const custom=document.getElementById('v8CampaignCustom')?.value.trim()||'';
     const destination=document.getElementById('v8CampaignDestination')?.value||'home';
     const rawCampaign=document.getElementById('v8CampaignName')?.value.trim()||'';
     const slugify=(value,fallback='')=>String(value||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')||fallback;
     const source=sel==='custom'?slugify(custom,'custom'):sel;
     const campaign=slugify(rawCampaign,'');
-    let slug=sel==='custom'?`campaign-${source}`:source;
-    if(destination==='products')slug+='-products';
-    else if(destination==='services')slug+='-services';
-    const urlObj=new URL(`/${slug}`,location.origin);
-    if(campaign)urlObj.searchParams.set('c',campaign);
-    const url=urlObj.toString();
+    const url=campaignUrl(location.origin,source,destination,campaign,sel==='custom');
     const out=document.getElementById('v8CampaignUrl'),box=document.getElementById('v8CampaignResult'),compactBox=document.getElementById('v8CampaignCompact');
     if(out)out.value=url;
     if(compactBox)compactBox.textContent=url;
     box?.classList.remove('hidden');
   }
-  async function copyCampaignLink(){const value=document.getElementById('v8CampaignUrl')?.value||'';if(!value)return;try{await navigator.clipboard.writeText(value);toast('✅ تم نسخ رابط الحملة');}catch(_){document.getElementById('v8CampaignUrl')?.select();}}
+  async function copyCampaignLink(){const value=document.getElementById('v8CampaignUrl')?.value||'';if(!value)return;try{await navigator.clipboard.writeText(value);toast('✅ تم نسخ رابط الحملة');}catch(_){const field=document.getElementById('v8CampaignUrl');if(field){field.classList.remove('hidden');field.focus();field.select();}toast('انسخ الرابط المحدد يدويًا');}}
 
   async function addCoupon(){try{await api('/api/admin/coupons',{method:'POST',body:{code:document.getElementById('v8CouponCode').value,type:document.getElementById('v8CouponType').value,value:Number(document.getElementById('v8CouponValue').value||0),minSubtotal:Number(document.getElementById('v8CouponMin').value||0),maxDiscount:Number(document.getElementById('v8CouponMax').value||0),usageLimit:Number(document.getElementById('v8CouponLimit').value||0),startsAt:document.getElementById('v8CouponStart').value||undefined,endsAt:document.getElementById('v8CouponEnd').value||undefined,enabled:true}});toast('✅ تمت إضافة الكوبون');loadGrowth();}catch(e){alert(e.message);}}
-  async function loadGrowth(){if(!canManageGrowth())return;try{const [coupons,reviews,alerts]=await Promise.all([api('/api/admin/coupons'),api('/api/admin/reviews'),api('/api/admin/stock-notify')]);renderCoupons(coupons);renderReviews(reviews);renderAlerts(alerts);}catch(e){console.error(e);}}
+  async function loadGrowth(){if(!canManageGrowth())return;loadCampaignDestinations().catch(e=>console.error(e));try{const [coupons,reviews,alerts]=await Promise.all([api('/api/admin/coupons'),api('/api/admin/reviews'),api('/api/admin/stock-notify')]);renderCoupons(coupons);renderReviews(reviews);renderAlerts(alerts);}catch(e){console.error(e);}}
   window.v8LoadGrowth=loadGrowth;
   function renderCoupons(list){const h=document.getElementById('v8CouponsList');if(!h)return;h.innerHTML=list.length?list.map(c=>`<div class="v8-admin-item"><div><strong>${esc(c.code)}</strong><small>${c.type==='percent'?`${c.value}%`:money(c.value)} • حد أدنى ${money(c.minSubtotal||0)} • استخدام ${c.usedCount||0}${c.usageLimit?` / ${c.usageLimit}`:''}${c.endsAt?` • ينتهي ${new Date(c.endsAt).toLocaleDateString('ar-EG')}`:''}</small></div><label><input type="checkbox" ${c.enabled?'checked':''} onchange="window.v8ToggleCoupon('${c._id}',this.checked)"> مفعل</label><div class="v8-admin-actions"><button onclick="window.v8EditCoupon('${c._id}')">تعديل</button><button class="danger" onclick="window.v8DeleteCoupon('${c._id}')"><span class="material-symbols-outlined">delete</span></button></div></div>`).join(''):'<p class="v8-admin-empty">لا توجد كوبونات.</p>';window.__v8Coupons=list;}
   window.v8EditCoupon=async id=>{const c=(window.__v8Coupons||[]).find(x=>x._id===id);if(!c)return;const value=prompt('قيمة الخصم:',String(c.value??0));if(value===null)return;const min=prompt('الحد الأدنى للطلب:',String(c.minSubtotal??0));if(min===null)return;const max=prompt('الحد الأقصى للخصم (0 بدون حد):',String(c.maxDiscount??0));if(max===null)return;const limit=prompt('عدد مرات الاستخدام (0 بدون حد):',String(c.usageLimit??0));if(limit===null)return;try{await api(`/api/admin/coupons/${id}`,{method:'PUT',body:{value:Number(value)||0,minSubtotal:Number(min)||0,maxDiscount:Number(max)||0,usageLimit:Number(limit)||0}});toast('✅ تم تعديل الكوبون');loadGrowth();}catch(e){alert(e.message);}};

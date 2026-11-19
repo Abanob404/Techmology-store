@@ -105,6 +105,14 @@
       "dest": "server/index.js"
     },
     {
+      "src": "/offers/?",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/c/([^/]+)/?",
+      "dest": "server/index.js"
+    },
+    {
       "src": "/p/(.*)",
       "dest": "server/index.js"
     },

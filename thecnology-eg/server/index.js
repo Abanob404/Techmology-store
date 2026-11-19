@@ -419,6 +419,7 @@ const settingsSchema = new mongoose.Schema({
   showHomeCollections: { type: Boolean, default: true },
   lowStockThreshold: { type: Number, default: 3 },
   newProductDays: { type: Number, default: 30 },
+  offersCategoryLabel: { type: String, default: '🔥 عروض وخصومات', maxlength: 80 },
   // Top promotional banner managed from admin.
   promoBannerEnabled: { type: Boolean, default: false },
   promoBannerText: { type: String, default: '' },
@@ -1151,6 +1152,9 @@ function renderPrettyCampaignPage(req, res) {
 app.get(/^\/(?:facebook|instagram|whatsapp|tiktok|telegram|youtube|qr)(?:-[a-z0-9_-]+)*\/?$/i, renderPrettyCampaignPage);
 app.get(/^\/campaign-[a-z0-9_-]+\/?$/i, renderPrettyCampaignPage);
 
+// Public short links retain their URL for attribution and resolve filters in app.js.
+app.get(/^\/offers\/?$/i, (req, res) => renderProductsPage(req, res));
+app.get(/^\/c\/[^/]+\/?$/i, (req, res) => renderProductsPage(req, res));
 app.get('/products', (req, res) => renderProductsPage(req, res));
 app.get('/p/:slug/:ref?', async (req, res) => {
   try {
@@ -2160,6 +2164,24 @@ app.get('/api/settings', optionalAdminAuth, async (req, res) => {
   }
 });
 
+
+// Limited marketing setting: do not grant marketers access to general settings or POS keys.
+app.put('/api/admin/offers-label', requireAdminAuth, requireAnyPermission('manage_settings','manage_marketing'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    if (typeof req.body?.label !== 'string') return res.status(400).json({ message: 'اسم القسم مطلوب' });
+    const label = sanitizePlainText(req.body.label, 80);
+    if (!label) return res.status(400).json({ message: 'اكتب اسمًا صالحًا للقسم' });
+    const settings = await getOrCreateSettings();
+    settings.offersCategoryLabel = label;
+    await settings.save();
+    await logActivity('تعديل اسم قسم العروض', label, req.adminUser.username);
+    res.json({ offersCategoryLabel: label });
+  } catch (err) {
+    console.error('Offers label update:', err);
+    res.status(500).json({ message: 'تعذر حفظ اسم قسم العروض' });
+  }
+});
 
 // 2. تحديث الإعدادات العامة (الصور، تفعيل الشحن، الخ)
 app.post('/api/settings', requireAdminAuth, requirePermission('manage_settings'), async (req, res) => {
