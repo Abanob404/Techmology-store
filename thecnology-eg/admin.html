@@ -20,10 +20,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js" defer></script>
 
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
     <!-- Load Non-Essential Icons Asynchronously -->
@@ -34,6 +30,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="admin.css">
+    <link rel="stylesheet" href="enhancements.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -407,9 +404,9 @@
 
                         <div class="product-form-section">
                             <div class="product-form-section__title"><span class="material-symbols-outlined">photo_library</span> صور المنتج</div>
-                            <label class="product-upload-zone" for="pImage"><span class="material-symbols-outlined">cloud_upload</span><strong>اختر صور المنتج</strong><small>JPG / PNG / WebP — يمكنك اختيار أكثر من صورة</small></label>
+                            <label class="product-upload-zone" for="pImage"><span class="material-symbols-outlined">cloud_upload</span><strong>اختر صور المنتج</strong><small>JPG / PNG / WebP — ضغط تلقائي وتحويل WebP (حتى 12 صورة)</small></label>
                             <input type="file" id="pImage" multiple accept="image/webp,image/jpeg,image/png" class="hidden">
-                            <div id="imagePreviewContainer" class="hidden product-image-preview"></div>
+                            <div id="imagePreviewContainer" class="hidden product-image-preview"></div><p id="pImageCompressStatus" class="tech-compress-status" role="status">عند الحفظ سيتم تصغير الصور وتحويلها إلى WebP قبل الرفع.</p>
                         </div>
 
                         <div class="admin-sidepanel__footer">
@@ -1220,14 +1217,14 @@
                         <label class="product-edit-upload-zone" for="editPImage">
                             <span class="material-symbols-outlined">cloud_upload</span>
                             <strong>إضافة صور جديدة</strong>
-                            <small>JPG / PNG / WebP — يمكنك اختيار أكثر من صورة، وسيتم تحويل المرفوع إلى WebP.</small>
+                            <small>JPG / PNG / WebP — ضغط تلقائي وتحويل WebP (حتى 12 صورة)، وسيتم تحويل المرفوع إلى WebP.</small>
                         </label>
                         <input type="file" id="editPImage" multiple accept="image/webp,image/jpeg,image/png" class="hidden">
                         <label class="product-edit-check">
                             <input type="checkbox" id="editReplaceMainImage">
                             <span><strong>اجعل أول صورة جديدة هي الصورة الأساسية</strong><small>سيتم نقل الصورة الأساسية القديمة إلى المعرض بدل حذفها.</small></span>
                         </label>
-                        <div id="editImagePreviewContainer" class="hidden product-edit-new-preview"></div>
+                        <div id="editImagePreviewContainer" class="hidden product-edit-new-preview"></div><p id="editPImageCompressStatus" class="tech-compress-status" role="status">الصور الجديدة تُضغط على جهازك قبل إرسالها.</p>
                     </section>
                 </div>
 
@@ -1312,8 +1309,10 @@
             };
         }
     </script>
+    <script src="image-optimizer.js" defer></script>
     <script src="merch-ranking.js" defer></script>
     <script src="admin.js" defer></script>
     <script src="merch-admin.js" defer></script>
+    <script src="admin-insights.js" defer></script>
 </body>
 </html>

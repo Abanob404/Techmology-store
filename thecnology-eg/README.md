@@ -52,3 +52,7 @@ Historical FIX scripts, release notes, local `.git/.vercel/.vscode` metadata, un
 ## V10.5 — Phase 1: merchandising priority (2026-11-21)
 
 See `PHASE1_MERCHANDISING_AR.md`. The new admin merchandising studio is under **Products and Inventory**. No database migration is required: new product fields have safe defaults. POS stock, cost, invoices, and order logic are unchanged.
+
+## V10.6 — Admin / Catalog / Cart / WebP performance update (2026-11-21)
+
+See [`V10_6_UPGRADE_AR.md`](V10_6_UPGRADE_AR.md) for Arabic feature notes, required production smoke tests, limitations and rollback. Adds `image-optimizer.js`, `admin-insights.js` and `enhancements.css`. No secret credentials or production database content included.

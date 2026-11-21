@@ -2,6 +2,22 @@ const BASE_URL = window.location.protocol === 'file:' ? 'http://localhost:5000' 
 const API_URL = `${BASE_URL}/api/products`;
 const ITEMS_PER_PAGE = 20;
 const nativeFetch = window.fetch.bind(window);
+// Load heavy Excel export libraries only when export is requested.
+let excelLibPromise;
+async function loadExcelExportLibraries(){
+    if(window.ExcelJS&&window.saveAs)return;
+    if(!excelLibPromise)excelLibPromise=(async()=>{
+        async function load(url,ready){
+            if(ready())return;
+            await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.async=true;s.onload=resolve;s.onerror=()=>reject(new Error('تعذر تحميل مكتبة التصدير. تحقق من الإنترنت.'));document.head.appendChild(s);});
+            if(!ready())throw new Error('تعذر بدء مكتبة تصدير Excel.');
+        }
+        await load('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js',()=>!!window.ExcelJS);
+        await load('https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js',()=>!!window.saveAs);
+    })().catch(e=>{excelLibPromise=null;throw e;});
+    return excelLibPromise;
+}
+
 
 async function adminFetch(input, init = {}) {
     const options = { ...init };
@@ -11,6 +27,7 @@ async function adminFetch(input, init = {}) {
     options.headers = headers;
     return nativeFetch(input, options);
 }
+window.adminFetch = adminFetch;
 const ADMIN_IMAGE_FALLBACK = './assets/no-image.svg';
 
 function adminSafeImageUrl(url) {
@@ -740,14 +757,12 @@ if (pImage) {
             if (files && files.length > 0) {
                 imgPreviewContainer.classList.remove('hidden');
                 Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const img = document.createElement('img');
-                        img.src = event.target.result;
-                        img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
-                        imgPreviewContainer.appendChild(img);
-                    };
-                    reader.readAsDataURL(file);
+                    const img = document.createElement('img');
+                    const url = URL.createObjectURL(file);
+                    img.onload = img.onerror = () => URL.revokeObjectURL(url);
+                    img.src = url;
+                    img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
+                    imgPreviewContainer.appendChild(img);
                 });
             } else {
                 imgPreviewContainer.classList.add('hidden');
@@ -768,14 +783,12 @@ if (editPImage) {
             if (files && files.length > 0) {
                 editImgPreviewContainer.classList.remove('hidden');
                 Array.from(files).forEach(file => {
-                    const reader = new FileReader();
-                    reader.onload = function(event) {
-                        const img = document.createElement('img');
-                        img.src = event.target.result;
-                        img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
-                        editImgPreviewContainer.appendChild(img);
-                    };
-                    reader.readAsDataURL(file);
+                    const img = document.createElement('img');
+                    const url = URL.createObjectURL(file);
+                    img.onload = img.onerror = () => URL.revokeObjectURL(url);
+                    img.src = url;
+                    img.className = 'w-20 h-20 object-contain bg-surface/50 p-1 rounded border border-outline-variant/30';
+                    editImgPreviewContainer.appendChild(img);
                 });
             } else {
                 editImgPreviewContainer.classList.add('hidden');
@@ -840,9 +853,9 @@ if (addForm) {
             formData.append('discountExpiresAt', expiresAt);
         }
         
-        for (let i = 0; i < fileInput.files.length; i++) {
-            formData.append('images', fileInput.files[i]);
-        }
+        // Preserve the original selection. Convert to small WebP files at submit time.
+        // Conversion errors are displayed, never silently uploaded as oversized originals.
+        const optimizedInputFiles = Array.from(fileInput.files);
 
         const submitBtn = addForm.querySelector('button[type="submit"]');
         const originalText = submitBtn.innerHTML;
@@ -850,6 +863,10 @@ if (addForm) {
         submitBtn.disabled = true;
 
         try {
+            const optimized = await window.TechImageOptimizer.optimizeFiles(optimizedInputFiles, {
+                onProgress: message => { const label=document.getElementById('pImageCompressStatus'); if(label) label.textContent=message; }
+            });
+            optimized.forEach(result => formData.append('images',result.file));
             const response = await adminFetch(API_URL, {
                 method: 'POST',
                 body: formData
@@ -867,7 +884,7 @@ if (addForm) {
             }
         } catch (error) {
             console.error(error);
-            alert('حدث خطأ أثناء إرسال البيانات للسيرفر.');
+            alert(error.message || 'حدث خطأ أثناء إرسال البيانات للسيرفر.');
         } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
@@ -1238,11 +1255,11 @@ window.saveBrandingSettings = async function() {
     showToast('⏳ جاري رفع الصور على السيرفر...');
 
     const formData = new FormData();
-    if (tempLogoFile) formData.append('storeLogo', tempLogoFile);
-    if (tempBgFile) formData.append('darkHeroImage', tempBgFile);
-    if (tempLightBgFile) formData.append('lightHeroImage', tempLightBgFile);
 
     try {
+        for(const [key,file] of [['storeLogo',tempLogoFile],['darkHeroImage',tempBgFile],['lightHeroImage',tempLightBgFile]]) {
+            if(file){const {file:small}=await window.TechImageOptimizer.optimizeFile(file,{maxDimension:1920,quality:.82});formData.append(key,small);}
+        }
         const response = await adminFetch(`${BASE_URL}/api/settings`, {
             method: 'POST',
             body: formData
@@ -1405,8 +1422,11 @@ window.saveExperienceSettings = async function() {
     const addBool = (id, key=id) => { const el=document.getElementById(id); if(el) fd.append(key, el.checked ? 'true':'false'); };
     addBool('promoBannerEnabled'); add('promoBannerText'); add('promoBannerButtonText'); add('promoBannerLink'); add('promoBannerStartsAt'); add('promoBannerEndsAt');
     addBool('seasonalEffectEnabled'); add('seasonalEffect'); add('seasonalEffectIntensity'); add('seasonalMessage'); add('seasonalEffectStartsAt'); add('seasonalEffectEndsAt');
-    if (tempPromoBannerFile) fd.append('promoBannerImage', tempPromoBannerFile);
     try {
+        if (tempPromoBannerFile) {
+            const {file:small}=await window.TechImageOptimizer.optimizeFile(tempPromoBannerFile,{maxDimension:1920,quality:.82});
+            fd.append('promoBannerImage',small);
+        }
         const res = await adminFetch(`${BASE_URL}/api/settings`, { method:'POST', body:fd });
         const data = await res.json();
         if (!res.ok) throw new Error(data.message || 'فشل الحفظ');
@@ -1773,11 +1793,7 @@ if (editForm) {
             formData.append('replaceMain', 'true');
         }
 
-        if (editFileInput && editFileInput.files && editFileInput.files.length > 0) {
-            for (let i = 0; i < editFileInput.files.length; i++) {
-                formData.append('images', editFileInput.files[i]);
-            }
-        }
+        const editUploadFiles = editFileInput ? Array.from(editFileInput.files || []) : [];
 
         // إرسال مصفوفة الصور المراد حذفها
         if (imagesToDelete.length > 0) {
@@ -1806,6 +1822,12 @@ if (editForm) {
         submitBtn.disabled = true;
 
         try {
+            if (editUploadFiles.length) {
+                const optimized = await window.TechImageOptimizer.optimizeFiles(editUploadFiles, {
+                    onProgress: message => { const label=document.getElementById('editPImageCompressStatus'); if(label) label.textContent=message; }
+                });
+                optimized.forEach(result => formData.append('images',result.file));
+            }
             const response = await adminFetch(`${API_URL}/${id}`, {
                 method: 'PUT',
                 body: formData
@@ -1821,7 +1843,7 @@ if (editForm) {
             }
         } catch (error) {
             console.error(error);
-            alert('حدث خطأ أثناء الاتصال بالسيرفر.');
+            alert(error.message || 'حدث خطأ أثناء الاتصال بالسيرفر.');
         } finally {
             submitBtn.innerHTML = originalText;
             submitBtn.disabled = false;
@@ -2411,6 +2433,7 @@ window.exportAnalyticsExcel = async function() {
     const analytics = JSON.parse(localStorage.getItem('tech_store_analytics') || '{}');
     
     showToast('جاري تجهيز ملف Excel للإحصائيات...');
+    try { await loadExcelExportLibraries(); } catch(err) { alert(err.message); return; }
     const workbook = new ExcelJS.Workbook();
     workbook.creator = 'Technology Store';
     workbook.created = new Date();
@@ -2819,6 +2842,7 @@ window.exportInventoryExcel = async function() {
 
     try {
         showToast('جاري تجهيز ملف Excel...');
+        await loadExcelExportLibraries();
         const workbook = new ExcelJS.Workbook();
         workbook.creator = 'Technology Store';
         workbook.created = new Date();

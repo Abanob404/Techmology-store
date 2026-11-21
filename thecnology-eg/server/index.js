@@ -66,7 +66,7 @@ const loginLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 10, keyPref
 app.use(fileUpload({
   useTempFiles: true,
   tempFileDir: '/tmp/', // مهم جداً لبيئات الـ Serverless مثل Vercel
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   abortOnLimit: true
 }));
 
@@ -87,6 +87,17 @@ function validateImageFiles(fileOrFiles) {
       const err = new Error('حجم الصورة أكبر من 10 MB');
       err.statusCode = 400;
       throw err;
+    }
+    // Content signature verification; the client-controlled MIME type is not trusted.
+    if (file.tempFilePath) {
+      let header = Buffer.alloc(16), fd;
+      try { fd = fs.openSync(file.tempFilePath,'r'); fs.readSync(fd,header,0,16,0); }
+      finally { if (fd !== undefined) fs.closeSync(fd); }
+      const mime=String(file.mimetype||'').toLowerCase();
+      const valid = (mime==='image/png' && header.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))) ||
+        (mime==='image/jpeg' && header[0]===0xff && header[1]===0xd8 && header[2]===0xff) ||
+        (mime==='image/webp' && header.toString('ascii',0,4)==='RIFF' && header.toString('ascii',8,12)==='WEBP');
+      if (!valid) { const err=new Error('ملف الصورة غير صالح أو لا يطابق الصيغة المعلنة');err.statusCode=400;throw err; }
     }
   }
   return files;
@@ -655,6 +666,7 @@ const orderSchema = new mongoose.Schema({
   shippingCarrier: { type: String, default: '' }, trackingNumber: { type: String, default: '' }, trackingUrl: { type: String, default: '' }, estimatedDeliveryAt: Date,
   createdAt: { type: Date, default: Date.now }
 });
+orderSchema.index({createdAt:-1,posInvoiceId:1});
 const Order = mongoose.model('Order', orderSchema);
 
 // Website orders never reserve, decrement, restore, or otherwise mutate inventory.
@@ -1719,6 +1731,7 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
     }
 
     const products = await query.lean();
+    res.setHeader('Cache-Control',req.adminUser ? 'no-store' : 'public, max-age=0, s-maxage=45, stale-while-revalidate=120');
     if (!req.adminUser && products.length) {
       topProductsCache = { data: products.slice(0, 4), timestamp: Date.now() };
     }
@@ -1818,7 +1831,8 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
         folder: 'technology_store',
         format: 'webp',
-        quality: 'auto'
+        quality: 'auto:good',
+        transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
       });
       image = mainResult.secure_url;
       imagePublicId = mainResult.public_id;
@@ -1827,7 +1841,8 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
         const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
           folder: 'technology_store',
           format: 'webp',
-          quality: 'auto'
+          quality: 'auto:good',
+          transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
         });
         additionalImages.push({ url: result.secure_url, publicId: result.public_id });
       }
@@ -2047,7 +2062,8 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
         const mainResult = await cloudinary.uploader.upload(uploadedFiles[0].tempFilePath, {
           folder: 'technology_store',
           format: 'webp',
-          quality: 'auto'
+          quality: 'auto:good',
+          transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
         });
         updateData.image = mainResult.secure_url;
         updateData.imagePublicId = mainResult.public_id;
@@ -2068,7 +2084,8 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
           const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
             folder: 'technology_store',
             format: 'webp',
-            quality: 'auto'
+            quality: 'auto:good',
+            transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
           });
           newAdditional.push({ url: result.secure_url, publicId: result.public_id });
         }
@@ -2080,7 +2097,8 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
           const result = await cloudinary.uploader.upload(uploadedFiles[i].tempFilePath, {
             folder: 'technology_store',
             format: 'webp',
-            quality: 'auto'
+            quality: 'auto:good',
+            transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
           });
           existingAdditional.push({ url: result.secure_url, publicId: result.public_id });
         }
@@ -2768,6 +2786,59 @@ app.get('/api/admin/dashboard', requireAdminAuth, requirePermission('view_report
     console.error('ADMIN DASHBOARD ERROR:', err);
     res.status(500).json({ message: 'تعذر تحميل لوحة المتابعة', error: err.message });
   }
+});
+
+
+// V10.6 — Sales intelligence. Website requests never count as sales.
+app.get('/api/admin/dashboard/insights', requireAdminAuth, requirePermission('view_reports'), async (req,res)=>{
+  try {
+    await ensureDBConnection();
+    const days=[7,14,30].includes(Number(req.query.days))?Number(req.query.days):7;
+    const now=new Date();
+    const dayMs=86400000;
+    const start=new Date(now.getTime()-(days+1)*dayMs); // inclusive fetch window around Cairo midnight
+    const cairoDateKey = date => {
+      const parts=Object.fromEntries(new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+      return `${parts.year}-${parts.month}-${parts.day}`;
+    };
+    const firstDayKey=cairoDateKey(new Date(now.getTime()-(days-1)*dayMs));
+    const periodCondition={$gte:[{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:'Africa/Cairo'}},firstDayKey]};
+    // POS invoice creation date is authoritative for revenue timing (not website request time).
+    // Older integrated orders without invoiceCreatedAt fall back to createdAt.
+    const invoiced={ posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'} };
+    const invoiceDateMatch={reportDate:{$gte:start},$expr:{$gte:[{$dateToString:{format:'%Y-%m-%d',date:'$reportDate',timezone:'Africa/Cairo'}},firstDayKey]}};
+    const [dailySales,dailyRequests,topProducts]=await Promise.all([
+      Order.aggregate([
+        {$match:invoiced},{$addFields:{reportDate:{$ifNull:['$invoiceCreatedAt','$createdAt']}}},{$match:invoiceDateMatch},
+        {$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$reportDate',timezone:'Africa/Cairo'}},sales:{$sum:'$total'},invoices:{$sum:1}}},
+        {$sort:{_id:1}}
+      ]),
+      Order.aggregate([
+        {$match:{createdAt:{$gte:start},$expr:periodCondition}},
+        {$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt',timezone:'Africa/Cairo'}},requests:{$sum:1}}}
+      ]),
+      Order.aggregate([
+        {$match:invoiced},{$addFields:{reportDate:{$ifNull:['$invoiceCreatedAt','$createdAt']}}},{$match:invoiceDateMatch},{$unwind:'$items'},
+        {$group:{_id:{$ifNull:['$items.productId','$items.title']},title:{$first:'$items.title'},quantity:{$sum:'$items.quantity'},revenue:{$sum:{$multiply:['$items.quantity','$items.price']}}}},
+        {$sort:{quantity:-1,revenue:-1}},{$limit:6}
+      ])
+    ]);
+    const salesByDay=new Map(dailySales.map(x=>[x._id,x]));
+    const requestsByDay=new Map(dailyRequests.map(x=>[x._id,x]));
+    const cairoDay=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'});
+    const daysArray=[];
+    for(let offset=days-1;offset>=0;offset--){
+      const date=new Date(now.getTime()-offset*dayMs);
+      // formatToParts avoids locale-dependent order and daylight-saving assumptions.
+      const parts=Object.fromEntries(cairoDay.formatToParts(date).filter(p=>p.type!=='literal').map(p=>[p.type,p.value]));
+      const key=`${parts.year}-${parts.month}-${parts.day}`;
+      const sal=salesByDay.get(key),reqs=requestsByDay.get(key);
+      daysArray.push({date:key,confirmedRevenue:Number(sal?.sales||0),confirmedInvoices:Number(sal?.invoices||0),websiteRequests:Number(reqs?.requests||0)});
+    }
+    const gross=daysArray.reduce((a,d)=>a+d.confirmedRevenue,0), count=daysArray.reduce((a,d)=>a+d.confirmedInvoices,0);
+    res.setHeader('Cache-Control','no-store');
+    res.json({days,period:daysArray,summary:{posRevenue:Math.round(gross*100)/100,posInvoices:count,requests:daysArray.reduce((a,d)=>a+d.websiteRequests,0),averageInvoice:count?Math.round(gross/count*100)/100:0},topProducts:topProducts.map(p=>({title:String(p.title||'منتج'),quantity:Number(p.quantity)||0,revenue:Math.round(Number(p.revenue||0)*100)/100}))});
+  }catch(e){console.error('DASH INSIGHTS',e);res.status(500).json({message:'تعذر تحميل تحليل المبيعات'});}
 });
 
 app.get('/api/admin/orders', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {

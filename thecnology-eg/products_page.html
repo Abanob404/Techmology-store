@@ -25,6 +25,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="theme.css">
+    <link rel="stylesheet" href="enhancements.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -238,10 +239,23 @@
                         <select id="sortSelect" aria-label="ترتيب المنتجات" dir="rtl">
                             <option value="featured">ترتيب Technology الذكي</option>
                             <option value="newest">الأحدث</option>
+                            <option value="best_selling">الأكثر مبيعًا (فواتير POS)</option>
+                            <option value="discount_desc">أقوى الخصومات</option>
                             <option value="price_asc">السعر: الأقل للأعلى</option>
                             <option value="price_desc">السعر: الأعلى للأقل</option>
                         </select>
                     </label>
+                </div>
+                <div id="techAdvancedFilters" class="tech-advanced-filters" aria-label="فلاتر إضافية">
+                    <label class="tech-filter-check"><input id="techFilterWarranty" type="checkbox"> بضمان فقط</label>
+                    <label class="tech-filter-check"><input id="techFilterOffers" type="checkbox"> خصومات فعلية فقط</label>
+                    <label class="tech-filter-check tech-discount-field">خصم لا يقل عن
+                        <select id="techFilterDiscount" aria-label="الحد الأدنى للخصم"><option value="0">أي نسبة</option><option value="10">10%</option><option value="20">20%</option><option value="30">30%</option><option value="50">50%</option></select>
+                    </label>
+                    <label class="tech-filter-specs">ابحث داخل المواصفات
+                        <input id="techFilterSpecs" type="search" placeholder="مثلاً: واي فاي، 128GB، USB-C" autocomplete="off">
+                    </label>
+                    <div id="techFilterChips" class="tech-filter-chips" aria-live="polite"></div>
                 </div>
             </section>
 

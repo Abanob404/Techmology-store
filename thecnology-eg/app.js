@@ -73,6 +73,26 @@ let activeBrand = sessionStorage.getItem('tech_activeBrand') || '';
 let minPriceFilter = sessionStorage.getItem('tech_minPrice') || '';
 let maxPriceFilter = sessionStorage.getItem('tech_maxPrice') || '';
 let catalogFilterTimer = null;
+const techAdvanced = { warranty:false, offers:false, minDiscount:0, specs:'' };
+function normalizeTechSearch(s) {
+    return String(s ?? '').toLowerCase().normalize('NFKC').replace(/[أإآ]/g,'ا').replace(/ى/g,'ي').replace(/ة/g,'ه').replace(/[ًٌٍَُِّْ]/g,'').replace(/[^\p{L}\p{N}]+/gu,' ').trim();
+}
+function syncAdvancedFilters() {
+    const map = {techFilterWarranty:'warranty',techFilterOffers:'offers',techFilterSpecs:'specs'};
+    Object.entries(map).forEach(([id,key])=>{const el=document.getElementById(id);if(el)techAdvanced[key]=el.type==='checkbox'?el.checked:el.value.trim().slice(0,100);});
+    techAdvanced.minDiscount=Number(document.getElementById('techFilterDiscount')?.value||0);
+    renderProducts(activeCategory,activeSearchTerm);
+}
+function bootAdvancedFilters() {
+    const panel=document.getElementById('techAdvancedFilters');if(!panel)return;
+    const params=new URLSearchParams(location.search);
+    const defaults={techFilterWarranty:params.get('warranty')==='1',techFilterOffers:params.get('offers')==='1',techFilterDiscount:params.get('discount')||'0',techFilterSpecs:params.get('specs')||''};
+    Object.entries(defaults).forEach(([id,v])=>{const el=document.getElementById(id);if(el){if(el.type==='checkbox')el.checked=!!v;else el.value=v;}});
+    const timer={id:null};
+    panel.querySelectorAll('input,select').forEach(el=>el.addEventListener(el.type==='search'?'input':'change',()=>{clearTimeout(timer.id);timer.id=setTimeout(syncAdvancedFilters,el.type==='search'?220:0);}));
+    syncAdvancedFilters();
+}
+
 let cart = JSON.parse(localStorage.getItem('tech_store_cart')) || [];
 const WISHLIST_KEY = 'tech_store_wishlist_v1';
 const COMPARE_KEY = 'tech_store_compare_v1';
@@ -304,7 +324,10 @@ function getOptimizedImageUrl(url, width = 400, height = 400) {
     const safeUrl = getSafeImageUrl(url);
     // Add Cloudinary transformations only to actual Cloudinary upload URLs.
     if (/^https:\/\/res\.cloudinary\.com\//i.test(safeUrl) && safeUrl.includes('/image/upload/')) {
-        return safeUrl.replace('/image/upload/', `/image/upload/w_${width},h_${height},c_fit,q_auto,f_auto/`);
+        if (/\/image\/upload\/(?:w_|h_|c_|q_|f_)/.test(safeUrl)) return safeUrl;
+        const w=Math.max(40,Math.min(1600,Math.round(Number(width)||400)));
+        const h=Math.max(40,Math.min(1600,Math.round(Number(height)||400)));
+        return safeUrl.replace('/image/upload/', `/image/upload/w_${w},h_${h},c_fit,q_auto:good,f_auto/`);
     }
     return safeUrl;
 }
@@ -690,6 +713,10 @@ window.clearCatalogFilters = function() {
     maxPriceFilter = '';
     wishlistOnly = false;
     offersOnly = false;
+    techAdvanced.warranty=false;techAdvanced.offers=false;techAdvanced.minDiscount=0;techAdvanced.specs='';
+    ['techFilterWarranty','techFilterOffers'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=false;});
+    const disc=document.getElementById('techFilterDiscount');if(disc)disc.value='0';
+    const specs=document.getElementById('techFilterSpecs');if(specs)specs.value='';
     document.getElementById('wishlistFilterBtn')?.classList.remove('active');
     document.getElementById('offersFilterBtn')?.classList.remove('active');
     ['brandFilter', 'minPriceFilter', 'maxPriceFilter'].forEach(id => {
@@ -764,17 +791,17 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
 
     // البحث الذكي (Smart Multi-keyword Search)
     if (searchTerm) {
-        const keywords = searchTerm.toLowerCase().split(/\s+/).filter(Boolean);
+        const keywords = normalizeTechSearch(searchTerm).split(/\s+/).filter(Boolean);
         filtered = filtered.filter(p => {
             return keywords.every(keyword => {
-                const titleMatch = p.title.toLowerCase().includes(keyword);
+                const titleMatch = normalizeTechSearch(p.title).includes(keyword);
                 const descMatch = Array.isArray(p.description)
-                    ? p.description.some(spec => spec.toLowerCase().includes(keyword))
-                    : (p.description || '').toLowerCase().includes(keyword);
-                const categoryMatch = (p.category || '').toLowerCase().includes(keyword);
-                const brandMatch = (p.publicBrand || '').toLowerCase().includes(keyword);
-                const skuMatch = (p.sku || '').toLowerCase().includes(keyword);
-                const tagMatch = Array.isArray(p.tags) && p.tags.some(tag => String(tag).toLowerCase().includes(keyword));
+                    ? p.description.some(spec => normalizeTechSearch(spec).includes(keyword))
+                    : normalizeTechSearch(p.description || '').includes(keyword);
+                const categoryMatch = normalizeTechSearch(p.category || '').includes(keyword);
+                const brandMatch = normalizeTechSearch(p.publicBrand || '').includes(keyword);
+                const skuMatch = normalizeTechSearch(p.sku || '').includes(keyword);
+                const tagMatch = Array.isArray(p.tags) && p.tags.some(tag => normalizeTechSearch(tag).includes(keyword));
                 
                 return titleMatch || descMatch || categoryMatch || brandMatch || skuMatch || tagMatch;
             });
@@ -790,8 +817,18 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     if (minPriceFilter !== '' && Number.isFinite(minPrice)) filtered = filtered.filter(p => Number(p.price) >= minPrice);
     if (maxPriceFilter !== '' && Number.isFinite(maxPrice)) filtered = filtered.filter(p => Number(p.price) <= maxPrice);
     if (wishlistOnly && featureEnabled('enableWishlist')) { const wishes=new Set(getWishlistIds()); filtered=filtered.filter(p=>wishes.has(String(p._id))); }
-    if (offersOnly) filtered = filtered.filter(p => isActiveCatalogOffer(p));
-
+    if (offersOnly || techAdvanced.offers || techAdvanced.minDiscount > 0) {
+        filtered=filtered.filter(p => isActiveCatalogOffer(p) && (techAdvanced.minDiscount <= 0 ||
+            (100*(Number(p.oldPrice)-Number(p.price))/Number(p.oldPrice)) >= techAdvanced.minDiscount));
+    }
+    if(techAdvanced.warranty) filtered=filtered.filter(p => String(p.warranty||'').trim().length>0);
+    if(techAdvanced.specs) {
+        const parts=normalizeTechSearch(techAdvanced.specs).split(/\s+/).filter(Boolean);
+        filtered=filtered.filter(p=>{
+            const hay=normalizeTechSearch([...(Array.isArray(p.description)?p.description:[p.description||'']),...(p.tags||[]),p.title].join(' '));
+            return parts.every(part=>hay.includes(part));
+        });
+    }
     // إخفاء المنتجات الصفرية من الكتالوج العام
     filtered = filtered.filter(p => Number(p.price) > 0 && window.TechMerch.availableQuantity(p) > 0);
 
@@ -800,12 +837,28 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     if (resultCountEl) {
         resultCountEl.textContent = filtered.length === 1 ? 'منتج واحد متاح' : `${filtered.length} منتج متاح`;
     }
+    const chips=document.getElementById('techFilterChips');
+    if(chips){
+        const labels=[];
+        if(techAdvanced.warranty) labels.push('بضمان');
+        if(techAdvanced.offers) labels.push('عروض');
+        if(techAdvanced.minDiscount) labels.push(`خصم ${techAdvanced.minDiscount}%+`);
+        if(techAdvanced.specs) labels.push('مواصفات: '+techAdvanced.specs);
+        chips.replaceChildren(...labels.map(label=>{const n=document.createElement('span');n.className='tech-active-filter';n.textContent=label;return n;}));
+    }
 
     // الترتيب
     if (currentSort === 'price_asc') {
         filtered.sort((a, b) => (Number(a.price) || 0) - (Number(b.price) || 0));
     } else if (currentSort === 'price_desc') {
         filtered.sort((a, b) => (Number(b.price) || 0) - (Number(a.price) || 0));
+    } else if (currentSort === 'best_selling') {
+        const sales=window.globalAnalytics?.confirmed_sales||{};
+        filtered.sort((a,b)=>((Number(sales[String(b._id)]||0)-Number(sales[String(a._id)]||0)) ||
+            window.TechMerch.compare(a,b,{analytics:window.globalAnalytics,categorySpecific:categoryFilter!=='all'})));
+    } else if (currentSort === 'discount_desc') {
+        const discount=p=>isActiveCatalogOffer(p)?(Number(p.oldPrice)-Number(p.price))/Number(p.oldPrice):0;
+        filtered.sort((a,b)=>(discount(b)-discount(a))||window.TechMerch.compare(a,b,{analytics:window.globalAnalytics,offers:true}));
     } else if (currentSort === 'newest') {
         filtered.sort((a, b) => {
             const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
@@ -845,8 +898,8 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
 
     pageProducts.forEach((p, index) => {
         const specsHtml = Array.isArray(p.description) 
-            ? p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('') 
-            : `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${p.description || ''}</span></li>`;
+            ? p.description.slice(0, 2).map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${escapeStoreHtml(spec)}</span></li>`).join('') 
+            : `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${escapeStoreHtml(p.description || '')}</span></li>`;
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
         const hasDiscount = isActiveCatalogOffer(p);
         const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
@@ -875,7 +928,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const growthBadgesHtml = autoBadges.slice(0,2).map(b => `<span class="catalog-growth-badge catalog-growth-badge--${b.cls}">${escapeStoreHtml(b.text)}</span>`).join('');
 
         let discountTimerHtml = '';
-        if (hasDiscount && p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
+        if (hasDiscount && p.discountExpiresAt && new Date(p.discountExpiresAt).getTime() > Date.now() && new Date(p.discountExpiresAt).getTime() - Date.now() < 72*3600000) {
             discountTimerHtml = `
                 <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] bg-red-500/10 backdrop-blur border border-red-500/30 rounded-md py-1 px-2 flex justify-center shadow-[0_0_10px_rgba(239,68,68,0.2)] countdown-container" data-expires="${p.discountExpiresAt}">
                     <div class="flex gap-1 text-[11px] font-mono-data font-bold text-red-400 tracking-widest countdown-timer" dir="ltr">جاري الحساب...</div>
@@ -897,7 +950,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const cardHtml = `
             <article class="catalog-product-card glass-panel rounded-xl overflow-hidden flex flex-col card-hover-effect transition-all duration-300 group ${isOutOfStock ? 'opacity-70' : ''}">
                 <div class="catalog-product-media relative aspect-square w-full bg-gradient-to-b from-surface-container-highest to-surface flex items-center justify-center overflow-hidden cursor-pointer" onclick="openProductModal('${p._id}')">
-                    <img alt="${p.title}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="catalog-product-image max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" onerror="handleProductImageError(this)" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
+                    <img alt="${escapeStoreHtml(p.title)}" loading="${loadingAttr}" ${priorityAttr} ${decodeAttr} width="400" height="400" class="catalog-product-image max-w-full max-h-full w-auto h-auto object-contain p-2 rounded-2xl group-hover:scale-105 transition-transform duration-500" src="${optimizedImage}" onerror="handleProductImageError(this)" ${hasValidImage ? 'srcset="' + smallImage + ' 200w, ' + optimizedImage + ' 400w" sizes="(max-width: 768px) 200px, 400px"' : ''}>
                     ${availabilityBadge}
                     <div class="catalog-card-quick-tools">
                         ${featureEnabled('enableWishlist') ? `<button type="button" class="catalog-quick-icon" data-wishlist-id="${p._id}" onclick="toggleWishlist('${p._id}', event)" aria-label="إضافة للمفضلة" aria-pressed="${isWishlisted(p._id)}"><span class="material-symbols-outlined">${isWishlisted(p._id)?'favorite':'favorite_border'}</span></button>` : ''}
@@ -1355,6 +1408,7 @@ window.closeProductModal = function() {
     setTimeout(() => {
         modal.classList.add('hidden');
         document.body.classList.remove('ui-overlay-open');
+        if(window.__techCartLastFocus?.isConnected)window.__techCartLastFocus.focus({preventScroll:true});
     }, 300);
 };
 
@@ -1571,11 +1625,11 @@ function injectCartUI() {
         <div id="cartOverlay" class="fixed inset-0 bg-background/60 backdrop-blur-sm z-[90] hidden opacity-0 transition-opacity duration-300" onclick="closeCartSidebar()"></div>
         
         <!-- Sidebar -->
-        <div id="cartSidebar" class="cart-shell fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed overflow-y-auto overflow-x-hidden">
+        <div id="cartSidebar" role="dialog" aria-modal="true" aria-labelledby="techCartTitle" class="cart-shell fixed top-0 left-0 w-full max-w-md h-full bg-surface-container-highest/95 backdrop-blur-2xl border-r border-outline-variant/30 z-[100] shadow-2xl flex flex-col cart-sidebar cart-sidebar-closed overflow-y-auto overflow-x-hidden">
             <div class="cart-header flex items-center justify-between p-6 border-b border-outline-variant/30">
                 <div class="flex items-center gap-3 text-primary">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                    <h2 class="font-headline-md text-2xl">عربة التسوق</h2>
+                    <h2 id="techCartTitle" class="font-headline-md text-2xl">عربة التسوق</h2>
                 </div>
                 <button onclick="closeCartSidebar()" aria-label="إغلاق سلة التسوق" class="w-10 h-10 bg-surface-variant/80 hover:bg-red-500/80 hover:text-white rounded-full flex items-center justify-center text-on-surface transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
@@ -1586,6 +1640,7 @@ function injectCartUI() {
                 <!-- المنتجات تضاف هنا -->
             </div>
             
+            <section id="techCartSuggestions" class="tech-cart-suggestions" aria-label="منتجات تكمل طلبك"></section>
             <div class="cart-checkout p-6 border-t border-outline-variant/30 bg-surface/50">
                 <div class="cart-total flex items-center justify-between mb-4">
                     <span class="text-on-surface-variant text-lg">الإجمالي:</span>
@@ -1625,6 +1680,7 @@ function injectCartUI() {
 }
 
 function openCartSidebar() {
+    window.__techCartLastFocus = document.activeElement;
     renderCart();
     const overlay = document.getElementById('cartOverlay');
     const sidebar = document.getElementById('cartSidebar');
@@ -1635,6 +1691,7 @@ function openCartSidebar() {
     sidebar.classList.add('cart-sidebar-open');
     document.body.style.overflow = 'hidden';
     document.body.classList.add('ui-overlay-open');
+    sidebar.querySelector('button[aria-label="إغلاق سلة التسوق"]')?.focus({preventScroll:true});
 
     // إظهار حقول العميل بناءً على تفعيل الشحن
     const customerForm = document.getElementById('cartCustomerForm');
@@ -1786,6 +1843,7 @@ function renderCart() {
         priceEl.textContent = '0 ج.م';
         const customerForm = document.getElementById('cartCustomerForm');
         if (customerForm) customerForm.classList.add('hidden');
+        const suggestions=document.getElementById('techCartSuggestions');if(suggestions)suggestions.replaceChildren();
         return;
     }
 
@@ -1796,12 +1854,12 @@ function renderCart() {
         const itemTotal = item.price * item.quantity;
         total += itemTotal;
         const latestProduct = globalProducts.find(p => p._id === item._id);
-        const cartImage = getSafeImageUrl(latestProduct?.image || item.image, getSafeImageUrl(window.defaultProductImage, LOCAL_FALLBACK_IMAGE));
+        const cartImage = getOptimizedImageUrl(latestProduct?.image || item.image, 128, 128);
         html += `
             <div class="cart-line-item flex items-center gap-4 bg-surface/50 p-3 rounded-xl border border-outline-variant/20 hover:border-primary/20 transition-colors">
-                <img src="${cartImage}" onerror="handleProductImageError(this)" alt="${item.title}" width="64" height="64" loading="lazy" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
+                <img src="${cartImage}" onerror="handleProductImageError(this)" alt="${escapeStoreHtml(item.title)}" width="64" height="64" loading="lazy" class="w-16 h-16 object-cover rounded-lg bg-surface-container shadow-md">
                 <div class="flex-1 min-w-0">
-                    <h4 class="text-sm font-bold text-on-surface line-clamp-2">${item.title}</h4>
+                    <h4 class="text-sm font-bold text-on-surface line-clamp-2">${escapeStoreHtml(item.title)}</h4>
                     <span class="text-xs font-bold text-primary font-mono-data">${item.price} ج.م</span>
                 </div>
                 <div class="flex items-center gap-1 shrink-0">
@@ -1821,7 +1879,23 @@ function renderCart() {
     });
 
     container.innerHTML = html;
-    priceEl.textContent = `${total} ج.م`;
+    priceEl.textContent = `${total.toLocaleString('ar-EG')} ج.م`;
+    renderCartSuggestions();
+}
+
+function renderCartSuggestions(){
+    const wrap=document.getElementById('techCartSuggestions');if(!wrap)return;
+    const cartIds=new Set(cart.map(p=>String(p._id)));
+    const cats=new Set(cart.map(p=>String(globalProducts.find(x=>x._id===p._id)?.category||'')));
+    const candidates=globalProducts.filter(p=>!cartIds.has(String(p._id))&&cats.has(String(p.category))&&
+        window.TechMerch.availableQuantity(p)>0&&Number(p.price)>0&&p.image&&!isPlaceholderImage(p.image));
+    candidates.sort((a,b)=>window.TechMerch.compare(a,b,{analytics:window.globalAnalytics,categorySpecific:true}));
+    const picks=candidates.slice(0,3);
+    wrap.innerHTML=picks.length?`<h3>ممكن تحتاج معاهم</h3><div class="tech-cart-suggest-list">${picks.map(p=>`
+      <div class="tech-cart-suggest-item"><img alt="" loading="lazy" width="56" height="56" src="${getOptimizedImageUrl(p.image,112,112)}">
+      <span class="tech-suggest-name">${escapeStoreHtml(p.title)}<small>${Number(p.price).toLocaleString('ar-EG')} ج.م</small></span>
+      <button type="button" data-tech-cart-add="${escapeStoreHtml(p._id)}" aria-label="إضافة ${escapeStoreHtml(p.title)}">إضافة +</button></div>`).join('')}</div>`:'';
+    wrap.querySelectorAll('[data-tech-cart-add]').forEach(btn=>btn.onclick=async()=>{const pid=btn.dataset.techCartAdd;await window.addToCart(pid);renderCart();});
 }
 
 async function checkoutWhatsApp() {
@@ -2041,6 +2115,12 @@ document.addEventListener('DOMContentLoaded', () => {
     trackPageVisit();
     injectProductModal();
     injectCartUI();
+    document.addEventListener('keydown',e=>{
+        if(e.key==='Escape'&&document.getElementById('cartSidebar')?.classList.contains('cart-sidebar-open')){
+            e.preventDefault();closeCartSidebar();
+        }
+    });
+    bootAdvancedFilters();
     injectMobileDock();
     initSmartMobileChrome();
     setupMobileCatalogSearch();
@@ -2480,13 +2560,14 @@ document.addEventListener('DOMContentLoaded',()=>{
   window.renderCart = function(){
     const container=document.getElementById('cartItemsContainer'); const totalEl=document.getElementById('cartTotalPrice'); if(!container||!totalEl)return;
     const c=cart();
-    if(!c.length){container.innerHTML='<div class="v8-empty-cart"><span class="material-symbols-outlined">shopping_cart</span><strong>سلة التسوق فارغة</strong><small>أضف منتجاتك ثم أكمل الطلب من هنا.</small></div>';totalEl.textContent=money(0);document.getElementById('cartCustomerForm')?.classList.add('hidden');return;}
+    if(!c.length){container.innerHTML='<div class="v8-empty-cart"><span class="material-symbols-outlined">shopping_cart</span><strong>سلة التسوق فارغة</strong><small>أضف منتجاتك ثم أكمل الطلب من هنا.</small></div>';totalEl.textContent=money(0);document.getElementById('cartCustomerForm')?.classList.add('hidden');renderCartSuggestions();return;}
     container.innerHTML=c.map(item=>{
-      const key=itemKey(item); const p=productById(item._id); const image=item.image||p?.image||'/assets/no-image.svg'; const variant=item.variantValue?`<span class="v8-cart-variant">${esc(item.variantLabel||'الخيار')}: ${esc(item.variantValue)}</span>`:'';
+      const key=itemKey(item); const p=productById(item._id); const image=getOptimizedImageUrl(item.image||p?.image||'/assets/no-image.svg',128,128); const variant=item.variantValue?`<span class="v8-cart-variant">${esc(item.variantLabel||'الخيار')}: ${esc(item.variantValue)}</span>`:'';
       return `<article class="v8-cart-line"><img src="${esc(image)}" alt="${esc(item.title)}" loading="lazy" decoding="async"><div class="v8-cart-copy"><strong>${esc(item.title)}</strong>${variant}<b>${money(item.price)}</b></div><div class="v8-qty"><button onclick="updateCartQuantity('${esc(key)}',-1)">−</button><span>${item.quantity}</span><button onclick="updateCartQuantity('${esc(key)}',1)">+</button></div><button class="v8-remove" onclick="removeFromCart('${esc(key)}')" aria-label="حذف">×</button></article>`;
     }).join('');
     totalEl.textContent=money(Math.max(0,subtotal()-checkoutState.discountAmount+checkoutState.shippingAmount));
     updateCheckoutSummary();
+    renderCartSuggestions();
   };
 
   // ---------- Checkout ----------
