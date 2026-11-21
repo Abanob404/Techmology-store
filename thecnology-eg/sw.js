@@ -1,9 +1,10 @@
-const CACHE_NAME = 'technology-store-v10-4-5-catalog-links-1';
+const CACHE_NAME = 'technology-store-v10-5-0-merchandising-1';
 const APP_SHELL = [
   '/',
   '/products',
   '/services',
   '/app.js',
+  '/merch-ranking.js',
   '/style.css',
   '/theme.css',
   '/logo.webp',

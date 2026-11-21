@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Technology Store web application",
   "scripts": {
+    "test:merch": "node --test tests/merch-ranking.test.js",
     "dev:server": "cd server && npm run dev",
     "dev": "npm run dev:server",
     "install:all": "npm install && cd server && npm install",

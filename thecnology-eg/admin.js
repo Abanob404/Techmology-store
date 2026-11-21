@@ -826,6 +826,8 @@ if (addForm) {
         formData.append('customBadge', customBadge);
         formData.append('tags', tags);
         formData.append('isFeatured', isFeatured ? 'true' : 'false');
+        formData.append('merchPriority', document.getElementById('pMerchPriority').value || '0');
+        formData.append('merchTier', document.getElementById('pMerchTier').value || 'normal');
         formData.append('seoTitle', seoTitle);
         formData.append('seoDescription', seoDescription);
         if (document.getElementById('pVariantsJson')) formData.append('variants', document.getElementById('pVariantsJson').value || '[]');
@@ -1533,6 +1535,8 @@ window.openEditModal = function(id) {
     if (document.getElementById('editPCustomBadge')) document.getElementById('editPCustomBadge').value = product.customBadge || '';
     if (document.getElementById('editPTags')) document.getElementById('editPTags').value = Array.isArray(product.tags) ? product.tags.join(', ') : (product.tags || '');
     if (document.getElementById('editPIsFeatured')) document.getElementById('editPIsFeatured').checked = Boolean(product.isFeatured);
+    document.getElementById('editPMerchPriority').value = Number(product.merchPriority) || 0;
+    document.getElementById('editPMerchTier').value = product.merchTier || 'normal';
     if (document.getElementById('editPSeoTitle')) document.getElementById('editPSeoTitle').value = product.seoTitle || '';
     if (document.getElementById('editPSeoDescription')) document.getElementById('editPSeoDescription').value = product.seoDescription || '';
 
@@ -1746,6 +1750,8 @@ if (editForm) {
         formData.append('customBadge', document.getElementById('editPCustomBadge')?.value || '');
         formData.append('tags', document.getElementById('editPTags')?.value || '');
         formData.append('isFeatured', document.getElementById('editPIsFeatured')?.checked ? 'true' : 'false');
+        formData.append('merchPriority', document.getElementById('editPMerchPriority').value || '0');
+        formData.append('merchTier', document.getElementById('editPMerchTier').value || 'normal');
         formData.append('seoTitle', document.getElementById('editPSeoTitle')?.value || '');
         formData.append('seoDescription', document.getElementById('editPSeoDescription')?.value || '');
         if (document.getElementById('editPVariantsJson')) formData.append('variants', document.getElementById('editPVariantsJson').value || '[]');

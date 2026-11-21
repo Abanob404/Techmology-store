@@ -376,6 +376,8 @@
                                 <label class="product-form-field"><span>شارة مخصصة</span><input type="text" id="pCustomBadge" maxlength="40" placeholder="مثال: اختيارنا / حصري"></label>
                                 <label class="product-form-field product-form-field--wide"><span>وسوم البحث</span><input type="text" id="pTags" placeholder="مثال: gaming, wireless, usb"><small>افصل بين الوسوم بفاصلة؛ تساعد البحث الذكي.</small></label>
                                 <label class="product-form-field product-form-field--wide"><span class="flex items-center gap-2"><input type="checkbox" id="pIsFeatured" class="accent-primary w-4 h-4"> منتج مميز</span><small>يعطي أولوية في الواجهة الرئيسية والكتالوج.</small></label>
+                                <label class="product-form-field"><span>أولوية الظهور (0–100)</span><input type="number" id="pMerchPriority" min="0" max="100" step="1" value="0"><small>كلما زادت ظهر المنتج مبكرًا.</small></label>
+                                <label class="product-form-field"><span>نوع العرض</span><select id="pMerchTier"><option value="normal">عادي</option><option value="hero">منتج رئيسي</option><option value="accessory">منتج مكمل</option></select></label>
                             </div>
                         </div>
 
@@ -1146,6 +1148,8 @@
                             <label class="product-edit-field"><span>شارة مخصصة</span><input type="text" id="editPCustomBadge" maxlength="40" placeholder="مثال: اختيارنا / حصري"></label>
                             <label class="product-edit-field product-edit-field--wide"><span>وسوم البحث</span><input type="text" id="editPTags" placeholder="gaming, wireless, usb"></label>
                             <label class="product-edit-check product-edit-field--wide"><input type="checkbox" id="editPIsFeatured"><span><strong>منتج مميز</strong><small>يعطي أولوية في الواجهة الرئيسية والكتالوج.</small></span></label>
+                            <label class="product-edit-field"><span>أولوية الظهور (0–100)</span><input type="number" id="editPMerchPriority" min="0" max="100" step="1" value="0"></label>
+                            <label class="product-edit-field"><span>نوع العرض</span><select id="editPMerchTier"><option value="normal">عادي</option><option value="hero">منتج رئيسي</option><option value="accessory">منتج مكمل</option></select></label>
                         </div>
                     </section>
 
@@ -1308,6 +1312,8 @@
             };
         }
     </script>
+    <script src="merch-ranking.js" defer></script>
     <script src="admin.js" defer></script>
+    <script src="merch-admin.js" defer></script>
 </body>
 </html>

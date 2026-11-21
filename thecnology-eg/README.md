@@ -47,3 +47,8 @@ Historical FIX scripts, release notes, local `.git/.vercel/.vscode` metadata, un
 - Inventory report now states that quantities are last received from Technology POS.
 - Replaced destructive analytics-reset action in the visible footer with a safe "clear cache on this device" action.
 - Service worker cache version bumped; old frontend caches are removed automatically on activation.
+
+
+## V10.5 — Phase 1: merchandising priority (2026-11-21)
+
+See `PHASE1_MERCHANDISING_AR.md`. The new admin merchandising studio is under **Products and Inventory**. No database migration is required: new product fields have safe defaults. POS stock, cost, invoices, and order logic are unchanged.

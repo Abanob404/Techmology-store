@@ -369,6 +369,8 @@ const productSchema = new mongoose.Schema({
   discountExpiresAt: { type: Date },
   // Store-growth / merchandising fields. All optional for backward compatibility.
   isFeatured: { type: Boolean, default: false, index: true },
+  merchPriority: { type: Number, default: 0, min: 0, max: 100 },
+  merchTier: { type: String, enum: ['hero', 'normal', 'accessory'], default: 'normal' },
   customBadge: { type: String, default: '' },
   tags: { type: [String], default: [] },
   seoTitle: { type: String, default: '' },
@@ -852,6 +854,9 @@ function normalizePublicUrl(value, allowedHosts = []) {
     return '';
   }
 }
+function safeMerchPriority(value) { const n = Number(value); return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : 0; }
+function safeMerchTier(value) { return ['hero', 'normal', 'accessory'].includes(value) ? value : 'normal'; }
+
 function parseBool(value) {
   return value === true || value === 'true' || value === '1' || value === 1 || value === 'on';
 }
@@ -1044,7 +1049,7 @@ async function resolveSharedProduct(slugOrLegacyCode = '', ref = '') {
   // Human-readable link such as /p/flash-kingston-128.
   // We resolve it without changing any stored product data.
   const candidates = await Product.find(visible)
-    .select('title category price image sku publicBrand warranty description oldPrice additionalImages stockQuantity discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription')
+    .select('title category price image sku publicBrand warranty description oldPrice additionalImages stockQuantity discountExpiresAt createdAt isFeatured merchPriority merchTier customBadge tags seoTitle seoDescription')
     .limit(3000)
     .lean();
   return candidates.find(product => slugifyProductTitle(product.title) === slug) || null;
@@ -1710,7 +1715,7 @@ app.get('/api/products', optionalAdminAuth, async (req, res) => {
     if (!req.adminUser) {
       // Send only fields used by the public storefront. This keeps mobile payloads small
       // and also guarantees internal supplier/Cloudinary management fields stay private.
-      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt isFeatured customBadge tags seoTitle seoDescription variants');
+      query = query.select('title category price oldPrice description image additionalImages.url stockQuantity sku posItemId warranty publicBrand discountExpiresAt createdAt isFeatured merchPriority merchTier customBadge tags seoTitle seoDescription variants');
     }
 
     const products = await query.lean();
@@ -1798,7 +1803,7 @@ app.delete('/api/emergency-clean', requireAdminAuth, requirePermission('manage_b
 // 2. إضافة منتج جديد مع رفع الصور
 app.post('/api/products', requireAdminAuth, requirePermission('add_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, merchPriority, merchTier, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
     if (!title || !category || !price) {
       return res.status(400).json({ message: 'البيانات الأساسية (الاسم، القسم، السعر) مطلوبة' });
     }
@@ -1850,6 +1855,8 @@ app.post('/api/products', requireAdminAuth, requirePermission('add_product'), as
       publicBrand: publicBrand || '',
       discountExpiresAt: discountExpiresAt ? new Date(discountExpiresAt) : undefined,
       isFeatured: parseBool(isFeatured),
+      merchPriority: safeMerchPriority(merchPriority),
+      merchTier: safeMerchTier(merchTier),
       customBadge: sanitizePlainText(customBadge, 40),
       tags: normalizeStringList(tags, 20),
       seoTitle: sanitizePlainText(seoTitle, 70),
@@ -1937,7 +1944,7 @@ app.put('/api/products/:id/quantity', requireAdminAuth, requirePermission('edit_
 // 4. تعديل منتج بالكامل (يدعم رفع صور جديدة)
 app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
   try {
-    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
+    const { title, category, price, oldPrice, description, stockQuantity, sku, warranty, publicBrand, discountExpiresAt, isFeatured, merchPriority, merchTier, customBadge, tags, seoTitle, seoDescription, variants } = req.body;
     const descArray = description ? description.split('\n').filter(line => line.trim() !== '') : [];
     const normalizedVariants = normalizeVariants(variants);
     const effectiveStock = normalizedVariants.length ? normalizedVariants.reduce((sum, v) => sum + Math.max(0, Number(v.stockQuantity) || 0), 0) : (parseInt(stockQuantity, 10) || 0);
@@ -1953,6 +1960,8 @@ app.put('/api/products/:id', requireAdminAuth, requirePermission('edit_product')
       warranty: warranty || '',
       publicBrand: publicBrand || '',
       isFeatured: parseBool(isFeatured),
+      merchPriority: safeMerchPriority(merchPriority),
+      merchTier: safeMerchTier(merchTier),
       customBadge: sanitizePlainText(customBadge, 40),
       tags: normalizeStringList(tags, 20),
       seoTitle: sanitizePlainText(seoTitle, 70),
@@ -2469,12 +2478,30 @@ app.post('/api/admin/push/send', requireAdminAuth, requirePermission('manage_set
   } catch (err) { res.status(500).json({ message: 'تعذر إرسال الإشعار', error: err.message }); }
 });
 
+let confirmedSalesCache = { until: 0, counts: {} };
+async function recentConfirmedSalesCounts() {
+  if (Date.now() < confirmedSalesCache.until) return confirmedSalesCache.counts;
+  const since = new Date(Date.now() - 90 * 86400000);
+  const rows = await Order.aggregate([
+    { $match: {
+      createdAt: { $gte: since },
+      posInvoiceId: { $type: 'string', $ne: '' },
+      status: { $ne: 'cancelled' }, paymentStatus: { $ne: 'refunded' }
+    } },
+    { $unwind: '$items' },
+    { $match: { 'items.productId': { $ne: null } } },
+    { $group: { _id: '$items.productId', quantity: { $sum: '$items.quantity' } } }
+  ]);
+  const counts = Object.fromEntries(rows.map(row => [String(row._id), Math.max(0, Number(row.quantity) || 0)]));
+  confirmedSalesCache = { until: Date.now() + 5 * 60 * 1000, counts };
+  return counts;
+}
 app.get('/api/analytics/popular', async (req, res) => {
   try {
     await ensureDBConnection();
-    const doc = await getOrCreateAnalytics();
-    res.json({ views: doc.views || {}, cart_adds: doc.cart_adds || {}, whatsapp_orders: doc.whatsapp_orders || {} });
-  } catch (_) { res.json({ views:{}, cart_adds:{}, whatsapp_orders:{} }); }
+    const [doc, counts] = await Promise.all([getOrCreateAnalytics(), recentConfirmedSalesCounts().catch(() => ({}))]);
+    res.json({ views: doc.views || {}, cart_adds: doc.cart_adds || {}, whatsapp_orders: doc.whatsapp_orders || {}, confirmed_sales: counts });
+  } catch (_) { res.json({ views:{}, cart_adds:{}, whatsapp_orders:{}, confirmed_sales:{} }); }
 });
 
 app.get('/api/analytics', requireAdminAuth, requirePermission('view_reports'), async (req, res) => {
@@ -2837,6 +2864,39 @@ app.get('/api/admin/customers', requireAdminAuth, requirePermission('manage_orde
 });
 app.get('/api/admin/customers/:phone', requireAdminAuth, requirePermission('manage_orders'), async(req,res)=>{
   try{const phone=normalizePhoneNumber(req.params.phone);const orders=await Order.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();if(!orders.length)return res.status(404).json({message:'العميل غير موجود'});const returns=await ReturnRequest.find({customerPhone:phone}).sort({createdAt:-1}).limit(100).lean();const revenue=orders.filter(o=>o.status!=='cancelled'&&String(o.posInvoiceId||'').trim()).reduce((a,o)=>a+Number(o.total||0),0);res.json({name:orders[0].customerName,phone,orders,revenue,returns});}catch(err){res.status(500).json({message:'تعذر تحميل ملف العميل'});}
+});
+
+// Merchandising-only writes: never touch POS inventory, prices, or order status.
+app.post('/api/admin/merchandising/priority', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const updates = req.body?.updates;
+    if (!Array.isArray(updates) || !updates.length || updates.length > 100) {
+      return res.status(400).json({ message: 'أرسل من 1 إلى 100 منتج في العملية الواحدة' });
+    }
+    const seen = new Set();
+    for (const item of updates) {
+      if (!item || !mongoose.isValidObjectId(item.id) || seen.has(String(item.id)) ||
+          !Number.isInteger(item.priority) || item.priority < 0 || item.priority > 100 ||
+          !['hero', 'normal', 'accessory'].includes(item.tier) || typeof item.featured !== 'boolean') {
+        return res.status(400).json({ message: 'بيانات ترتيب غير صحيحة؛ راجع الأولوية والمستوى والتكرار' });
+      }
+      seen.add(String(item.id));
+    }
+    const ids = updates.map(item => item.id);
+    const count = await Product.countDocuments({ _id: { $in: ids } });
+    if (count !== updates.length) return res.status(404).json({ message: 'أحد المنتجات لم يعد موجودًا؛ حدّث القائمة' });
+    const operations = updates.map(item => ({ updateOne: {
+      filter: { _id: item.id },
+      update: { $set: { merchPriority: item.priority, merchTier: item.tier, isFeatured: item.featured } }
+    } }));
+    const result = await Product.bulkWrite(operations, { ordered: true });
+    await logActivity('إدارة ظهور المنتجات', `تم تغيير أولوية ظهور ${updates.length} منتج`, req.adminUser.username);
+    res.json({ success: true, modified: result.modifiedCount || 0 });
+  } catch (err) {
+    console.error('Merchandising priority update:', err);
+    res.status(500).json({ message: 'تعذر حفظ ترتيب المنتجات' });
+  }
 });
 
 app.post('/api/admin/products/bulk-action', requireAdminAuth, requirePermission('edit_product'), async(req,res)=>{

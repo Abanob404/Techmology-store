@@ -64,8 +64,7 @@ function resolveCatalogLink(link, records) {
     return '__store_missing_category__';
 }
 function isActiveCatalogOffer(product, now = Date.now()) {
-    if (!(Number(product.oldPrice) > Number(product.price))) return false;
-    return !product.discountExpiresAt || new Date(product.discountExpiresAt).getTime() > now;
+    return window.TechMerch?.isActiveOffer(product, now) ?? false;
 }
 let activeCategory = normalizeCatalogCategory(sessionStorage.getItem('tech_activeCategory') || 'all');
 let activeSearchTerm = sessionStorage.getItem('tech_activeSearch') || "";
@@ -478,7 +477,7 @@ async function fetchProducts() {
         });
 
         analyticsPromise = fetch(`${BASE_URL}/api/analytics/popular`).then(r => r.ok ? r.json() : ({})).catch(() => ({}));
-        analyticsPromise.then(data => { window.globalAnalytics = data || {}; renderHomeGrowthSections(); });
+        analyticsPromise.then(data => { window.globalAnalytics = data || {}; renderHomeGrowthSections(); if (document.getElementById('productsGrid') && currentSort === 'featured') renderProducts(activeCategory, activeSearchTerm); });
         // Normal browsing keeps its quick first paint; direct links wait for the correct category.
         if (!incomingCatalogLink && !explicitCategory) renderProducts(activeCategory, activeSearchTerm);
         await settingsPromise;
@@ -794,7 +793,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
     if (offersOnly) filtered = filtered.filter(p => isActiveCatalogOffer(p));
 
     // إخفاء المنتجات الصفرية من الكتالوج العام
-    filtered = filtered.filter(p => Number(p.price) > 0 && Number(p.stockQuantity) > 0);
+    filtered = filtered.filter(p => Number(p.price) > 0 && window.TechMerch.availableQuantity(p) > 0);
 
     // تحديث عدد النتائج قبل التقسيم إلى صفحات
     const resultCountEl = document.getElementById('productsResultCount');
@@ -814,24 +813,15 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
             return dateB - dateA;
         });
     } else {
-        // الأكثر اهتماماً: واتساب > إضافة للسلة > المشاهدات، ثم الأحدث عند التساوي
-        filtered.sort((a, b) => {
-            const featuredDiff = (b.isFeatured ? 1 : 0) - (a.isFeatured ? 1 : 0);
-            if (featuredDiff !== 0) return featuredDiff;
-            const scoreDiff = getPopularityScore(b._id) - getPopularityScore(a._id);
-            if (scoreDiff !== 0) return scoreDiff;
-            const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return dateB - dateA;
-        });
+        // Merchandising: admin priority > POS-invoiced sales > value > real interest.
+        // Search relevance ALWAYS outranks commercial promotion.
+        const opts = { analytics: window.globalAnalytics, searchTerm: searchTerm || '',
+            offers: categoryFilter === OFFERS_CATEGORY_KEY || categoryFilter === DEFAULT_OFFERS_LABEL || offersOnly,
+            categorySpecific: categoryFilter !== 'all' && categoryFilter !== OFFERS_CATEGORY_KEY && categoryFilter !== DEFAULT_OFFERS_LABEL };
+        filtered.sort((a, b) => window.TechMerch.compare(a, b, opts));
     }
 
-    // دفع المنتجات النافدة إلى نهاية القائمة تلقائياً ليكون المتجر حيوياً بالمنتجات المتاحة
-    filtered.sort((a, b) => {
-        const aOut = (a.stockQuantity === 0) ? 1 : 0;
-        const bOut = (b.stockQuantity === 0) ? 1 : 0;
-        return aOut - bOut;
-    });
+    // Out-of-stock items already excluded above. Other sorting modes remain unchanged.
 
     // حساب الصفحات
     const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
@@ -858,7 +848,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
             ? p.description.map(spec => `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${spec}</span></li>`).join('') 
             : `<li class="flex gap-2 items-start"><span class="text-primary mt-1">•</span><span>${p.description || ''}</span></li>`;
         const priceDisplay = isNaN(p.price) ? p.price : `${p.price} ج.م`;
-        const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
+        const hasDiscount = isActiveCatalogOffer(p);
         const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
 
         const priceHtml = hasDiscount 
@@ -870,7 +860,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         
         let availabilityBadge = '';
         let isOutOfStock = false;
-        if (p.stockQuantity === 0) {
+        if (window.TechMerch.availableQuantity(p) === 0) {
             isOutOfStock = true;
             availabilityBadge = `<div class="catalog-stock-badge catalog-stock-badge--out">نفدت الكمية</div>`;
         } else {
@@ -885,7 +875,7 @@ function renderProducts(categoryFilter = "all", searchTerm = "", append = false)
         const growthBadgesHtml = autoBadges.slice(0,2).map(b => `<span class="catalog-growth-badge catalog-growth-badge--${b.cls}">${escapeStoreHtml(b.text)}</span>`).join('');
 
         let discountTimerHtml = '';
-        if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
+        if (hasDiscount && p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
             discountTimerHtml = `
                 <div class="absolute bottom-2 left-1/2 -translate-x-1/2 w-[90%] bg-red-500/10 backdrop-blur border border-red-500/30 rounded-md py-1 px-2 flex justify-center shadow-[0_0_10px_rgba(239,68,68,0.2)] countdown-container" data-expires="${p.discountExpiresAt}">
                     <div class="flex gap-1 text-[11px] font-mono-data font-bold text-red-400 tracking-widest countdown-timer" dir="ltr">جاري الحساب...</div>
@@ -1118,7 +1108,7 @@ window.openProductModal = function(id) {
     modalMainImage.style.opacity = 1;
     document.getElementById('modalCategory').textContent = p.category;
     document.getElementById('modalTitle').textContent = p.title;
-    const hasDiscount = p.oldPrice && Number(p.oldPrice) > Number(p.price);
+    const hasDiscount = isActiveCatalogOffer(p);
     const discountPercentage = hasDiscount ? Math.round(((Number(p.oldPrice) - Number(p.price)) / Number(p.oldPrice)) * 100) : 0;
     
     if (hasDiscount) {
@@ -1129,7 +1119,7 @@ window.openProductModal = function(id) {
                 <span class="text-xs bg-red-500 text-white font-bold px-2 py-0.5 rounded-full">خصم ${discountPercentage}%</span>
             </div>
         `;
-        if (p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
+        if (hasDiscount && p.discountExpiresAt && new Date(p.discountExpiresAt) > new Date()) {
             document.getElementById('modalPrice').innerHTML += `
                 <div class="mt-4 bg-red-500/10 border border-red-500/30 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-[0_0_15px_rgba(239,68,68,0.15)] countdown-container" data-expires="${p.discountExpiresAt}">
                     <span class="text-sm text-red-400 font-bold flex items-center gap-1.5"><svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ينتهي العرض خلال:</span>
@@ -1312,7 +1302,7 @@ window.openProductModal = function(id) {
             if (p.publicBrand && prod.publicBrand === p.publicBrand) score += 14;
             const base = Math.max(1, Number(p.price) || 1); const diff = Math.abs((Number(prod.price)||0)-base)/base;
             score += Math.max(0, 8 - diff*8);
-            if (prod.oldPrice && Number(prod.oldPrice) > Number(prod.price)) score += 3;
+            if (isActiveCatalogOffer(prod)) score += 3;
             if (prod.isFeatured) score += 2;
             score += Math.min(8, getPopularityScore(prod._id)/5);
             return score;
@@ -1370,17 +1360,17 @@ window.closeProductModal = function() {
 
 function productMiniCard(product, extraClass='') {
     const img=getOptimizedImageUrl(product.image,220,220); const url=getProductShareUrl(product);
-    return `<a href="${url}" class="growth-product-card ${extraClass}" data-product-id="${product._id}"><div class="growth-product-card__media"><img src="${img}" alt="${escapeStoreHtml(product.title)}" loading="lazy" decoding="async" onerror="handleProductImageError(this)">${product.oldPrice&&Number(product.oldPrice)>Number(product.price)?'<span class="growth-sale-dot">عرض</span>':''}</div><div class="growth-product-card__body"><small>${escapeStoreHtml(product.publicBrand||product.category||'')}</small><strong>${escapeStoreHtml(product.title)}</strong><span>${Number(product.price).toLocaleString('ar-EG')} ج.م</span></div></a>`;
+    return `<a href="${url}" class="growth-product-card ${extraClass}" data-product-id="${product._id}"><div class="growth-product-card__media"><img src="${img}" alt="${escapeStoreHtml(product.title)}" loading="lazy" decoding="async" onerror="handleProductImageError(this)">${isActiveCatalogOffer(product)?'<span class="growth-sale-dot">عرض</span>':''}</div><div class="growth-product-card__body"><small>${escapeStoreHtml(product.publicBrand||product.category||'')}</small><strong>${escapeStoreHtml(product.title)}</strong><span>${Number(product.price).toLocaleString('ar-EG')} ج.م</span></div></a>`;
 }
 function renderHomeGrowthSections() {
     const old=document.getElementById('homeGrowthCollections'); if(old) old.remove();
     if (document.body.dataset.page !== 'home' || !globalProducts.length || !featureEnabled('showHomeCollections')) return;
     const footer=document.querySelector('footer.site-footer'); if(!footer) return;
-    const available=globalProducts.filter(p=>Number(p.stockQuantity)>0&&Number(p.price)>0);
+    const available=globalProducts.filter(p=>window.TechMerch.availableQuantity(p)>0&&Number(p.price)>0);
     const newest=[...available].sort((a,b)=>new Date(b.createdAt||0)-new Date(a.createdAt||0)).slice(0,8);
-    const offers=available.filter(p=>Number(p.oldPrice)>Number(p.price)).sort((a,b)=>((b.oldPrice-b.price)/b.oldPrice)-((a.oldPrice-a.price)/a.oldPrice)).slice(0,8);
-    const popular=[...available].sort((a,b)=>((b.isFeatured?50:0)+getPopularityScore(b._id))-((a.isFeatured?50:0)+getPopularityScore(a._id))).slice(0,8);
-    const groups=[['وصل حديثاً','new_releases',newest],['عروض تستحق المشاهدة','local_offer',offers],['الأكثر طلباً','trending_up',popular]].filter(g=>g[2].length);
+    const offers=available.filter(p=>isActiveCatalogOffer(p)).sort((a,b)=>window.TechMerch.compare(a,b,{analytics:window.globalAnalytics,offers:true})).slice(0,8);
+    const popular=[...available].sort((a,b)=>window.TechMerch.compare(a,b,{analytics:window.globalAnalytics})).slice(0,8);
+    const groups=[['وصل حديثاً','new_releases',newest],['عروض تستحق المشاهدة','local_offer',offers],['اختيارات Technology','trending_up',popular]].filter(g=>g[2].length);
     if(!groups.length) return;
     const wrap=document.createElement('section'); wrap.id='homeGrowthCollections'; wrap.className='home-growth-collections';
     wrap.innerHTML=groups.map(([title,icon,items])=>`<div class="home-growth-section"><div class="home-growth-heading"><div><span class="material-symbols-outlined">${icon}</span><h2>${title}</h2></div><a href="/products">عرض الكل <span class="material-symbols-outlined">arrow_back</span></a></div><div class="growth-product-scroller">${items.map(p=>productMiniCard(p)).join('')}</div></div>`).join('');
@@ -1416,7 +1406,7 @@ function setupSmartSearchSuggestions(){
     inputs.forEach(input=>{
         if(input.dataset.smartBound==='1')return; input.dataset.smartBound='1'; const host=input.parentElement; if(!host)return; host.classList.add('smart-search-host');
         const box=document.createElement('div');box.className='smart-search-results';box.setAttribute('role','listbox');host.appendChild(box);
-        const draw=()=>{const q=input.value.trim().toLowerCase();if(!q){box.classList.remove('show');box.innerHTML='';return;} const terms=q.split(/\s+/).filter(Boolean); const score=p=>{let v=0;const t=String(p.title||'').toLowerCase(),sku=String(p.sku||'').toLowerCase(),br=String(p.publicBrand||'').toLowerCase(),cat=String(p.category||'').toLowerCase();terms.forEach(k=>{if(t.startsWith(k))v+=12;else if(t.includes(k))v+=7;if(sku.includes(k))v+=10;if(br.includes(k))v+=5;if(cat.includes(k))v+=3;if((p.tags||[]).some(x=>String(x).toLowerCase().includes(k)))v+=4;});return v;}; const results=globalProducts.map(p=>[p,score(p)]).filter(x=>x[1]>0&&Number(x[0].stockQuantity)>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]); box.innerHTML=results.map(p=>`<a href="${getProductShareUrl(p)}" role="option"><img src="${getOptimizedImageUrl(p.image,72,72)}" loading="lazy" alt=""><span><strong>${escapeStoreHtml(p.title)}</strong><small>${escapeStoreHtml(p.publicBrand||p.category||'')} · ${Number(p.price).toLocaleString('ar-EG')} ج.م</small></span></a>`).join('') || '<div class="smart-search-empty">لا توجد اقتراحات</div>';box.classList.add('show');};
+        const draw=()=>{const q=input.value.trim().toLowerCase();if(!q){box.classList.remove('show');box.innerHTML='';return;} const terms=q.split(/\s+/).filter(Boolean); const score=p=>{let v=0;const t=String(p.title||'').toLowerCase(),sku=String(p.sku||'').toLowerCase(),br=String(p.publicBrand||'').toLowerCase(),cat=String(p.category||'').toLowerCase();terms.forEach(k=>{if(t.startsWith(k))v+=12;else if(t.includes(k))v+=7;if(sku.includes(k))v+=10;if(br.includes(k))v+=5;if(cat.includes(k))v+=3;if((p.tags||[]).some(x=>String(x).toLowerCase().includes(k)))v+=4;});return v;}; const results=globalProducts.map(p=>[p,score(p)]).filter(x=>x[1]>0&&window.TechMerch.availableQuantity(x[0])>0).sort((a,b)=>b[1]-a[1]).slice(0,6).map(x=>x[0]); box.innerHTML=results.map(p=>`<a href="${getProductShareUrl(p)}" role="option"><img src="${getOptimizedImageUrl(p.image,72,72)}" loading="lazy" alt=""><span><strong>${escapeStoreHtml(p.title)}</strong><small>${escapeStoreHtml(p.publicBrand||p.category||'')} · ${Number(p.price).toLocaleString('ar-EG')} ج.م</small></span></a>`).join('') || '<div class="smart-search-empty">لا توجد اقتراحات</div>';box.classList.add('show');};
         input.addEventListener('input',draw); input.addEventListener('focus',draw); input.addEventListener('keydown',e=>{if(e.key==='Escape')box.classList.remove('show');});
     });
     if(!window.__smartSearchOutside){window.__smartSearchOutside=true;document.addEventListener('click',e=>{if(!e.target.closest('.smart-search-host'))document.querySelectorAll('.smart-search-results').forEach(x=>x.classList.remove('show'));});}
