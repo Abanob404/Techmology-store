@@ -121,6 +121,10 @@
       "dest": "server/index.js"
     },
     {
+      "src": "/maintenance",
+      "dest": "/maintenance.html"
+    },
+    {
       "src": "/services",
       "dest": "/services.html"
     },
@@ -160,6 +164,10 @@
           "value": "public, max-age=0, must-revalidate"
         }
       ]
+    },
+    {
+      "source": "/maintenance",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
       "source": "/services",

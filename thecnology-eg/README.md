@@ -56,3 +56,11 @@ See `PHASE1_MERCHANDISING_AR.md`. The new admin merchandising studio is under **
 ## V10.6 — Admin / Catalog / Cart / WebP performance update (2026-11-21)
 
 See [`V10_6_UPGRADE_AR.md`](V10_6_UPGRADE_AR.md) for Arabic feature notes, required production smoke tests, limitations and rollback. Adds `image-optimizer.js`, `admin-insights.js` and `enhancements.css`. No secret credentials or production database content included.
+
+## V10.7 — Maintenance service center + first-time visitor tour
+
+- New standalone page: `/maintenance` (`maintenance.html`, `maintenance.js`, `maintenance.css`).
+- Admin maintenance tickets: restricted to the `manage_orders` permission (`maintenance-admin.js`, `maintenance-admin.css`).
+- First-visit user guide: `tour.js`, `tour.css` on the public pages, replayable from **شرح الموقع**.
+- Maintenance tickets are in their own MongoDB collection and included in current backup exports/restores, without POS inventory or sales changes.
+- Read `V10_7_SERVICE_CENTER_TOUR_AR.md` for endpoints, deploy procedure, and test limitations.

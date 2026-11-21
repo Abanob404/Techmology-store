@@ -31,6 +31,7 @@
     <link rel="stylesheet" href="theme.css">
     <link rel="stylesheet" href="admin.css">
     <link rel="stylesheet" href="enhancements.css">
+    <link rel="stylesheet" href="maintenance-admin.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -94,6 +95,10 @@
                 </button>
                 <button onclick="switchTab('orders')" id="tab-orders" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">receipt_long</span> الطلبات
+                </button>
+                <button onclick="switchTab('maintenance')" id="tab-maintenance" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50" style="display:none">
+                    <span class="material-symbols-outlined text-[20px]">home_repair_service</span>
+                    <span>طلبات الصيانة <small id="techSrvBadge" class="mr-2 text-[10px] rounded-full bg-sky-500 text-white px-2 py-0.5" hidden></small></span>
                 </button>
                 <button onclick="switchTab('media')" id="tab-media" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">photo_library</span> الصور والوسائط
@@ -230,6 +235,14 @@
         </div>
 
         <!-- ========= TAB 1: Products ========= -->
+                <!-- Independent service-ticket workflow; no POS/warehouse mutations -->
+                <div id="panel-maintenance" class="tab-panel hidden">
+                    <div class="tech-srv-heading"><div><h2><span class="material-symbols-outlined">home_repair_service</span> مركز الصيانة</h2><p>تابع طلبات العملاء وغيّر الحالة مع ملاحظات داخلية. الصفحة العامة تعرض الحالة فقط بعد إدخال رقم الطلب والهاتف.</p></div><div class="tech-srv-stat"><span>طلبات تحت المتابعة</span><strong id="techSrvOpenCount">—</strong></div></div>
+                    <div class="tech-srv-controls"><input type="search" id="techSrvSearch" placeholder="بحث برقم الطلب أو العميل أو الهاتف أو الجهاز" aria-label="بحث في طلبات الصيانة"><select id="techSrvStatusFilter" aria-label="تصفية حسب حالة الصيانة"><option value="">كل الحالات</option><option value="new">طلب جديد</option><option value="contacted">تم التواصل</option><option value="inspecting">جاري الفحص</option><option value="waiting_parts">بانتظار قطع غيار</option><option value="repairing">جاري الصيانة</option><option value="ready">جاهز للاستلام</option><option value="completed">مكتمل</option><option value="cancelled">ملغي</option></select><button type="button" id="techSrvRefresh">تحديث القائمة</button></div>
+                    <div id="techSrvError" class="tech-srv-error" role="alert"></div>
+                    <div id="techSrvTickets" class="tech-srv-list"><div class="tech-srv-empty">افتح قسم الصيانة لعرض الطلبات.</div></div>
+                    <div id="techSrvPagination" class="tech-srv-pagination"></div>
+                </div>
         <div id="panel-products" class="tab-panel hidden">
             <div class="products-admin-shell">
                 <!-- Inventory summary -->
@@ -1314,5 +1327,6 @@
     <script src="admin.js" defer></script>
     <script src="merch-admin.js" defer></script>
     <script src="admin-insights.js" defer></script>
+    <script src="maintenance-admin.js" defer></script>
 </body>
 </html>

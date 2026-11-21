@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="description" content="احجز طلب صيانة كمبيوتر أو لابتوب أو كاميرات وشبكات مع Technology Store، وتابع حالة طلبك برقم المتابعة.">
+  <meta name="theme-color" content="#0877bc">
+  <meta property="og:title" content="Technology Store | مركز الصيانة">
+  <meta property="og:description" content="اطلب صيانة جهازك وتابع حالة الطلب مباشرة.">
+  <link rel="canonical" href="https://technology-store-eg.vercel.app/maintenance">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="maintenance.css">
+  <link rel="stylesheet" href="tour.css">
+  <title>مركز الصيانة | Technology Store</title>
+  <script>try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')!=='light')}catch(_){}</script>
+</head>
+<body class="tech-maint-page" data-page="maintenance">
+<header class="tech-maint-header">
+  <div class="tech-maint-header-inner">
+    <a href="/" aria-label="Technology Store — الرئيسية"><img src="logo.webp" alt="Technology Store" width="155" height="50"></a>
+    <nav aria-label="الصفحات الرئيسية"><a href="/">الرئيسية</a><a href="/products">المنتجات</a><a href="/services">الخدمات</a><a class="is-active" href="/maintenance" aria-current="page">مركز الصيانة</a></nav>
+    <button type="button" class="tech-maint-guide" data-start-tour>؟ شرح الموقع</button>
+  </div>
+</header>
+<main id="main-content">
+  <section class="tech-maint-hero">
+    <div class="tech-maint-hero-content">
+      <div class="tech-maint-kicker">TECHNOLOGY SERVICE CENTER <span>•</span> مركز الصيانة</div>
+      <h1>جهازك محتاج صيانة؟ <span>إحنا معاك.</span></h1>
+      <p>قدّم طلب صيانة في دقيقتين، وخد رقم متابعة تعرف منه طلبك وصل لفين. هنراجع المشكلة ونتواصل معاك لتأكيد التفاصيل قبل أي إجراء.</p>
+      <div class="tech-maint-hero-actions"><a href="#request" class="tech-maint-primary">اطلب صيانة الآن <span aria-hidden="true">←</span></a><a href="#track" class="tech-maint-secondary">متابعة طلب سابق</a></div>
+      <div class="tech-maint-highlights"><span>✓ طلب إلكتروني مباشر</span><span>✓ رقم متابعة لكل طلب</span><span>✓ لا يوجد دفع مقدم عبر الموقع</span></div>
+    </div>
+    <div class="tech-maint-hero-visual" aria-hidden="true"><div class="tech-maint-visual-ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-5.8 5.8L3 18a2.12 2.12 0 0 0 3 3l5.9-5.9a4.5 4.5 0 0 0 5.8-5.8L15 12l-3-3z"/><path d="M7 4h3m-1.5-1v3"/></svg></div><div class="tech-maint-float c1">01 <small>قدّم الطلب</small></div><div class="tech-maint-float c2">02 <small>نتواصل معاك</small></div><div class="tech-maint-float c3">03 <small>تابع الحالة</small></div></div>
+  </section>
+  <section class="tech-maint-service-types" aria-labelledby="types-title">
+    <div class="tech-maint-section-heading"><span>خدمات الصيانة</span><h2 id="types-title">بنساعدك في إيه؟</h2><p>اختار نوع الخدمة المناسبة، أو «مشكلة أخرى» لو مش متأكد.</p></div>
+    <div class="tech-maint-type-grid">
+      <button type="button" data-service-choice="computer"><span class="tech-maint-type-icon">▣</span><strong>كمبيوتر وتجميعات</strong><small>تشخيص أعطال، ترقية، حرارة</small></button>
+      <button type="button" data-service-choice="laptop"><span class="tech-maint-type-icon">▤</span><strong>لابتوب</strong><small>تشخيص الجهاز ومشاكل الأداء</small></button>
+      <button type="button" data-service-choice="camera"><span class="tech-maint-type-icon">◉</span><strong>كاميرات مراقبة</strong><small>فحص كاميرات ومستلزمات النظام</small></button>
+      <button type="button" data-service-choice="network"><span class="tech-maint-type-icon">⌁</span><strong>شبكات وراوترات</strong><small>مشكلة اتصال أو توزيع شبكة</small></button>
+      <button type="button" data-service-choice="installation"><span class="tech-maint-type-icon">⚙</span><strong>تركيب وإعداد</strong><small>إعداد أجهزة وخدمات تقنية</small></button>
+      <button type="button" data-service-choice="other"><span class="tech-maint-type-icon">＋</span><strong>مشكلة أخرى</strong><small>اشرح العطل وهنساعدك</small></button>
+    </div>
+  </section>
+  <section class="tech-maint-workspace" aria-labelledby="form-heading">
+    <div class="tech-maint-panel" id="request">
+      <div class="tech-maint-panel-top"><span class="tech-maint-step">01 / طلب جديد</span><h2 id="form-heading">سجّل طلب صيانة</h2><p>املأ البيانات الأساسية، وهتوصلك رسالة برقم طلبك على الشاشة فور التسجيل.</p></div>
+      <form id="maintenanceForm" class="tech-maint-form">
+        <div class="tech-maint-fields-two"><label>الاسم بالكامل <b>*</b><input name="customerName" id="maintCustomerName" minlength="2" maxlength="80" autocomplete="name" placeholder="اسمك" required></label><label>رقم الهاتف <b>*</b><input name="customerPhone" inputmode="tel" type="tel" autocomplete="tel" maxlength="18" placeholder="01xxxxxxxxx" dir="ltr" required></label></div>
+        <div class="tech-maint-fields-two"><label>نوع الخدمة <b>*</b><select name="serviceType" id="maintServiceType" required><option value="">اختار نوع الخدمة</option><option value="computer">كمبيوتر وتجميعات</option><option value="laptop">لابتوب</option><option value="camera">كاميرات مراقبة</option><option value="network">شبكات وراوترات</option><option value="installation">تركيب وإعداد</option><option value="other">مشكلة أخرى</option></select></label><label>نوع الجهاز أو الموديل <span>(اختياري)</span><input name="device" maxlength="120" placeholder="مثلاً: HP ProBook / Imou Ranger"></label></div>
+        <label>اشرح المشكلة <b>*</b><textarea name="problem" rows="5" minlength="10" maxlength="1200" placeholder="إيه العطل اللي ظهر؟ إمتى بدأ؟ وهل في رسالة خطأ؟" required></textarea></label>
+        <div class="tech-maint-fields-two"><label>المنطقة <span>(اختياري)</span><input name="area" maxlength="120" placeholder="مثلاً: عزبة النخل، القاهرة"></label><label>تفضل نتواصل معاك إزاي؟<select name="preferredContact"><option value="whatsapp">واتساب</option><option value="phone">مكالمة هاتفية</option></select></label></div>
+        <div class="tech-maint-hidden" aria-hidden="true"><label>اترك هذا الحقل فارغًا <input name="website" tabindex="-1" autocomplete="off"></label></div>
+        <p class="tech-maint-privacy">🔒 بياناتك مخصصة للتواصل بخصوص طلب الصيانة. <strong>مهم:</strong> ما تبعتش كلمات مرور أو بيانات بنكية في وصف المشكلة. التكاليف والموعد بيتأكدوا بعد مراجعة الطلب.</p>
+        <div id="maintenanceFormError" role="alert" class="tech-maint-error" hidden></div>
+        <button type="submit" id="maintenanceSubmit" class="tech-maint-submit">تسجيل طلب الصيانة <span aria-hidden="true">←</span></button>
+      </form>
+      <div class="tech-maint-success" id="maintenanceSuccess" role="status" aria-live="polite" hidden><div class="tech-maint-success-icon">✓</div><h3>تم تسجيل طلبك بنجاح!</h3><p>احتفظ برقم المتابعة؛ هتحتاجه مع رقم تليفونك لو حبيت تشوف حالة الصيانة.</p><div class="tech-maint-ticket"><span id="maintenanceTicketNumber" dir="ltr"></span><button type="button" id="copyMaintenanceTicket">نسخ الرقم</button></div><p id="maintenanceSuccessText">هنراجع طلبك ونتواصل معاك لتأكيد الخطوة التالية.</p><div class="tech-maint-success-actions"><button type="button" id="anotherMaintenanceRequest" class="tech-maint-secondary">طلب صيانة جديد</button><a id="maintenanceWhatsApp" href="https://wa.me/201515664919" target="_blank" rel="noopener noreferrer" class="tech-maint-primary">استفسار واتساب</a></div></div>
+    </div>
+    <aside class="tech-maint-side" id="track">
+      <div class="tech-maint-side-header"><div class="tech-maint-side-icon">↗</div><span>02 / المتابعة</span><h2>تابع حالة الصيانة</h2><p>معاك رقم الطلب؟ اكتب الرقم مع نفس رقم الهاتف اللي سجلت بيه.</p></div>
+      <form id="maintenanceTrackForm" class="tech-maint-track-form"><label>رقم المتابعة<input id="maintTrackNumber" placeholder="SRV-XXXXXX-XXXXXXXXXX" dir="ltr" required autocomplete="off"></label><label>رقم الهاتف<input id="maintTrackPhone" type="tel" inputmode="tel" placeholder="01xxxxxxxxx" dir="ltr" required></label><button type="submit" id="maintTrackSubmit" class="tech-maint-submit">عرض حالة الطلب</button></form>
+      <div id="maintenanceTrackResult" class="tech-maint-track-result" aria-live="polite" hidden></div>
+      <div class="tech-maint-side-note"><strong>إزاي بتم عملية الصيانة؟</strong><ol><li>تسجل طلب الصيانة.</li><li>فريقنا يراجع التفاصيل ويتواصل معاك.</li><li>يتم الاتفاق على التشخيص والخدمة والتكلفة.</li><li>تتابع الحالة برقم الطلب لحد الاستلام.</li></ol></div>
+    </aside>
+  </section>
+</main>
+<footer class="tech-maint-footer"><div><img src="logo.webp" width="135" height="45" alt="Technology Store"><span>خدمة صيانة ومتابعة بدون تعقيد.</span></div><nav><a href="/products">تصفح المنتجات</a><a href="/services">كل الخدمات</a><a href="/">الرئيسية</a><a href="https://wa.me/201515664919" target="_blank" rel="noopener noreferrer">تواصل واتساب</a></nav></footer>
+<script src="maintenance.js" defer></script>
+<script src="tour.js" defer></script>
+</body></html>

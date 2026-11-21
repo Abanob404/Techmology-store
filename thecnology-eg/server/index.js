@@ -62,6 +62,7 @@ function createRateLimiter({ windowMs = 60000, max = 60, keyPrefix = 'generic' }
 }
 const publicWriteLimiter = createRateLimiter({ windowMs: 60_000, max: 40, keyPrefix: 'public-write' });
 const orderLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 12, keyPrefix: 'order' });
+const maintenanceLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 8, keyPrefix: 'maintenance' });
 const loginLimiter = createRateLimiter({ windowMs: 15 * 60_000, max: 10, keyPrefix: 'admin-login' });
 app.use(fileUpload({
   useTempFiles: true,
@@ -669,6 +670,26 @@ const orderSchema = new mongoose.Schema({
 orderSchema.index({createdAt:-1,posInvoiceId:1});
 const Order = mongoose.model('Order', orderSchema);
 
+// Service center requests are independent of sales/orders and NEVER touch POS stock.
+const SERVICE_TYPES = Object.freeze(['computer', 'laptop', 'camera', 'network', 'installation', 'other']);
+const SERVICE_STATUSES = Object.freeze(['new', 'contacted', 'inspecting', 'waiting_parts', 'repairing', 'ready', 'completed', 'cancelled']);
+const maintenanceRequestSchema = new mongoose.Schema({
+  ticketNumber: { type: String, unique: true, required: true, index: true },
+  customerName: { type: String, required: true, maxlength: 80 },
+  customerPhone: { type: String, required: true, maxlength: 20 },
+  serviceType: { type: String, enum: SERVICE_TYPES, required: true },
+  device: { type: String, default: '', maxlength: 120 },
+  problem: { type: String, required: true, maxlength: 1200 },
+  area: { type: String, default: '', maxlength: 120 },
+  preferredContact: { type: String, enum: ['whatsapp', 'phone'], default: 'whatsapp' },
+  status: { type: String, enum: SERVICE_STATUSES, default: 'new', index: true },
+  internalNote: { type: String, default: '', maxlength: 1200 },
+  statusHistory: [{ status: String, at: { type: Date, default: Date.now } }]
+}, { timestamps: true });
+maintenanceRequestSchema.index({ createdAt: -1 });
+const MaintenanceRequest = mongoose.model('MaintenanceRequest', maintenanceRequestSchema);
+
+
 // Website orders never reserve, decrement, restore, or otherwise mutate inventory.
 // Product quantities are read-only on the website and are supplied by Technology POS sync.
 
@@ -1135,7 +1156,7 @@ async function renderProductsPage(req, res, productIdOverride = '', productOverr
   }
 }
 app.get('/robots.txt', (req,res)=>{res.type('text/plain').send('User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/admin\nSitemap: https://technology-store-eg.vercel.app/sitemap.xml\n');});
-app.get('/sitemap.xml', async(req,res)=>{try{const products=await Product.find({isHidden:{$ne:true}}).select('title sku updatedAt createdAt').sort({createdAt:-1}).limit(10000).lean();const base='https://technology-store-eg.vercel.app';const urls=[`${base}/`,`${base}/products`,`${base}/services`,`${base}/privacy`,`${base}/shipping-policy`,`${base}/returns-policy`,`${base}/warranty`,`${base}/terms`].concat(products.map(x=>`${base}/p/${encodeURIComponent(slugifyProductTitle(x.title))}/${encodeURIComponent(x.sku||String(x._id))}`));const xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+urls.map(u=>`<url><loc>${u.replace(/&/g,'&amp;')}</loc></url>`).join('')+'</urlset>';res.type('application/xml').send(xml);}catch(err){res.status(500).type('text/plain').send('sitemap unavailable');}});
+app.get('/sitemap.xml', async(req,res)=>{try{const products=await Product.find({isHidden:{$ne:true}}).select('title sku updatedAt createdAt').sort({createdAt:-1}).limit(10000).lean();const base='https://technology-store-eg.vercel.app';const urls=[`${base}/`,`${base}/products`,`${base}/services`,`${base}/maintenance`,`${base}/privacy`,`${base}/shipping-policy`,`${base}/returns-policy`,`${base}/warranty`,`${base}/terms`].concat(products.map(x=>`${base}/p/${encodeURIComponent(slugifyProductTitle(x.title))}/${encodeURIComponent(x.sku||String(x._id))}`));const xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+urls.map(u=>`<url><loc>${u.replace(/&/g,'&amp;')}</loc></url>`).join('')+'</urlset>';res.type('application/xml').send(xml);}catch(err){res.status(500).type('text/plain').send('sitemap unavailable');}});
 function renderPolicyPage(res,title,body){const logo='/logo.webp';res.type('html').send(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title} | Technology Store</title><style>body{margin:0;font-family:Cairo,Arial;background:#0f1519;color:#e8f1f7;line-height:1.9}.wrap{max-width:900px;margin:auto;padding:28px 18px 70px}.head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #24333d;padding-bottom:18px}.head img{height:52px}.head a{color:#77c9ff;text-decoration:none}.card{margin-top:28px;background:#141d23;border:1px solid #263640;border-radius:18px;padding:26px}.card h1{font-size:28px;margin:0 0 14px;color:#77c9ff}.card h2{font-size:18px;margin-top:24px}.card p,.card li{color:#c8d4db}.back{display:inline-block;margin-top:20px;color:#77c9ff}</style></head><body><div class="wrap"><div class="head"><img src="${logo}" alt="Technology Store"><a href="/">العودة للمتجر</a></div><article class="card"><h1>${title}</h1>${body}</article></div></body></html>`);}
 app.get('/privacy',(req,res)=>renderPolicyPage(res,'سياسة الخصوصية','<p>نستخدم البيانات اللازمة لتشغيل المتجر وتنفيذ الطلبات وتحسين الأداء وقياس مصادر الزيارات. لا نبيع بيانات العملاء للمعلنين.</p><h2>البيانات المستخدمة</h2><p>بيانات الطلب، مصدر الزيارة، نوع الجهاز، ومعرّف زيارة تقني لأغراض التحليل والحماية.</p><h2>التواصل</h2><p>يتم استخدام بيانات الاتصال فقط لتنفيذ الطلبات وخدمة ما بعد البيع والتواصل الذي يطلبه العميل.</p>'));
 app.get('/shipping-policy',(req,res)=>renderPolicyPage(res,'سياسة الشحن والتوصيل','<p>تظهر تكلفة الشحن والمدة المتوقعة أثناء إتمام الطلب حسب المنطقة المختارة. قد تتغير المدة في المواسم أو الظروف الاستثنائية.</p><h2>الاستلام من المعرض</h2><p>يمكن اختيار الاستلام من المعرض عند توفره بدون رسوم شحن.</p>'));
@@ -1592,6 +1613,106 @@ app.get('/api/orders/track', publicWriteLimiter, async (req,res)=>{
 app.get('/api/reviews/:productId', async (req,res)=>{try{await ensureDBConnection();const reviews=await Review.find({productId:req.params.productId,$or:[{status:'published'},{status:{$exists:false},approved:true}]}).sort({createdAt:-1}).limit(50).lean();const clean=reviews.map(r=>({...r,comment:r.publishedComment||r.comment||r.originalComment||'',storeReply:r.storeReply||''}));const avg=clean.length?clean.reduce((a,r)=>a+Number(r.rating||0),0)/clean.length:0;res.json({reviews:clean,average:Math.round(avg*10)/10,count:clean.length});}catch(err){res.status(500).json({message:'تعذر تحميل التقييمات'});}});
 app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});let verifiedPurchase=false,verifiedOrderNumber='';const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(orderNumber&&phone){const order=await Order.findOne({orderNumber,customerPhone:phone,posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'},'items.productId':productId}).select('orderNumber').lean();if(order){verifiedPurchase=true;verifiedOrderNumber=order.orderNumber;}}await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false,verifiedPurchase,verifiedOrderNumber});res.status(201).json({success:true,verifiedPurchase,message:verifiedPurchase?'تم استلام تقييمك كمشتري موثّق وسيظهر بعد المراجعة':'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
 
+
+// Service center. Public endpoints disclose only ticket status when BOTH code and phone match.
+app.post('/api/maintenance/requests', maintenanceLimiter, async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const data = req.body || {};
+    // Invisible honeypot for simple spam bots.
+    if (String(data.website || '').trim()) return res.status(400).json({ message: 'تعذر إرسال الطلب' });
+    const customerName = sanitizePlainText(data.customerName, 80);
+    const customerPhone = normalizePhoneNumber(data.customerPhone);
+    const serviceType = sanitizePlainText(data.serviceType, 30);
+    const device = sanitizePlainText(data.device, 120);
+    const problem = sanitizePlainText(data.problem, 1200);
+    const area = sanitizePlainText(data.area, 120);
+    const preferredContact = data.preferredContact === 'phone' ? 'phone' : 'whatsapp';
+    if (customerName.length < 2 || !/^[0-9]{10,15}$/.test(customerPhone) || !SERVICE_TYPES.includes(serviceType) || problem.length < 10) {
+      return res.status(400).json({ message: 'راجع الاسم ورقم الهاتف ونوع الخدمة ووصف المشكلة (10 حروف على الأقل)' });
+    }
+    const ticketNumber = `SRV-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+    const ticket = await MaintenanceRequest.create({
+      ticketNumber, customerName, customerPhone, serviceType, device, problem, area, preferredContact,
+      statusHistory: [{ status: 'new', at: new Date() }]
+    });
+    res.set('Cache-Control', 'no-store').status(201).json({ success: true, ticketNumber: ticket.ticketNumber, status: ticket.status, message: 'تم تسجيل طلب الصيانة. سيتواصل معك الفريق لتأكيد التفاصيل والتكلفة بعد التقييم.' });
+  } catch (err) {
+    console.error('Maintenance request error:', err.message);
+    res.status(500).json({ message: 'تعذر تسجيل طلب الصيانة حاليًا. حاول مرة أخرى.' });
+  }
+});
+app.post('/api/maintenance/track', publicWriteLimiter, async (req, res) => {
+  try {
+    const ticketNumber = String(req.body?.ticket || '').trim().toUpperCase();
+    const customerPhone = normalizePhoneNumber(req.body?.phone);
+    if (!/^SRV-[0-9]{6}-[A-F0-9]{10}$/.test(ticketNumber) || !/^[0-9]{10,15}$/.test(customerPhone))
+      return res.status(400).json({ message: 'أدخل رقم متابعة صحيحًا ورقم الهاتف المسجل' });
+    await ensureDBConnection();
+    const ticket = await MaintenanceRequest.findOne({ ticketNumber, customerPhone }).select('ticketNumber serviceType status statusHistory createdAt updatedAt').lean();
+    if (!ticket) return res.status(404).json({ message: 'لم يتم العثور على طلب بهذه البيانات' });
+    res.set('Cache-Control', 'no-store').json({ ticketNumber: ticket.ticketNumber, serviceType: ticket.serviceType, status: ticket.status, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt, statusHistory: (ticket.statusHistory || []).map(x => ({ status: x.status, at: x.at })) });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر جلب حالة الطلب' });
+  }
+});
+app.get('/api/admin/maintenance/summary', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const [openCount, newCount, completedCount] = await Promise.all([
+      MaintenanceRequest.countDocuments({ status: { $in: ['new', 'contacted', 'inspecting', 'waiting_parts', 'repairing'] } }),
+      MaintenanceRequest.countDocuments({ status: 'new' }),
+      MaintenanceRequest.countDocuments({ status: 'completed' })
+    ]);
+    res.set('Cache-Control', 'no-store').json({ openCount, newCount, completedCount });
+  } catch (err) { res.status(500).json({ message: 'تعذر تحميل مؤشرات الصيانة' }); }
+});
+app.get('/api/admin/maintenance', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const status = String(req.query.status || '').trim();
+    const search = sanitizePlainText(req.query.search, 80);
+    const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
+    const limit = 20;
+    const filter = {};
+    if (status && SERVICE_STATUSES.includes(status)) filter.status = status;
+    if (search) filter.$or = [
+      { ticketNumber: { $regex: escapeRegexLiteral(search), $options: 'i' } },
+      { customerName: { $regex: escapeRegexLiteral(search), $options: 'i' } },
+      { customerPhone: { $regex: escapeRegexLiteral(search), $options: 'i' } },
+      { device: { $regex: escapeRegexLiteral(search), $options: 'i' } }
+    ];
+    const [items, total, openCount] = await Promise.all([
+      MaintenanceRequest.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+      MaintenanceRequest.countDocuments(filter),
+      MaintenanceRequest.countDocuments({ status: { $in: ['new', 'contacted', 'inspecting', 'waiting_parts', 'repairing'] } })
+    ]);
+    res.set('Cache-Control', 'no-store').json({ items, total, openCount, page, pages: Math.max(1, Math.ceil(total / limit)) });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحميل طلبات الصيانة' });
+  }
+});
+app.put('/api/admin/maintenance/:id', requireAdminAuth, requirePermission('manage_orders'), async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'رقم طلب غير صالح' });
+    const status = String(req.body?.status || '').trim();
+    if (!SERVICE_STATUSES.includes(status)) return res.status(400).json({ message: 'حالة الصيانة غير صالحة' });
+    await ensureDBConnection();
+    const ticket = await MaintenanceRequest.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'طلب الصيانة غير موجود' });
+    if (ticket.status !== status) {
+      ticket.status = status;
+      ticket.statusHistory.push({ status, at: new Date() });
+    }
+    if (req.body?.internalNote !== undefined) ticket.internalNote = sanitizePlainText(req.body.internalNote, 1200);
+    await ticket.save();
+    await logActivity('تحديث طلب صيانة', `${ticket.ticketNumber} => ${status}`, req.adminUser.username);
+    res.set('Cache-Control', 'no-store').json({ success: true, ticket });
+  } catch (err) {
+    res.status(500).json({ message: 'تعذر تحديث طلب الصيانة' });
+  }
+});
+
 app.post('/api/stock-notify', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const product=await Product.findById(req.body?.productId).select('title stockQuantity');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const phone=normalizePhoneNumber(req.body?.phone);if(!phone)return res.status(400).json({message:'رقم الهاتف مطلوب'});const name=sanitizePlainText(req.body?.name,80);await StockNotify.findOneAndUpdate({productId:product._id,phone,status:'waiting'},{$set:{productTitle:product.title,name,createdAt:new Date()}},{upsert:true,new:true});res.json({success:true,message:'تم تسجيل طلب التنبيه عند توفر المنتج'});}catch(err){res.status(500).json({message:'تعذر تسجيل طلب التنبيه'});}});
 
 // V8 admin: coupons, reviews and stock notifications
@@ -1678,11 +1799,11 @@ app.put('/api/categories/rename', requireAdminAuth, requirePermission('manage_ca
 // 1. Export Data (Backup)
 app.get('/api/backup', requireAdminAuth, requirePermission('manage_backup'), async (req, res) => {
   try {
-    const backupData = await buildV9BackupData();
+    const backupData = await buildCurrentBackupData();
     res.setHeader('Content-disposition', 'attachment; filename=technology-store-backup.json');
     res.setHeader('Content-type', 'application/json');
     res.send(JSON.stringify(backupData, null, 2));
-    logActivity('تحميل نسخة احتياطية', 'تم تنزيل نسخة احتياطية V9 كاملة', req.adminUser.username).catch(() => null);
+    logActivity('تحميل نسخة احتياطية', 'تم تنزيل نسخة احتياطية متضمنة طلبات الصيانة', req.adminUser.username).catch(() => null);
   } catch (err) {
     res.status(500).json({ message: 'خطأ أثناء إنشاء النسخة الاحتياطية', error: err.message });
   }
@@ -1696,6 +1817,8 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
     if (!backupData.categories || !backupData.products || !backupData.settings) return res.status(400).json({ message: 'ملف غير صالح أو تالف' });
     const products = (backupData.products || []).map(p => ({...p,image:p.image||'/assets/no-image.svg',category:p.category||'غير مصنف'}));
     await Promise.all([Category.deleteMany({}), Product.deleteMany({}), Settings.deleteMany({}), Order.deleteMany({}), Analytics.deleteMany({}), Coupon.deleteMany({}), Review.deleteMany({}), StockNotify.deleteMany({}), ReturnRequest.deleteMany({})]);
+    // Preserve existing service tickets when restoring an older backup without a maintenance section.
+    if (Array.isArray(backupData.maintenance)) await MaintenanceRequest.deleteMany({});
     if (backupData.categories?.length) await Category.insertMany(backupData.categories);
     if (products.length) await Product.insertMany(products);
     if (backupData.settings?.length) await Settings.insertMany(backupData.settings);
@@ -1705,6 +1828,7 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
     if (backupData.reviews?.length) await Review.insertMany(backupData.reviews);
     if (backupData.stockNotify?.length) await StockNotify.insertMany(backupData.stockNotify);
     if (backupData.returns?.length) await ReturnRequest.insertMany(backupData.returns);
+    if (Array.isArray(backupData.maintenance) && backupData.maintenance.length) await MaintenanceRequest.insertMany(backupData.maintenance);
     await logActivity('استعادة نسخة احتياطية', `تم استعادة نسخة V${backupData.backupVersion || 2}`, req.adminUser.username);
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) { console.error('RESTORE ERROR:', err); res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message }); }
@@ -3297,12 +3421,12 @@ app.get('/api/admin/system/health', requireAdminAuth, requireAnyPermission('view
 });
 app.get('/api/admin/pos/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{const settings=await getOrCreateSettings();const last=await Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean();const [syncedProducts,pendingOrders,receivedOrders]=await Promise.all([Product.countDocuments({source:'pos'}),Order.countDocuments({status:'pending'}),Order.countDocuments({status:'received_by_pos'})]);const invoicedOrders=await Order.countDocuments({posInvoiceId:{$exists:true,$nin:['',null]}});res.json({configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:last?.lastSyncedAt||null,syncedProducts,pendingOrders,receivedOrders,invoicedOrders});});
 
-async function buildV9BackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean()]);return{backupVersion:9,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns};}
+async function buildCurrentBackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean(),MaintenanceRequest.find().lean()]);return{backupVersion:10,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance};}
 async function createCloudBackup(trigger='manual',triggeredBy='system'){
   let tmpPath = '';
   try {
     if (!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) throw new Error('Cloudinary غير مضبوط');
-    const data = await buildV9BackupData();
+    const data = await buildCurrentBackupData();
     const json = JSON.stringify(data);
     const stamp = new Date().toISOString().replace(/[:.]/g,'-');
     const publicId = `technology-store/backups/backup_${stamp}`;
