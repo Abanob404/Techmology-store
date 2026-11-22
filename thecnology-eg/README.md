@@ -57,10 +57,10 @@ See `PHASE1_MERCHANDISING_AR.md`. The new admin merchandising studio is under **
 
 See [`V10_6_UPGRADE_AR.md`](V10_6_UPGRADE_AR.md) for Arabic feature notes, required production smoke tests, limitations and rollback. Adds `image-optimizer.js`, `admin-insights.js` and `enhancements.css`. No secret credentials or production database content included.
 
-## V10.7 — Maintenance service center + first-time visitor tour
+## V10.8 — Maintenance page unified + admin catalogue editor (2026-11-21)
 
-- New standalone page: `/maintenance` (`maintenance.html`, `maintenance.js`, `maintenance.css`).
-- Admin maintenance tickets: restricted to the `manage_orders` permission (`maintenance-admin.js`, `maintenance-admin.css`).
-- First-visit user guide: `tour.js`, `tour.css` on the public pages, replayable from **شرح الموقع**.
-- Maintenance tickets are in their own MongoDB collection and included in current backup exports/restores, without POS inventory or sales changes.
-- Read `V10_7_SERVICE_CENTER_TOUR_AR.md` for endpoints, deploy procedure, and test limitations.
+See [`V10_8_MAINTENANCE_EDITOR_AR.md`](V10_8_MAINTENANCE_EDITOR_AR.md) for setup, roles, public service selection, indicative pricing, new API, smoke testing and rollback. Adds `maintenance-catalog-admin.js` and `maintenance-catalog-admin.css`. MongoDB creates the catalogue collection automatically when settings are first saved. The update never mutates POS inventory or converts service requests to sales.
+
+## V10.9 — منتجات بدون صور
+
+قسم رفع سريع لصور المنتجات الناقصة من لوحة الإدارة، مع ضغط WebP قبل الإرسال، وعرض النواقص بالبحث والفلاتر والعدادات. ملف التعليمات: `V10_9_MISSING_PRODUCT_IMAGES_AR.md`. يحتاج نشر الملفات الجديدة `missing-images-admin.js` و`missing-images-admin.css` و`server/missing-image-utils.js` مع تحديث `admin.html` و`admin.js` و`server/index.js`. لا توجد تغييرات لقاعدة البيانات أو POS.

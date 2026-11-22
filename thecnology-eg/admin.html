@@ -32,6 +32,8 @@
     <link rel="stylesheet" href="admin.css">
     <link rel="stylesheet" href="enhancements.css">
     <link rel="stylesheet" href="maintenance-admin.css">
+    <link rel="stylesheet" href="maintenance-catalog-admin.css">
+    <link rel="stylesheet" href="missing-images-admin.css">
 
     <!-- Theme Toggle Script to prevent FOUT/Flash -->
     <script>
@@ -96,9 +98,15 @@
                 <button onclick="switchTab('orders')" id="tab-orders" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">receipt_long</span> الطلبات
                 </button>
+                <button onclick="switchTab('maintenance-catalog')" id="tab-maintenance-catalog" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50" style="display:none">
+                    <span class="material-symbols-outlined text-[20px]">design_services</span> إدارة صفحة الصيانة
+                </button>
                 <button onclick="switchTab('maintenance')" id="tab-maintenance" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50" style="display:none">
                     <span class="material-symbols-outlined text-[20px]">home_repair_service</span>
                     <span>طلبات الصيانة <small id="techSrvBadge" class="mr-2 text-[10px] rounded-full bg-sky-500 text-white px-2 py-0.5" hidden></small></span>
+                </button>
+                <button onclick="switchTab('missing-images')" id="tab-missing-images" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50" style="display:none">
+                    <span class="material-symbols-outlined text-[20px]">add_photo_alternate</span><span>منتجات بدون صور</span><b id="missingImagesNavCount" hidden>0</b>
                 </button>
                 <button onclick="switchTab('media')" id="tab-media" class="admin-tab w-full flex items-center gap-3 px-4 py-3 rounded-lg text-on-surface-variant font-bold text-sm transition-all hover:bg-surface-variant/50">
                     <span class="material-symbols-outlined text-[20px]">photo_library</span> الصور والوسائط
@@ -219,6 +227,31 @@
             </div>
         </div>
 
+        <!-- ========= Missing Product Images: Quick Upload ========= -->
+        <div id="panel-missing-images" class="tab-panel hidden">
+          <section class="missing-images-page">
+            <div class="missing-images-head">
+              <div>
+                <span class="missing-images-eyebrow"><span class="material-symbols-outlined">add_photo_alternate</span> إدارة صور المنتجات</span>
+                <h3>منتجات بدون صور</h3>
+                <p>كل المنتجات اللي ناقصها صورة أساسية في مكان واحد. اختار الصورة وارفعها مباشرة، وهتتصغر وتتحوّل لـ WebP تلقائيًا. مش محتاج تفتح تعديل المنتج أو تغيّر السعر والمخزون.</p>
+              </div>
+              <div class="missing-images-count"><strong id="missingImageTotal">—</strong><small>منتج يحتاج صورة</small></div>
+            </div>
+            <div class="missing-images-toolbar" role="search">
+              <input type="search" id="missingImageSearch" aria-label="بحث في المنتجات بدون صور" placeholder="ابحث باسم المنتج أو SKU أو الماركة..." autocomplete="off">
+              <select id="missingImageCategory" aria-label="فلترة حسب القسم"><option value="">كل الأقسام</option></select>
+              <select id="missingImageVisibility" aria-label="حالة الظهور"><option value="">الظاهر والمخفي</option><option value="visible">الظاهر فقط</option><option value="hidden">المخفي فقط</option></select>
+              <select id="missingImageSort" aria-label="ترتيب المنتجات"><option value="value">الأعلى سعرًا أولًا</option><option value="newest">الأحدث أولًا</option><option value="name">حسب اسم المنتج</option></select>
+              <button type="button" id="missingImagesRefresh"><span class="material-symbols-outlined">refresh</span> تحديث</button>
+            </div>
+            <p id="missingImageNotice" class="missing-images-notice" role="alert" hidden></p>
+            <div id="missingImageGrid" class="missing-images-grid" aria-live="polite"><div class="missing-images-loading">افتح التبويب لعرض المنتجات التي تحتاج صورًا.</div></div>
+            <div class="missing-images-footer"><span id="missingImageRange" aria-live="polite">—</span><div class="missing-images-pages"><button type="button" id="missingImagesPrev">السابق</button><button type="button" id="missingImagesNext">التالي</button></div></div>
+            <input id="missingImageFile" type="file" accept="image/jpeg,image/png,image/webp" hidden aria-label="اختيار صورة المنتج">
+          </section>
+        </div>
+
         <!-- ========= Media Center ========= -->
         <div id="panel-media" class="tab-panel hidden">
             <div class="flex flex-col gap-5">
@@ -243,6 +276,44 @@
                     <div id="techSrvTickets" class="tech-srv-list"><div class="tech-srv-empty">افتح قسم الصيانة لعرض الطلبات.</div></div>
                     <div id="techSrvPagination" class="tech-srv-pagination"></div>
                 </div>
+        <section id="panel-maintenance-catalog" class="tab-panel hidden" aria-label="إدارة صفحة الصيانة">
+            <div class="tech-catalog-admin">
+                <div class="tech-catalog-heading">
+                    <div><h2>إدارة صفحة الصيانة</h2><p>تحكم في العنوان والوصف والأقسام والخدمات والأسعار التي تظهر للعملاء. الأسعار استرشادية ويتم تأكيدها قبل التنفيذ.</p></div>
+                    <a href="/maintenance" target="_blank" rel="noopener noreferrer">معاينة الصفحة ↗</a>
+                </div>
+                <p id="techCatalogNotice" class="tech-catalog-notice" role="status" aria-live="polite">افتح التبويب لتحميل بيانات الخدمات.</p>
+                <div class="tech-catalog-box">
+                    <h3>محتوى الصفحة الرئيسية للصيانة</h3>
+                    <div class="tech-catalog-form-grid">
+                        <label>عنوان الصفحة الرئيسي<input id="techCatHeroTitle" maxlength="110" placeholder="عنوان الصفحة"></label>
+                        <label>عنوان قسم الخدمات<input id="techCatSectionTitle" maxlength="90" placeholder="عنوان القسم"></label>
+                        <label class="tech-catalog-wide">وصف المقدمة<textarea id="techCatHeroDescription" maxlength="440" rows="2"></textarea></label>
+                        <label class="tech-catalog-wide">وصف قسم الخدمات<textarea id="techCatSectionDescription" maxlength="230" rows="2"></textarea></label>
+                        <label>نص زر طلب الصيانة<input id="techCatPrimaryCta" maxlength="50"></label>
+                        <label>نص زر متابعة الطلب<input id="techCatSecondaryCta" maxlength="50"></label>
+                        <label>عنوان نموذج الطلب<input id="techCatRequestTitle" maxlength="80"></label>
+                        <label>عنوان متابعة الصيانة<input id="techCatTrackTitle" maxlength="80"></label>
+                        <label class="tech-catalog-wide">وصف نموذج الطلب<input id="techCatRequestDescription" maxlength="260"></label>
+                        <label class="tech-catalog-wide">وصف المتابعة<input id="techCatTrackDescription" maxlength="260"></label>
+                        <label>نص أسفل الصفحة<input id="techCatFooterTagline" maxlength="100"></label>
+                        <label class="tech-catalog-check"><input type="checkbox" id="techCatShowPrices"> إظهار الأسعار الاسترشادية</label>
+                        <label class="tech-catalog-check"><input type="checkbox" id="techCatShowHeroVisual"> إظهار رسم الصيانة في المقدمة</label>
+                        <label class="tech-catalog-wide">3 جمل ثقة قصيرة (كل جملة في سطر)<textarea id="techCatHighlights" rows="3" maxlength="260"></textarea></label>
+                        <label class="tech-catalog-wide">4 خطوات لرحلة الصيانة (كل خطوة في سطر)<textarea id="techCatProcessSteps" rows="4" maxlength="640"></textarea></label>
+                    </div>
+                </div>
+                <div class="tech-catalog-box">
+                    <div class="tech-catalog-headline"><div><h3>أقسام الصيانة</h3><p>إضافة وحذف وترتيب الأقسام، والتحكم في إظهارها للعميل.</p></div><button type="button" data-catalog-action="add-category">+ إضافة قسم</button></div>
+                    <div id="techCatCategories" class="tech-catalog-items"></div>
+                </div>
+                <div class="tech-catalog-box">
+                    <div class="tech-catalog-headline"><div><h3>الخدمات والأسعار الاسترشادية</h3><p>تقدر تضيف «تحميل برامج»، «تثبيت ويندوز»، «تنظيف جهاز» أو أي خدمة تانية؛ والسعر ممكن يكون فارغ لحد الفحص.</p></div><button type="button" data-catalog-action="add-service">+ إضافة خدمة</button></div>
+                    <div id="techCatServices" class="tech-catalog-items"></div>
+                </div>
+                <div class="tech-catalog-savebar"><span>التغييرات لا تظهر للعملاء إلا بعد الحفظ.</span><div><button type="button" id="techCatReload">تراجع عن التعديلات</button><button type="button" id="techCatSave">حفظ ونشر التعديلات</button></div></div>
+            </div>
+        </section>
         <div id="panel-products" class="tab-panel hidden">
             <div class="products-admin-shell">
                 <!-- Inventory summary -->
@@ -1293,6 +1364,7 @@
             }
             if (tabName === 'dashboard' && window.loadDashboard) window.loadDashboard();
             if (tabName === 'orders' && window.loadOrders) window.loadOrders(window.ordersPage || 1);
+            if (tabName === 'missing-images' && window.loadMissingImageProducts) window.loadMissingImageProducts(1);
             if (tabName === 'media' && window.loadMediaCenter) window.loadMediaCenter();
             if (tabName === 'analytics' && window.loadAnalytics) window.loadAnalytics();
             if (tabName === 'logs' && window.fetchAdminLogs) window.fetchAdminLogs();
@@ -1325,8 +1397,10 @@
     <script src="image-optimizer.js" defer></script>
     <script src="merch-ranking.js" defer></script>
     <script src="admin.js" defer></script>
+    <script src="missing-images-admin.js" defer></script>
     <script src="merch-admin.js" defer></script>
     <script src="admin-insights.js" defer></script>
     <script src="maintenance-admin.js" defer></script>
+    <script src="maintenance-catalog-admin.js" defer></script>
 </body>
 </html>

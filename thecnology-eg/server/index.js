@@ -8,6 +8,7 @@ const fileUpload = require('express-fileupload');
 const serverless = require('serverless-http'); // تم تصحيح المكتبة للـ Serverless
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { isMissingProductImage, buildMissingProductImageFilter, escapeMongoRegex, pageNumber } = require('./missing-image-utils');
 require('dotenv').config();
 
 const app = express();
@@ -677,7 +678,10 @@ const maintenanceRequestSchema = new mongoose.Schema({
   ticketNumber: { type: String, unique: true, required: true, index: true },
   customerName: { type: String, required: true, maxlength: 80 },
   customerPhone: { type: String, required: true, maxlength: 20 },
-  serviceType: { type: String, enum: SERVICE_TYPES, required: true },
+  serviceType: { type: String, required: true, maxlength: 40 },
+  serviceId: { type: String, default: '', maxlength: 40 },
+  serviceTitle: { type: String, default: '', maxlength: 100 },
+  priceAtRequest: { type: String, default: '', maxlength: 100 },
   device: { type: String, default: '', maxlength: 120 },
   problem: { type: String, required: true, maxlength: 1200 },
   area: { type: String, default: '', maxlength: 120 },
@@ -688,6 +692,112 @@ const maintenanceRequestSchema = new mongoose.Schema({
 }, { timestamps: true });
 maintenanceRequestSchema.index({ createdAt: -1 });
 const MaintenanceRequest = mongoose.model('MaintenanceRequest', maintenanceRequestSchema);
+
+// The single service catalogue is editable independently of POS, orders and stock.
+const DEFAULT_MAINTENANCE_CATALOG = Object.freeze({
+  heroTitle: 'جهازك محتاج صيانة؟ إحنا معاك.',
+  heroDescription: 'اختار الخدمة المناسبة وسجّل طلبك في خطوات بسيطة. هنراجع التفاصيل ونتواصل معاك لتأكيد التكلفة والموعد قبل أي إجراء.',
+  sectionTitle: 'بنساعدك في إيه؟',
+  sectionDescription: 'اختار القسم ثم الخدمة اللي محتاجها، ولو مش متأكد اختار مشكلة أخرى.',
+  primaryCta: 'اطلب صيانة الآن', secondaryCta: 'متابعة طلب سابق',
+  requestTitle: 'سجّل طلب صيانة', requestDescription: 'املأ بياناتك الأساسية، وحدد الخدمة، واستلم رقم متابعة على الشاشة.',
+  trackTitle: 'تابع حالة الصيانة', trackDescription: 'اكتب رقم المتابعة مع نفس رقم الهاتف اللي سجلت بيه.',
+  footerTagline: 'خدمة صيانة ومتابعة بدون تعقيد.',
+  highlights: ['طلب إلكتروني مباشر', 'رقم متابعة لكل طلب', 'لا يوجد دفع مقدم عبر الموقع'],
+  processSteps: ['سجّل طلب الصيانة.', 'فريقنا يراجع التفاصيل ويتواصل معاك.', 'نتفق معاك على الخدمة والتكلفة.', 'تتابع الحالة برقم الطلب لحد الاستلام.'],
+  showPrices: true, showHeroVisual: true,
+  categories: [
+    { id: 'computer', title: 'كمبيوتر وتجميعات', description: 'تشخيص وصيانة وترقية أجهزة الكمبيوتر', icon: '🖥️', enabled: true },
+    { id: 'laptop', title: 'لابتوب', description: 'أعطال الجهاز والأداء والبرامج', icon: '💻', enabled: true },
+    { id: 'camera', title: 'كاميرات مراقبة', description: 'التركيب والضبط والفحص', icon: '📷', enabled: true },
+    { id: 'network', title: 'شبكات وراوترات', description: 'الشبكات والواي فاي', icon: '📶', enabled: true },
+    { id: 'installation', title: 'تركيب وإعداد', description: 'إعداد الأجهزة والبرمجيات', icon: '⚙️', enabled: true },
+    { id: 'other', title: 'مشكلة أخرى', description: 'مش عارف نوع العطل؟ احكيلنا', icon: '🔧', enabled: true }
+  ],
+  services: [
+    { id: 'computer_check', categoryId: 'computer', title: 'كشف وتشخيص جهاز الكمبيوتر', description: 'تحديد سبب العطل قبل بدء الإصلاح', priceType: 'quote', price: null, enabled: true },
+    { id: 'laptop_check', categoryId: 'laptop', title: 'فحص اللابتوب', description: 'تقييم مشكلة الأداء أو التشغيل', priceType: 'quote', price: null, enabled: true },
+    { id: 'camera_setup', categoryId: 'camera', title: 'ضبط وتركيب كاميرات المراقبة', description: 'حسب عدد الكاميرات والمكان', priceType: 'quote', price: null, enabled: true },
+    { id: 'network_check', categoryId: 'network', title: 'تشخيص أعطال الشبكة', description: 'فحص الاتصال وإعدادات الراوتر', priceType: 'quote', price: null, enabled: true },
+    { id: 'software_install', categoryId: 'installation', title: 'تحميل وتثبيت البرامج', description: 'اختار البرامج المطلوبة واكتب التفاصيل عند الحاجة', priceType: 'quote', price: null, enabled: true },
+    { id: 'windows_install', categoryId: 'installation', title: 'تثبيت ويندوز وتعريفات الجهاز', description: 'تهيئة النظام والتعريفات حسب الجهاز', priceType: 'quote', price: null, enabled: true },
+    { id: 'other_issue', categoryId: 'other', title: 'استفسار أو مشكلة غير محددة', description: 'هنساعدك تحدد الخدمة المناسبة', priceType: 'quote', price: null, enabled: true }
+  ]
+});
+const maintenanceCatalogSchema = new mongoose.Schema({
+  key: { type: String, default: 'main', unique: true },
+  heroTitle: String, heroDescription: String, sectionTitle: String, sectionDescription: String,
+  primaryCta: String, secondaryCta: String, requestTitle: String, requestDescription: String,
+  trackTitle: String, trackDescription: String, footerTagline: String,
+  highlights: [String], processSteps: [String], showPrices: Boolean, showHeroVisual: Boolean,
+  categories: [{ id: String, title: String, description: String, icon: String, enabled: Boolean }],
+  services: [{ id: String, categoryId: String, title: String, description: String,
+    priceType: { type: String, enum: ['quote','from','fixed'], default: 'quote' }, price: Number, enabled: Boolean }]
+}, { timestamps: true });
+const MaintenanceCatalog = mongoose.model('MaintenanceCatalog', maintenanceCatalogSchema);
+const plainMaintId = x => /^[a-z][a-z0-9_-]{0,39}$/.test(String(x || ''));
+function normalizeMaintenanceCatalog(input) {
+  if (!input || !Array.isArray(input.categories) || !Array.isArray(input.services))
+    throw Object.assign(new Error('قائمة الأقسام والخدمات مطلوبة'), { statusCode: 400 });
+  if (input.categories.length < 1 || input.categories.length > 25 || input.services.length > 150)
+    throw Object.assign(new Error('الحد الأقصى 25 قسمًا و150 خدمة، ويجب وجود قسم واحد على الأقل'), { statusCode: 400 });
+  const categories = input.categories.map(c => ({
+    id: String(c.id || '').trim(), title: sanitizePlainText(c.title, 80),
+    description: sanitizePlainText(c.description, 160), icon: sanitizePlainText(c.icon, 8), enabled: c.enabled !== false
+  }));
+  const ids = new Set();
+  for (const c of categories) {
+    if (!plainMaintId(c.id) || !c.title || ids.has(c.id))
+      throw Object.assign(new Error('راجع معرفات وأسماء الأقسام؛ لا يسمح بتكرارها'), { statusCode: 400 });
+    ids.add(c.id);
+  }
+  const serviceIds = new Set();
+  const services = input.services.map(s => {
+    const type = ['quote','from','fixed'].includes(s.priceType) ? s.priceType : 'quote';
+    const amount = type === 'quote' ? null : (s.price == null || String(s.price).trim() === '' ? NaN : Number(s.price));
+    return { id: String(s.id || '').trim(), categoryId: String(s.categoryId || '').trim(),
+      title: sanitizePlainText(s.title, 100), description: sanitizePlainText(s.description, 220),
+      enabled: s.enabled !== false, priceType: type, price: amount };
+  });
+  for (const service of services) {
+    if (!plainMaintId(service.id) || serviceIds.has(service.id) || !ids.has(service.categoryId) || !service.title ||
+        (service.priceType !== 'quote' && (!Number.isFinite(service.price) || service.price < 0 || service.price > 1000000))) {
+      throw Object.assign(new Error('راجع أسماء الخدمات وأقسامها والأسعار؛ السعر يجب أن يكون رقمًا صالحًا'), { statusCode: 400 });
+    }
+    serviceIds.add(service.id);
+  }
+  return { heroTitle: sanitizePlainText(input.heroTitle, 110) || DEFAULT_MAINTENANCE_CATALOG.heroTitle,
+    heroDescription: sanitizePlainText(input.heroDescription, 440) || DEFAULT_MAINTENANCE_CATALOG.heroDescription,
+    sectionTitle: sanitizePlainText(input.sectionTitle, 90) || DEFAULT_MAINTENANCE_CATALOG.sectionTitle,
+    sectionDescription: sanitizePlainText(input.sectionDescription, 230) || DEFAULT_MAINTENANCE_CATALOG.sectionDescription,
+    primaryCta: sanitizePlainText(input.primaryCta, 50) || DEFAULT_MAINTENANCE_CATALOG.primaryCta,
+    secondaryCta: sanitizePlainText(input.secondaryCta, 50) || DEFAULT_MAINTENANCE_CATALOG.secondaryCta,
+    requestTitle: sanitizePlainText(input.requestTitle, 80) || DEFAULT_MAINTENANCE_CATALOG.requestTitle,
+    requestDescription: sanitizePlainText(input.requestDescription, 260) || DEFAULT_MAINTENANCE_CATALOG.requestDescription,
+    trackTitle: sanitizePlainText(input.trackTitle, 80) || DEFAULT_MAINTENANCE_CATALOG.trackTitle,
+    trackDescription: sanitizePlainText(input.trackDescription, 260) || DEFAULT_MAINTENANCE_CATALOG.trackDescription,
+    footerTagline: sanitizePlainText(input.footerTagline, 100) || DEFAULT_MAINTENANCE_CATALOG.footerTagline,
+    highlights: (Array.isArray(input.highlights) ? input.highlights : DEFAULT_MAINTENANCE_CATALOG.highlights).slice(0,3).map(x=>sanitizePlainText(x,80)).filter(Boolean),
+    processSteps: (Array.isArray(input.processSteps) ? input.processSteps : DEFAULT_MAINTENANCE_CATALOG.processSteps).slice(0,4).map(x=>sanitizePlainText(x,150)).filter(Boolean),
+    showPrices: input.showPrices !== false, showHeroVisual: input.showHeroVisual !== false,
+    categories, services };
+}
+async function getMaintenanceCatalog() {
+  const doc = await MaintenanceCatalog.findOne({ key: 'main' }).select('-__v').lean();
+  return doc ? { heroTitle: doc.heroTitle, heroDescription: doc.heroDescription,
+    sectionTitle: doc.sectionTitle, sectionDescription: doc.sectionDescription,
+    primaryCta: doc.primaryCta, secondaryCta: doc.secondaryCta,
+    requestTitle: doc.requestTitle, requestDescription: doc.requestDescription,
+    trackTitle: doc.trackTitle, trackDescription: doc.trackDescription,
+    footerTagline: doc.footerTagline, highlights: doc.highlights, processSteps: doc.processSteps,
+    showPrices: doc.showPrices, showHeroVisual: doc.showHeroVisual,
+    categories: doc.categories || [], services: doc.services || [] } : DEFAULT_MAINTENANCE_CATALOG;
+}
+function maintenancePriceLabel(service) {
+  return service.priceType === 'quote' ? 'السعر بعد الفحص والتأكيد' :
+    `${service.priceType === 'from' ? 'يبدأ من ' : ''}${Number(service.price || 0).toLocaleString('ar-EG')} ج.م (استرشادي)`;
+}
+
 
 
 // Website orders never reserve, decrement, restore, or otherwise mutate inventory.
@@ -1614,6 +1724,27 @@ app.get('/api/reviews/:productId', async (req,res)=>{try{await ensureDBConnectio
 app.post('/api/reviews', publicWriteLimiter, async (req,res)=>{try{await ensureDBConnection();const productId=String(req.body?.productId||'');const product=await Product.findById(productId).select('_id');if(!product)return res.status(404).json({message:'المنتج غير موجود'});const name=sanitizePlainText(req.body?.name,80);const rating=Math.max(1,Math.min(5,Number(req.body?.rating)||0));const comment=sanitizePlainText(req.body?.comment,800);if(!name||!rating)return res.status(400).json({message:'الاسم والتقييم مطلوبان'});let verifiedPurchase=false,verifiedOrderNumber='';const orderNumber=sanitizePlainText(req.body?.orderNumber,80),phone=normalizePhoneNumber(req.body?.phone);if(orderNumber&&phone){const order=await Order.findOne({orderNumber,customerPhone:phone,posInvoiceId:{$exists:true,$nin:['',null]},status:{$ne:'cancelled'},'items.productId':productId}).select('orderNumber').lean();if(order){verifiedPurchase=true;verifiedOrderNumber=order.orderNumber;}}await Review.create({productId,name,rating,comment,originalComment:comment,publishedComment:comment,status:'pending',approved:false,verifiedPurchase,verifiedOrderNumber});res.status(201).json({success:true,verifiedPurchase,message:verifiedPurchase?'تم استلام تقييمك كمشتري موثّق وسيظهر بعد المراجعة':'تم استلام تقييمك وسيظهر بعد مراجعته من إدارة المتجر'});}catch(err){res.status(500).json({message:'تعذر إرسال التقييم'});}});
 
 
+
+// Customers only receive the published catalogue. Admin edits require manage_settings.
+app.get('/api/maintenance/catalog', async (req, res) => {
+  try { await ensureDBConnection(); res.set('Cache-Control','no-store').json(await getMaintenanceCatalog()); }
+  catch (err) { res.status(503).json({ message: 'كتالوج الخدمات غير متاح مؤقتًا' }); }
+});
+app.get('/api/admin/maintenance/catalog', requireAdminAuth, requirePermission('manage_settings'), async (req, res) => {
+  try { await ensureDBConnection(); res.set('Cache-Control','no-store').json(await getMaintenanceCatalog()); }
+  catch (_) { res.status(503).json({ message: 'تعذر تحميل إعدادات مركز الصيانة' }); }
+});
+app.put('/api/admin/maintenance/catalog', requireAdminAuth, requirePermission('manage_settings'), async (req, res) => {
+  try {
+    const clean = normalizeMaintenanceCatalog(req.body);
+    await ensureDBConnection();
+    await MaintenanceCatalog.findOneAndUpdate({ key: 'main' }, { $set: clean },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true });
+    await logActivity('تحديث كتالوج الصيانة', `تحديث ${clean.categories.length} أقسام و${clean.services.length} خدمات`, req.adminUser.username);
+    res.set('Cache-Control','no-store').json({ success: true, catalog: clean });
+  } catch (err) { res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'تعذر حفظ إعدادات الصيانة' }); }
+});
+
 // Service center. Public endpoints disclose only ticket status when BOTH code and phone match.
 app.post('/api/maintenance/requests', maintenanceLimiter, async (req, res) => {
   try {
@@ -1624,16 +1755,24 @@ app.post('/api/maintenance/requests', maintenanceLimiter, async (req, res) => {
     const customerName = sanitizePlainText(data.customerName, 80);
     const customerPhone = normalizePhoneNumber(data.customerPhone);
     const serviceType = sanitizePlainText(data.serviceType, 30);
+    const serviceId = sanitizePlainText(data.serviceId, 40);
     const device = sanitizePlainText(data.device, 120);
-    const problem = sanitizePlainText(data.problem, 1200);
+    let problem = sanitizePlainText(data.problem, 1200);
     const area = sanitizePlainText(data.area, 120);
     const preferredContact = data.preferredContact === 'phone' ? 'phone' : 'whatsapp';
-    if (customerName.length < 2 || !/^[0-9]{10,15}$/.test(customerPhone) || !SERVICE_TYPES.includes(serviceType) || problem.length < 10) {
-      return res.status(400).json({ message: 'راجع الاسم ورقم الهاتف ونوع الخدمة ووصف المشكلة (10 حروف على الأقل)' });
+    const catalog = await getMaintenanceCatalog();
+    const selectedCategory = catalog.categories.find(c => c.id === serviceType && c.enabled);
+    const selectedService = catalog.services.find(x => x.id === serviceId && x.enabled && x.categoryId === serviceType);
+    if (customerName.length < 2 || !/^[0-9]{10,15}$/.test(customerPhone) || !selectedCategory ||
+        (serviceId && !selectedService) || (!selectedService && problem.length < 10)) {
+      return res.status(400).json({ message: 'راجع بيانات التواصل، والقسم، والخدمة، أو اكتب وصفًا للمشكلة (10 حروف على الأقل).' });
     }
+    if (selectedService && problem.length < 10) problem = `طلب خدمة: ${selectedService.title}`;
     const ticketNumber = `SRV-${new Date().toISOString().slice(2,10).replace(/-/g,'')}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
     const ticket = await MaintenanceRequest.create({
-      ticketNumber, customerName, customerPhone, serviceType, device, problem, area, preferredContact,
+      ticketNumber, customerName, customerPhone, serviceType, serviceId: selectedService?.id || '',
+      serviceTitle: selectedService?.title || '', priceAtRequest: selectedService ? maintenancePriceLabel(selectedService) : '',
+      device, problem, area, preferredContact,
       statusHistory: [{ status: 'new', at: new Date() }]
     });
     res.set('Cache-Control', 'no-store').status(201).json({ success: true, ticketNumber: ticket.ticketNumber, status: ticket.status, message: 'تم تسجيل طلب الصيانة. سيتواصل معك الفريق لتأكيد التفاصيل والتكلفة بعد التقييم.' });
@@ -1649,9 +1788,9 @@ app.post('/api/maintenance/track', publicWriteLimiter, async (req, res) => {
     if (!/^SRV-[0-9]{6}-[A-F0-9]{10}$/.test(ticketNumber) || !/^[0-9]{10,15}$/.test(customerPhone))
       return res.status(400).json({ message: 'أدخل رقم متابعة صحيحًا ورقم الهاتف المسجل' });
     await ensureDBConnection();
-    const ticket = await MaintenanceRequest.findOne({ ticketNumber, customerPhone }).select('ticketNumber serviceType status statusHistory createdAt updatedAt').lean();
+    const ticket = await MaintenanceRequest.findOne({ ticketNumber, customerPhone }).select('ticketNumber serviceType serviceTitle status statusHistory createdAt updatedAt').lean();
     if (!ticket) return res.status(404).json({ message: 'لم يتم العثور على طلب بهذه البيانات' });
-    res.set('Cache-Control', 'no-store').json({ ticketNumber: ticket.ticketNumber, serviceType: ticket.serviceType, status: ticket.status, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt, statusHistory: (ticket.statusHistory || []).map(x => ({ status: x.status, at: x.at })) });
+    res.set('Cache-Control', 'no-store').json({ ticketNumber: ticket.ticketNumber, serviceType: ticket.serviceType, serviceTitle: ticket.serviceTitle, status: ticket.status, createdAt: ticket.createdAt, updatedAt: ticket.updatedAt, statusHistory: (ticket.statusHistory || []).map(x => ({ status: x.status, at: x.at })) });
   } catch (err) {
     res.status(500).json({ message: 'تعذر جلب حالة الطلب' });
   }
@@ -1680,7 +1819,8 @@ app.get('/api/admin/maintenance', requireAdminAuth, requirePermission('manage_or
       { ticketNumber: { $regex: escapeRegexLiteral(search), $options: 'i' } },
       { customerName: { $regex: escapeRegexLiteral(search), $options: 'i' } },
       { customerPhone: { $regex: escapeRegexLiteral(search), $options: 'i' } },
-      { device: { $regex: escapeRegexLiteral(search), $options: 'i' } }
+      { device: { $regex: escapeRegexLiteral(search), $options: 'i' } },
+      { serviceTitle: { $regex: escapeRegexLiteral(search), $options: 'i' } }
     ];
     const [items, total, openCount] = await Promise.all([
       MaintenanceRequest.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
@@ -1819,6 +1959,7 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
     await Promise.all([Category.deleteMany({}), Product.deleteMany({}), Settings.deleteMany({}), Order.deleteMany({}), Analytics.deleteMany({}), Coupon.deleteMany({}), Review.deleteMany({}), StockNotify.deleteMany({}), ReturnRequest.deleteMany({})]);
     // Preserve existing service tickets when restoring an older backup without a maintenance section.
     if (Array.isArray(backupData.maintenance)) await MaintenanceRequest.deleteMany({});
+    if (Array.isArray(backupData.maintenanceCatalog)) await MaintenanceCatalog.deleteMany({});
     if (backupData.categories?.length) await Category.insertMany(backupData.categories);
     if (products.length) await Product.insertMany(products);
     if (backupData.settings?.length) await Settings.insertMany(backupData.settings);
@@ -1829,6 +1970,7 @@ app.post('/api/restore', requireAdminAuth, requirePermission('manage_backup'), a
     if (backupData.stockNotify?.length) await StockNotify.insertMany(backupData.stockNotify);
     if (backupData.returns?.length) await ReturnRequest.insertMany(backupData.returns);
     if (Array.isArray(backupData.maintenance) && backupData.maintenance.length) await MaintenanceRequest.insertMany(backupData.maintenance);
+    if (Array.isArray(backupData.maintenanceCatalog) && backupData.maintenanceCatalog.length) await MaintenanceCatalog.insertMany(backupData.maintenanceCatalog);
     await logActivity('استعادة نسخة احتياطية', `تم استعادة نسخة V${backupData.backupVersion || 2}`, req.adminUser.username);
     res.json({ message: 'تم استعادة النسخة الاحتياطية بنجاح!' });
   } catch (err) { console.error('RESTORE ERROR:', err); res.status(500).json({ message: 'خطأ أثناء استعادة النسخة الاحتياطية', error: err.message }); }
@@ -3105,6 +3247,87 @@ app.post('/api/admin/products/bulk-action', requireAdminAuth, requirePermission(
   }catch(err){res.status(500).json({message:'تعذر تنفيذ الإجراء الجماعي'});}
 });
 
+// V10.9 — dedicated, paginated missing-image queue. Never changes other product fields.
+app.get('/api/admin/products/missing-images', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
+  try {
+    await ensureDBConnection();
+    const settings = await getOrCreateSettings();
+    const filter = buildMissingProductImageFilter(settings.defaultProductImage);
+    const query = String(req.query.q || '').trim().slice(0, 100);
+    const category = String(req.query.category || '').trim().slice(0, 100);
+    const visibility = String(req.query.visibility || '').trim();
+    if (query) {
+      const re = new RegExp(escapeMongoRegex(query), 'i');
+      filter.$and = [{ $or: [{ title: re }, { sku: re }, { publicBrand: re }] }];
+    }
+    if (category) filter.category = category;
+    if (visibility === 'visible') filter.isHidden = { $ne: true };
+    if (visibility === 'hidden') filter.isHidden = true;
+
+    const limit = Math.min(40, pageNumber(req.query.limit, 20, 40));
+    const page = pageNumber(req.query.page);
+    const sortType = String(req.query.sort || 'value');
+    const sort = sortType === 'newest' ? { createdAt: -1, _id: -1 } :
+      sortType === 'name' ? { title: 1, _id: 1 } : { price: -1, createdAt: -1, _id: -1 };
+    const [count, products] = await Promise.all([
+      Product.countDocuments(filter),
+      Product.find(filter).select('_id title sku category price publicBrand isHidden image createdAt')
+        .sort(sort).skip((page - 1) * limit).limit(limit).lean()
+    ]);
+    const totalMissing = (query || category || visibility)
+      ? await Product.countDocuments(buildMissingProductImageFilter(settings.defaultProductImage))
+      : count;
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ items: products, count, totalMissing, page, limit, pages: Math.max(1, Math.ceil(count / limit)) });
+  } catch (err) {
+    console.error('Missing images list error:', err);
+    res.status(500).json({ message: 'تعذر تحميل المنتجات بدون صور' });
+  }
+});
+
+// V10.9 — lightweight main-image upload, guarded against accidentally replacing existing images.
+app.put('/api/admin/products/:id/missing-image', requireAdminAuth, requirePermission('edit_product'), async (req, res) => {
+  let uploadedPublicId = '';
+  let savedToDb = false;
+  try {
+    await ensureDBConnection();
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'معرّف المنتج غير صالح' });
+    if (!req.files?.image || Array.isArray(req.files.image)) {
+      return res.status(400).json({ message: 'اختر صورة واحدة للمنتج' });
+    }
+    const [file] = validateImageFiles(req.files.image);
+    const settings = await getOrCreateSettings();
+    const existing = await Product.findById(req.params.id).select('_id title image').lean();
+    if (!existing) return res.status(404).json({ message: 'المنتج غير موجود' });
+    if (!isMissingProductImage(existing.image, settings.defaultProductImage)) {
+      return res.status(409).json({ message: 'المنتج لديه صورة بالفعل. استخدم تعديل المنتج لتغييرها.' });
+    }
+    const uploaded = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: 'technology_store', format: 'webp', quality: 'auto:good',
+      transformation: [{ width: 1600, height: 1600, crop: 'limit' }]
+    });
+    uploadedPublicId = uploaded.public_id;
+    const updated = await Product.findOneAndUpdate(
+      { _id: req.params.id, ...buildMissingProductImageFilter(settings.defaultProductImage) },
+      { $set: { image: uploaded.secure_url, imagePublicId: uploaded.public_id } },
+      { new: true, projection: { _id: 1, title: 1, image: 1, imagePublicId: 1 } }
+    ).lean();
+    if (!updated) return res.status(409).json({ message: 'تمت إضافة صورة لهذا المنتج من مستخدم آخر. حدّث القائمة.' });
+    savedToDb = true;
+    await logActivity('إضافة صورة منتج', `تم رفع الصورة الأساسية للمنتج: ${updated.title}`, req.adminUser.username);
+    res.setHeader('Cache-Control', 'no-store');
+    return res.json({ success: true, product: updated });
+  } catch (err) {
+    console.error('Missing product image upload error:', err);
+    return res.status(err.statusCode || 500).json({ message: err.statusCode ? err.message : 'تعذر رفع صورة المنتج. جرّب مرة أخرى.' });
+  } finally {
+    // If the DB edit failed, clean the newly uploaded Cloudinary file so it does not leak storage.
+    if (uploadedPublicId && !savedToDb) {
+      try { await cloudinary.uploader.destroy(uploadedPublicId); } catch (cleanupErr) { console.error('Missing image cleanup:', cleanupErr.message); }
+    }
+  }
+});
+
 app.get('/api/admin/media', requireAdminAuth, requirePermission('manage_media'), async (req, res) => {
   try {
     const [products, settings] = await Promise.all([
@@ -3421,7 +3644,7 @@ app.get('/api/admin/system/health', requireAdminAuth, requireAnyPermission('view
 });
 app.get('/api/admin/pos/health', requireAdminAuth, requireAnyPermission('view_reports','manage_system','manage_security'), async(req,res)=>{const settings=await getOrCreateSettings();const last=await Product.findOne({lastSyncedAt:{$ne:null}}).sort({lastSyncedAt:-1}).select('lastSyncedAt').lean();const [syncedProducts,pendingOrders,receivedOrders]=await Promise.all([Product.countDocuments({source:'pos'}),Order.countDocuments({status:'pending'}),Order.countDocuments({status:'received_by_pos'})]);const invoicedOrders=await Order.countDocuments({posInvoiceId:{$exists:true,$nin:['',null]}});res.json({configured:Boolean(String(settings.posApiKey||process.env.POS_API_KEY||'').trim()),lastProductSync:last?.lastSyncedAt||null,syncedProducts,pendingOrders,receivedOrders,invoicedOrders});});
 
-async function buildCurrentBackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean(),MaintenanceRequest.find().lean()]);return{backupVersion:10,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance};}
+async function buildCurrentBackupData(){const [categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance,maintenanceCatalog]=await Promise.all([Category.find().lean(),Product.find().lean(),Settings.find().lean(),Order.find().lean(),Analytics.find().lean(),Coupon.find().lean(),Review.find().lean(),StockNotify.find().lean(),ReturnRequest.find().lean(),MaintenanceRequest.find().lean(),MaintenanceCatalog.find().lean()]);return{backupVersion:11,createdAt:new Date().toISOString(),categories,products,settings,orders,analytics,coupons,reviews,stockNotify,returns,maintenance,maintenanceCatalog};}
 async function createCloudBackup(trigger='manual',triggeredBy='system'){
   let tmpPath = '';
   try {

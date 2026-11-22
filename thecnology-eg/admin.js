@@ -94,6 +94,9 @@ async function checkAuth() {
         const ordersTab = document.getElementById('tab-orders');
         if (ordersTab) ordersTab.style.display = hasPermission('manage_orders') ? 'flex' : 'none';
 
+        const missingImagesTab = document.getElementById('tab-missing-images');
+        if (missingImagesTab) missingImagesTab.style.display = hasPermission('edit_product') ? 'flex' : 'none';
+
         const mediaTab = document.getElementById('tab-media');
         if (mediaTab) mediaTab.style.display = hasPermission('manage_media') ? 'flex' : 'none';
 
@@ -125,6 +128,7 @@ async function checkAuth() {
         if (manageCategoriesWrapper) manageCategoriesWrapper.style.display = hasPermission('manage_categories') ? 'block' : 'none';
 
         await loadAdminProducts();
+        if (hasPermission('edit_product')) window.refreshMissingImageCount?.();
         
         loadCurrentLogo();
         loadCurrentBg();
@@ -3702,7 +3706,7 @@ document.addEventListener('keydown', (event) => {
 
   const NAV = [
     ['overview','الرئيسية',['dashboard']],
-    ['store','المتجر',['products','media']],
+    ['store','المتجر',['products','missing-images','media']],
     ['sales','المبيعات والعملاء',['orders','customers','recovery','returns']],
     ['marketing','التسويق والمحتوى',['growth','reviews']],
     ['analytics','التحليلات',['intelligence','analytics']],
@@ -3711,7 +3715,7 @@ document.addEventListener('keydown', (event) => {
     ['settings','الإعدادات',['settings']]
   ];
   const LABELS = {
-    dashboard:['space_dashboard','لوحة التحكم'], products:['inventory_2','المنتجات والمخزون'], media:['photo_library','الصور والوسائط'],
+    dashboard:['space_dashboard','لوحة التحكم'], products:['inventory_2','المنتجات والمخزون'], 'missing-images':['add_photo_alternate','منتجات بدون صور'], media:['photo_library','الصور والوسائط'],
     orders:['receipt_long','الطلبات'], customers:['contacts','العملاء'], recovery:['shopping_cart_checkout','السلات غير المكتملة'], returns:['assignment_return','الاستبدال والاسترجاع'],
     growth:['campaign','التسويق والعروض'], reviews:['reviews','تقييمات العملاء'], intelligence:['query_stats','مؤشرات المبيعات'], analytics:['analytics','الزوار والتقارير'],
     system:['health_and_safety','حالة النظام والأمان'], backup:['backup','النسخ الاحتياطي'], users:['group','المستخدمون والصلاحيات'],
@@ -3758,7 +3762,7 @@ document.addEventListener('keydown', (event) => {
       const h=document.createElement('div');h.className='v10-nav-group-title';h.textContent=GROUP_LABELS[group];nav.appendChild(h);
       existing.forEach(btn=>{
         const key=btn.id.replace('tab-','');const meta=LABELS[key];
-        if(meta)btn.innerHTML=`<span class="material-symbols-outlined text-[20px]">${meta[0]}</span><span>${meta[1]}</span>`;
+        if(meta)btn.innerHTML=`<span class="material-symbols-outlined text-[20px]">${meta[0]}</span><span>${meta[1]}</span>${key==='missing-images'?'<b id="missingImagesNavCount" hidden>0</b>':''}`;
         btn.classList.add('v10-nav-item'); nav.appendChild(btn);
       });
     });
@@ -3798,7 +3802,7 @@ document.addEventListener('keydown', (event) => {
       dashProductsVisible:()=>switchTab('products'),
       dashLowStock:()=>{switchTab('products');setTimeout(()=>window.setAdminStockFilter?.('low_stock'),50);},
       dashOutStock:()=>{switchTab('products');setTimeout(()=>window.setAdminStockFilter?.('out_of_stock'),50);},
-      dashMissingImages:()=>{switchTab('products');setTimeout(()=>window.setAdminStockFilter?.('missing_image'),50);},
+      dashMissingImages:()=>switchTab('missing-images'),
       dashOrdersToday:()=>{switchTab('orders');setTimeout(()=>window.loadOrders?.(1),50);}
     };
     Object.entries(actions).forEach(([id,fn])=>{const n=document.getElementById(id),card=n?.closest('.glass-panel');if(!card||card.dataset.v10click)return;card.dataset.v10click='1';card.classList.add('v10-clickable-kpi');card.tabIndex=0;card.onclick=fn;card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fn();}};});
