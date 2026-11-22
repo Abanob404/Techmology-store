@@ -11,3 +11,31 @@
 @media(max-width:850px){.tech-maint-header nav{gap:10px}.tech-maint-header nav a{font-size:11px}.tech-maint-hero{grid-template-columns:1fr;padding-top:45px}.tech-maint-hero-visual{display:none}.tech-maint-workspace{grid-template-columns:1fr}}
 @media(max-width:610px){.tech-maint-header-inner{padding:12px 15px;gap:8px}.tech-maint-header img{width:112px;height:auto}.tech-maint-header nav{justify-content:center;gap:6px}.tech-maint-header nav a{font-size:10px;padding:5px}.tech-maint-guide{display:none}#main-content{padding:0 15px 45px}.tech-maint-hero{padding:35px 0 32px}.tech-maint-hero h1{font-size:33px}.tech-maint-hero p{font-size:13px}.tech-maint-highlights{font-size:10px}.tech-maint-type-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.tech-maint-type-grid button{padding:14px}.tech-maint-type-grid strong{font-size:12px}.tech-maint-workspace{margin-top:32px}.tech-maint-panel,.tech-maint-side{padding:18px;border-radius:18px}.tech-maint-fields-two{grid-template-columns:1fr}.tech-maint-footer{padding:26px 16px}.tech-maint-footer>div{flex-wrap:wrap}}
 @media(prefers-reduced-motion:reduce){.tech-maint-visual-ring{animation:none!important}.tech-maint-page *, .tech-maint-page *::before,.tech-maint-page *::after{scroll-behavior:auto!important;transition:none!important}}
+
+/* V10.8 — reuse the same storefront navbar; reserve space for its fixed positioning. */
+.tech-maint-page #main-content{padding-top:96px}
+.tech-maint-page .site-header{position:fixed;top:0;width:100%;z-index:50}
+.tech-maint-page .site-header nav a{line-height:1.8}
+.tech-maint-page .site-header img{height:48px;width:auto;max-width:200px}
+.tech-maint-page .tech-maint-service-browser{margin-top:20px;border:1px solid #deebf5;border-radius:20px;padding:18px;background:#ffffff;box-shadow:0 10px 24px #134b7910}
+.tech-maint-page .tech-maint-browser-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:15px}
+.tech-maint-page .tech-maint-browser-head h3{font-size:18px;font-weight:900;margin:0}
+.tech-maint-page .tech-maint-browser-head span{font-size:11px;color:#637a94}
+.tech-maint-page .tech-maint-service-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.tech-maint-page .tech-maint-service-option{display:flex;flex-direction:column;align-items:flex-start;text-align:right;gap:7px;border:1px solid #e2e9f2;border-radius:14px;padding:16px;min-height:132px;background:#f8fbff;color:#223952;transition:transform .16s,border-color .16s,box-shadow .16s}
+.tech-maint-page .tech-maint-service-option:hover,.tech-maint-page .tech-maint-service-option.is-selected{border-color:#1493d4;background:#eef8ff;box-shadow:0 8px 18px #0a8bcc20;transform:translateY(-2px)}
+.tech-maint-page .tech-maint-service-option strong{font-size:13px;font-weight:900}
+.tech-maint-page .tech-maint-service-option small{font-size:11px;color:#637891;line-height:1.8}
+.tech-maint-page .tech-maint-service-option em{font-size:12px;font-weight:850;font-style:normal;color:#027ab7;margin-top:auto}
+.tech-maint-page .tech-maint-type-grid button.is-selected{border-color:#087cbb;background:#eaf6ff;box-shadow:0 0 0 2px #0378bc22}
+.tech-maint-page .tech-maint-selected-price{font-size:12px;font-weight:800;line-height:1.9;background:#eaf6ff;color:#076b9d;border-radius:11px;padding:13px;display:flex;align-items:center}
+.tech-maint-page #request,.tech-maint-page #track{scroll-margin-top:100px}
+.dark .tech-maint-page .tech-maint-service-browser,.dark .tech-maint-service-browser{background:#17283d;border-color:#2b3e56}
+.dark .tech-maint-service-option{background:#14243a;color:#edf6ff;border-color:#314a66}
+.dark .tech-maint-service-option:hover,.dark .tech-maint-service-option.is-selected,.dark .tech-maint-type-grid button.is-selected{background:#183e5a;border-color:#2f98da}
+.dark .tech-maint-selected-price{background:#173b58;color:#addbff}
+@media(max-width:900px){.tech-maint-page .tech-maint-service-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:590px){.tech-maint-page #main-content{padding-top:82px}.tech-maint-page .tech-maint-service-grid{grid-template-columns:1fr}.tech-maint-page .tech-maint-service-option{min-height:0}}
+@media(prefers-reduced-motion:reduce){.tech-maint-page .tech-maint-service-option{transition:none}.tech-maint-page .tech-maint-service-option:hover{transform:none}}
+
+.tech-maint-hero.tech-maint-hero--no-visual{grid-template-columns:1fr}.tech-maint-hero--no-visual .tech-maint-hero-content{max-width:850px;margin:0 auto;text-align:center}.tech-maint-hero--no-visual .tech-maint-hero-actions,.tech-maint-hero--no-visual .tech-maint-highlights{justify-content:center}

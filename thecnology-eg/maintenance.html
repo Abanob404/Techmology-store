@@ -13,63 +13,119 @@
   <link rel="stylesheet" href="theme.css">
   <link rel="stylesheet" href="maintenance.css">
   <link rel="stylesheet" href="tour.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" media="print" onload="this.media='all'">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <title>مركز الصيانة | Technology Store</title>
   <script>try{document.documentElement.classList.toggle('dark',localStorage.getItem('theme')!=='light')}catch(_){}</script>
 </head>
-<body class="tech-maint-page" data-page="maintenance">
-<header class="tech-maint-header">
-  <div class="tech-maint-header-inner">
-    <a href="/" aria-label="Technology Store — الرئيسية"><img src="logo.webp" alt="Technology Store" width="155" height="50"></a>
-    <nav aria-label="الصفحات الرئيسية"><a href="/">الرئيسية</a><a href="/products">المنتجات</a><a href="/services">الخدمات</a><a class="is-active" href="/maintenance" aria-current="page">مركز الصيانة</a></nav>
-    <button type="button" class="tech-maint-guide" data-start-tour>؟ شرح الموقع</button>
-  </div>
-</header>
+<body class="tech-maint-page bg-background text-on-surface font-body-md antialiased" data-page="maintenance">
+    <header
+        class="site-header bg-white/90 shadow-sm dark:bg-slate-900/90 dark:shadow-none backdrop-blur-xl text-primary font-body-md text-body-md fixed top-0 w-full z-50 border-b border-primary/20">
+        <div class="flex items-center justify-between px-4 md:px-gutter py-3 w-full max-w-container-max mx-auto">
+            <div class="flex items-center gap-4 md:gap-8">
+                <a class="flex items-center gap-2" href="/">
+                    <img src="logo.webp" alt="Technology Store" width="200" height="64" class="h-12 md:h-16 w-auto max-w-[200px] object-contain">
+                </a>
+                <div class="hidden md:flex items-center relative w-64 lg:w-96">
+                    <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    <input id="searchInput"
+                        class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
+                        placeholder="ابحث في الكتالوج..." type="text">
+                </div>
+            </div>
+            <nav class="hidden md:flex items-center gap-6">
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
+                    href="/">الرئيسية</a>
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
+                    href="/services">الخدمات</a>
+                <a class="text-primary border-b-2 border-primary pb-1 transition-all duration-300 text-base font-bold" aria-current="page" href="/maintenance">مركز الصيانة</a>
+                <a class="text-on-surface-variant hover:text-primary transition-all duration-300 text-base font-bold"
+                    href="/products">المنتجات</a>
+            </nav>
+            <div class="flex items-center gap-3">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" class="p-2 rounded-full bg-surface-container-high border border-outline-variant text-on-surface hover:text-primary hover:border-primary/50 transition-all shadow-sm" aria-label="Toggle Theme">
+                    <!-- Sun Icon (shown in dark mode) -->
+                    <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (shown in light mode) -->
+                    <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+                <a href="https://wa.me/201515664919" target="_blank" class="btn-modern-green"
+                    aria-label="تواصل معنا عبر واتساب">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor"
+                        viewBox="0 0 16 16">
+                        <path
+                            d="M13.601 2.326A7.85 7.85 0 0 0 7.994 0C3.627 0 .068 3.558.064 7.926c0 1.399.366 2.76 1.057 3.965L0 16l4.204-1.102a7.9 7.9 0 0 0 3.79.965h.004c4.368 0 7.926-3.558 7.93-7.93A7.9 7.9 0 0 0 13.6 2.326zM7.994 14.521a6.6 6.6 0 0 1-3.356-.92l-.24-.144-2.494.654.666-2.433-.156-.251a6.56 6.56 0 0 1-1.007-3.505c0-3.626 2.957-6.584 6.591-6.584a6.56 6.56 0 0 1 4.66 1.931 6.56 6.56 0 0 1 1.928 4.66c-.004 3.639-2.961 6.592-6.592 6.592m3.615-4.934c-.197-.099-1.17-.578-1.353-.646-.182-.065-.315-.099-.445.099-.133.197-.513.646-.627.775-.114.133-.232.148-.43.05-.197-.1-.836-.308-1.592-.985-.59-.525-.985-1.175-1.103-1.372-.114-.198-.011-.304.088-.403.087-.088.197-.232.296-.346.1-.114.133-.198.198-.33.065-.134.034-.248-.015-.347-.05-.099-.445-1.076-.612-1.47-.16-.389-.323-.335-.445-.34-.114-.007-.247-.007-.38-.007a.73.73 0 0 0-.529.247c-.182.198-.691.677-.691 1.654s.71 1.916.81 2.049c.098.133 1.394 2.132 3.383 2.992.47.205.84.326 1.129.418.475.152.904.129 1.246.08.38-.058 1.171-.48 1.338-.943.164-.464.164-.86.114-.943-.049-.084-.182-.133-.38-.232" />
+                    </svg>
+                    <span class="hidden sm:inline">تواصل معنا</span>
+                </a>
+                <!-- Mobile Menu Button -->
+                <button id="mobileMenuBtn" class="md:hidden flex items-center justify-center p-2 text-sky-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"/></svg>
+                </button>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobileMenu"
+            class="hidden md:hidden bg-surface-container border-t border-primary/10 px-4 py-4 flex-col gap-3">
+            <div class="flex items-center relative w-full mb-3">
+                <svg class="absolute right-3 text-on-surface-variant w-5 h-5 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <input
+                    class="w-full bg-surface-container-high border border-outline-variant rounded-full py-2 pr-10 pl-4 text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-colors text-sm"
+                    placeholder="ابحث في الكتالوج..." type="text">
+            </div>
+            <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
+                href="/">الرئيسية</a>
+            <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
+                href="/services">الخدمات</a>
+            <a class="block py-2 px-3 rounded-lg text-primary bg-primary/10 text-base font-bold" aria-current="page" href="/maintenance">مركز الصيانة وطلب الخدمة</a>
+            <a class="block py-2 px-3 rounded-lg text-on-surface-variant hover:text-primary hover:bg-primary/5 text-base"
+                href="/products">المنتجات</a>
+        </div>
+    </header>
 <main id="main-content">
   <section class="tech-maint-hero">
     <div class="tech-maint-hero-content">
       <div class="tech-maint-kicker">TECHNOLOGY SERVICE CENTER <span>•</span> مركز الصيانة</div>
-      <h1>جهازك محتاج صيانة؟ <span>إحنا معاك.</span></h1>
-      <p>قدّم طلب صيانة في دقيقتين، وخد رقم متابعة تعرف منه طلبك وصل لفين. هنراجع المشكلة ونتواصل معاك لتأكيد التفاصيل قبل أي إجراء.</p>
-      <div class="tech-maint-hero-actions"><a href="#request" class="tech-maint-primary">اطلب صيانة الآن <span aria-hidden="true">←</span></a><a href="#track" class="tech-maint-secondary">متابعة طلب سابق</a></div>
-      <div class="tech-maint-highlights"><span>✓ طلب إلكتروني مباشر</span><span>✓ رقم متابعة لكل طلب</span><span>✓ لا يوجد دفع مقدم عبر الموقع</span></div>
+      <h1 id="maintHeroTitle">جهازك محتاج صيانة؟ إحنا معاك.</h1>
+      <p id="maintHeroDescription">اختار الخدمة المناسبة وسجّل طلبك في خطوات بسيطة. هنراجع التفاصيل ونتواصل معاك لتأكيد التكلفة والموعد قبل أي إجراء.</p>
+      <div class="tech-maint-hero-actions"><a href="#request" class="tech-maint-primary"><span id="techMaintPrimaryCta">اطلب صيانة الآن</span> <span aria-hidden="true">←</span></a><a href="#track" class="tech-maint-secondary"><span id="techMaintSecondaryCta">متابعة طلب سابق</span></a></div>
+      <div class="tech-maint-highlights" id="techMaintHighlights"><span>✓ طلب إلكتروني مباشر</span><span>✓ رقم متابعة لكل طلب</span><span>✓ لا يوجد دفع مقدم عبر الموقع</span></div>
     </div>
-    <div class="tech-maint-hero-visual" aria-hidden="true"><div class="tech-maint-visual-ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-5.8 5.8L3 18a2.12 2.12 0 0 0 3 3l5.9-5.9a4.5 4.5 0 0 0 5.8-5.8L15 12l-3-3z"/><path d="M7 4h3m-1.5-1v3"/></svg></div><div class="tech-maint-float c1">01 <small>قدّم الطلب</small></div><div class="tech-maint-float c2">02 <small>نتواصل معاك</small></div><div class="tech-maint-float c3">03 <small>تابع الحالة</small></div></div>
+    <div id="techMaintHeroVisual" class="tech-maint-hero-visual" aria-hidden="true"><div class="tech-maint-visual-ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4.5 4.5 0 0 0-5.8 5.8L3 18a2.12 2.12 0 0 0 3 3l5.9-5.9a4.5 4.5 0 0 0 5.8-5.8L15 12l-3-3z"/><path d="M7 4h3m-1.5-1v3"/></svg></div><div class="tech-maint-float c1">01 <small>قدّم الطلب</small></div><div class="tech-maint-float c2">02 <small>نتواصل معاك</small></div><div class="tech-maint-float c3">03 <small>تابع الحالة</small></div></div>
   </section>
   <section class="tech-maint-service-types" aria-labelledby="types-title">
-    <div class="tech-maint-section-heading"><span>خدمات الصيانة</span><h2 id="types-title">بنساعدك في إيه؟</h2><p>اختار نوع الخدمة المناسبة، أو «مشكلة أخرى» لو مش متأكد.</p></div>
-    <div class="tech-maint-type-grid">
-      <button type="button" data-service-choice="computer"><span class="tech-maint-type-icon">▣</span><strong>كمبيوتر وتجميعات</strong><small>تشخيص أعطال، ترقية، حرارة</small></button>
-      <button type="button" data-service-choice="laptop"><span class="tech-maint-type-icon">▤</span><strong>لابتوب</strong><small>تشخيص الجهاز ومشاكل الأداء</small></button>
-      <button type="button" data-service-choice="camera"><span class="tech-maint-type-icon">◉</span><strong>كاميرات مراقبة</strong><small>فحص كاميرات ومستلزمات النظام</small></button>
-      <button type="button" data-service-choice="network"><span class="tech-maint-type-icon">⌁</span><strong>شبكات وراوترات</strong><small>مشكلة اتصال أو توزيع شبكة</small></button>
-      <button type="button" data-service-choice="installation"><span class="tech-maint-type-icon">⚙</span><strong>تركيب وإعداد</strong><small>إعداد أجهزة وخدمات تقنية</small></button>
-      <button type="button" data-service-choice="other"><span class="tech-maint-type-icon">＋</span><strong>مشكلة أخرى</strong><small>اشرح العطل وهنساعدك</small></button>
-    </div>
+    <div class="tech-maint-section-heading"><span>خدمات الصيانة</span><h2 id="types-title">بنساعدك في إيه؟</h2><p id="maintSectionDescription">اختار القسم ثم الخدمة اللي محتاجها، ولو مش متأكد اختار مشكلة أخرى.</p></div>
+    <div class="tech-maint-type-grid" id="techMaintCategories" aria-live="polite"></div>
+    <div class="tech-maint-service-browser" id="techMaintServiceBrowser"><div class="tech-maint-browser-head"><h3>الخدمات المتاحة <span id="techMaintSelectedCategory"></span></h3><span id="techMaintPriceNotice">الأسعار المعروضة استرشادية ويتم تأكيدها قبل التنفيذ</span></div><div class="tech-maint-service-grid" id="techMaintServices"></div></div>
   </section>
   <section class="tech-maint-workspace" aria-labelledby="form-heading">
     <div class="tech-maint-panel" id="request">
-      <div class="tech-maint-panel-top"><span class="tech-maint-step">01 / طلب جديد</span><h2 id="form-heading">سجّل طلب صيانة</h2><p>املأ البيانات الأساسية، وهتوصلك رسالة برقم طلبك على الشاشة فور التسجيل.</p></div>
+      <div class="tech-maint-panel-top"><span class="tech-maint-step">01 / طلب جديد</span><h2 id="form-heading">سجّل طلب صيانة</h2><p id="techMaintRequestDescription">املأ البيانات الأساسية، وهتوصلك رسالة برقم طلبك على الشاشة فور التسجيل.</p></div>
       <form id="maintenanceForm" class="tech-maint-form">
         <div class="tech-maint-fields-two"><label>الاسم بالكامل <b>*</b><input name="customerName" id="maintCustomerName" minlength="2" maxlength="80" autocomplete="name" placeholder="اسمك" required></label><label>رقم الهاتف <b>*</b><input name="customerPhone" inputmode="tel" type="tel" autocomplete="tel" maxlength="18" placeholder="01xxxxxxxxx" dir="ltr" required></label></div>
-        <div class="tech-maint-fields-two"><label>نوع الخدمة <b>*</b><select name="serviceType" id="maintServiceType" required><option value="">اختار نوع الخدمة</option><option value="computer">كمبيوتر وتجميعات</option><option value="laptop">لابتوب</option><option value="camera">كاميرات مراقبة</option><option value="network">شبكات وراوترات</option><option value="installation">تركيب وإعداد</option><option value="other">مشكلة أخرى</option></select></label><label>نوع الجهاز أو الموديل <span>(اختياري)</span><input name="device" maxlength="120" placeholder="مثلاً: HP ProBook / Imou Ranger"></label></div>
-        <label>اشرح المشكلة <b>*</b><textarea name="problem" rows="5" minlength="10" maxlength="1200" placeholder="إيه العطل اللي ظهر؟ إمتى بدأ؟ وهل في رسالة خطأ؟" required></textarea></label>
+        <div class="tech-maint-fields-two"><label>قسم الصيانة <b>*</b><select name="serviceType" id="maintServiceType" required><option value="">اختار القسم</option></select></label><label>نوع الجهاز أو الموديل <span>(اختياري)</span><input name="device" maxlength="120" placeholder="مثلاً: HP ProBook / Imou Ranger"></label></div>
+        <div class="tech-maint-fields-two"><label>الخدمة المطلوبة <span>(اختياري، يوفر وقتك)</span><select name="serviceId" id="maintServiceId"><option value="">اختار القسم الأول</option></select></label><div class="tech-maint-selected-price" id="maintSelectedPrice" role="status">اختار خدمة علشان تشوف تفاصيلها والسعر الاسترشادي.</div></div>
+        <label>تفاصيل المشكلة <span id="maintProblemHint">لو مختارتش خدمة محددة، اكتب وصف المشكلة (10 حروف على الأقل)</span><textarea name="problem" id="maintProblem" rows="4" maxlength="1200" placeholder="مثلاً: الجهاز بيفصل، أو أسماء البرامج اللي محتاج تثبتها"></textarea></label>
         <div class="tech-maint-fields-two"><label>المنطقة <span>(اختياري)</span><input name="area" maxlength="120" placeholder="مثلاً: عزبة النخل، القاهرة"></label><label>تفضل نتواصل معاك إزاي؟<select name="preferredContact"><option value="whatsapp">واتساب</option><option value="phone">مكالمة هاتفية</option></select></label></div>
         <div class="tech-maint-hidden" aria-hidden="true"><label>اترك هذا الحقل فارغًا <input name="website" tabindex="-1" autocomplete="off"></label></div>
         <p class="tech-maint-privacy">🔒 بياناتك مخصصة للتواصل بخصوص طلب الصيانة. <strong>مهم:</strong> ما تبعتش كلمات مرور أو بيانات بنكية في وصف المشكلة. التكاليف والموعد بيتأكدوا بعد مراجعة الطلب.</p>
+        <div id="techMaintCatalogError" role="alert" class="tech-maint-error" hidden></div>
         <div id="maintenanceFormError" role="alert" class="tech-maint-error" hidden></div>
         <button type="submit" id="maintenanceSubmit" class="tech-maint-submit">تسجيل طلب الصيانة <span aria-hidden="true">←</span></button>
       </form>
       <div class="tech-maint-success" id="maintenanceSuccess" role="status" aria-live="polite" hidden><div class="tech-maint-success-icon">✓</div><h3>تم تسجيل طلبك بنجاح!</h3><p>احتفظ برقم المتابعة؛ هتحتاجه مع رقم تليفونك لو حبيت تشوف حالة الصيانة.</p><div class="tech-maint-ticket"><span id="maintenanceTicketNumber" dir="ltr"></span><button type="button" id="copyMaintenanceTicket">نسخ الرقم</button></div><p id="maintenanceSuccessText">هنراجع طلبك ونتواصل معاك لتأكيد الخطوة التالية.</p><div class="tech-maint-success-actions"><button type="button" id="anotherMaintenanceRequest" class="tech-maint-secondary">طلب صيانة جديد</button><a id="maintenanceWhatsApp" href="https://wa.me/201515664919" target="_blank" rel="noopener noreferrer" class="tech-maint-primary">استفسار واتساب</a></div></div>
     </div>
     <aside class="tech-maint-side" id="track">
-      <div class="tech-maint-side-header"><div class="tech-maint-side-icon">↗</div><span>02 / المتابعة</span><h2>تابع حالة الصيانة</h2><p>معاك رقم الطلب؟ اكتب الرقم مع نفس رقم الهاتف اللي سجلت بيه.</p></div>
+      <div class="tech-maint-side-header"><div class="tech-maint-side-icon">↗</div><span>02 / المتابعة</span><h2 id="techMaintTrackTitle">تابع حالة الصيانة</h2><p id="techMaintTrackDescription">معاك رقم الطلب؟ اكتب الرقم مع نفس رقم الهاتف اللي سجلت بيه.</p></div>
       <form id="maintenanceTrackForm" class="tech-maint-track-form"><label>رقم المتابعة<input id="maintTrackNumber" placeholder="SRV-XXXXXX-XXXXXXXXXX" dir="ltr" required autocomplete="off"></label><label>رقم الهاتف<input id="maintTrackPhone" type="tel" inputmode="tel" placeholder="01xxxxxxxxx" dir="ltr" required></label><button type="submit" id="maintTrackSubmit" class="tech-maint-submit">عرض حالة الطلب</button></form>
       <div id="maintenanceTrackResult" class="tech-maint-track-result" aria-live="polite" hidden></div>
-      <div class="tech-maint-side-note"><strong>إزاي بتم عملية الصيانة؟</strong><ol><li>تسجل طلب الصيانة.</li><li>فريقنا يراجع التفاصيل ويتواصل معاك.</li><li>يتم الاتفاق على التشخيص والخدمة والتكلفة.</li><li>تتابع الحالة برقم الطلب لحد الاستلام.</li></ol></div>
+      <div class="tech-maint-side-note"><strong>إزاي بتم عملية الصيانة؟</strong><ol id="techMaintProcessSteps"><li>تسجل طلب الصيانة.</li><li>فريقنا يراجع التفاصيل ويتواصل معاك.</li><li>يتم الاتفاق على التشخيص والخدمة والتكلفة.</li><li>تتابع الحالة برقم الطلب لحد الاستلام.</li></ol></div>
     </aside>
   </section>
 </main>
-<footer class="tech-maint-footer"><div><img src="logo.webp" width="135" height="45" alt="Technology Store"><span>خدمة صيانة ومتابعة بدون تعقيد.</span></div><nav><a href="/products">تصفح المنتجات</a><a href="/services">كل الخدمات</a><a href="/">الرئيسية</a><a href="https://wa.me/201515664919" target="_blank" rel="noopener noreferrer">تواصل واتساب</a></nav></footer>
+<footer class="tech-maint-footer"><div><img src="logo.webp" width="135" height="45" alt="Technology Store"><span id="techMaintFooterTagline">خدمة صيانة ومتابعة بدون تعقيد.</span></div><nav><a href="/products">تصفح المنتجات</a><a href="/services">كل الخدمات</a><a href="/">الرئيسية</a><a href="https://wa.me/201515664919" target="_blank" rel="noopener noreferrer">تواصل واتساب</a></nav></footer>
+<script src="app.js" defer></script>
 <script src="maintenance.js" defer></script>
 <script src="tour.js" defer></script>
 </body></html>
